@@ -1,0 +1,18 @@
+{
+  "name": "uav-center-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-vue": "^5.2.3",
+    "vite": "^6.2.0",
+    "vue": "^3.5.13",
+    "naive-ui": "^2.41.0"
+  },
+  "devDependencies": {}
+}
