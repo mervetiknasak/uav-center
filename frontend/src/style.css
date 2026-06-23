@@ -13,13 +13,51 @@ body {
 }
 
 .app-shell {
+  display: flex;
+  align-items: stretch;
   min-height: 100vh;
-  padding: 32px;
+}
+
+.toolbox-sidebar {
+  position: sticky;
+  top: 0;
+  flex: 0 0 260px;
+  height: 100vh;
+  padding: 24px 14px;
+  overflow: auto;
+  background: #ffffff;
+  border-right: 1px solid #dbe3ea;
+}
+
+.toolbox-brand {
+  display: grid;
+  gap: 4px;
+  padding: 0 10px 18px;
+}
+
+.toolbox-brand span {
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.toolbox-brand strong {
+  color: #111827;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.toolbox-menu {
+  border-right: 0;
 }
 
 .workspace {
+  flex: 1;
   width: min(1040px, 100%);
   margin: 0 auto;
+  padding: 32px;
 }
 
 .page-heading {
@@ -112,6 +150,19 @@ h2 {
 
 @media (max-width: 760px) {
   .app-shell {
+    display: block;
+  }
+
+  .toolbox-sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    padding: 18px 14px;
+    border-right: 0;
+    border-bottom: 1px solid #dbe3ea;
+  }
+
+  .workspace {
     padding: 20px;
   }
 

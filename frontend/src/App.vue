@@ -10,6 +10,40 @@ const uploadError = ref("");
 const activeDocument = ref(null);
 const prompt = ref("Bu belgeyi incele ve önemli bilgileri kısa maddeler halinde çıkar.");
 const deletingDocumentId = ref(null);
+const activeMenuKey = ref("documents");
+
+const menuTargets = {
+  status: "system-status",
+  documents: "document-tools",
+  results: "ai-results"
+};
+
+const menuOptions = [
+  {
+    label: "Araçlar",
+    key: "tools",
+    children: [
+      {
+        label: "Belge İşleme",
+        key: "documents"
+      },
+      {
+        label: "AI Sonuçları",
+        key: "results"
+      }
+    ]
+  },
+  {
+    label: "Sistem",
+    key: "system",
+    children: [
+      {
+        label: "Durum Kontrolü",
+        key: "status"
+      }
+    ]
+  }
+];
 
 const apiStatus = computed(() => {
   if (loading.value) return "Bağlantı kontrol ediliyor";
@@ -126,6 +160,18 @@ async function deleteDocument(document) {
   }
 }
 
+function handleMenuUpdate(key) {
+  activeMenuKey.value = key;
+
+  const targetId = menuTargets[key];
+  if (!targetId) return;
+
+  document.getElementById(targetId)?.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+}
+
 function formatBytes(size) {
   if (!size) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
@@ -143,13 +189,29 @@ onMounted(() => {
   <n-config-provider>
     <n-message-provider>
       <main class="app-shell">
+        <aside class="toolbox-sidebar">
+          <div class="toolbox-brand">
+            <span>UAV Center</span>
+            <strong>Toolbox</strong>
+          </div>
+
+          <n-menu
+            class="toolbox-menu"
+            :value="activeMenuKey"
+            :options="menuOptions"
+            :indent="18"
+            :default-expanded-keys="['tools', 'system']"
+            @update:value="handleMenuUpdate"
+          />
+        </aside>
+
         <section class="workspace">
           <div class="page-heading">
             <p>UAV Center</p>
             <h1>Yerel Belge İşleme Paneli</h1>
           </div>
 
-          <div class="status-grid">
+          <div id="system-status" class="status-grid">
             <n-card title="Sistem Durumu" size="small">
               <n-space vertical :size="16">
                 <n-alert
@@ -178,7 +240,7 @@ onMounted(() => {
             </n-card>
           </div>
 
-          <div class="document-layout">
+          <div id="document-tools" class="document-layout">
             <section class="upload-panel">
               <n-card title="Belge Yükle" size="small">
                 <n-space vertical :size="16">
@@ -238,7 +300,7 @@ onMounted(() => {
               </n-card>
             </section>
 
-            <section class="result-panel">
+            <section id="ai-results" class="result-panel">
               <n-card title="AI İşleme Sonucu" size="small">
                 <n-empty v-if="!activeDocument" description="Bir belge yükleyin veya listeden seçin" />
 

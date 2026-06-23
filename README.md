@@ -19,6 +19,25 @@ Python Django backend ve Vue 3 + Naive UI frontend ile lokal belge işleme uygul
 
 ## Backend
 
+Tüm geliştirme ortamını tek komutla başlatmak için:
+
+```bash
+python3 launcher.py
+```
+
+Launcher backend sanal ortamını ve frontend paketlerini kontrol eder, eksikse kurar,
+Django migration'larını çalıştırır ve backend ile frontend servislerini birlikte
+ayağa kaldırır. Windows'ta aynı komut `py launcher.py` veya `python launcher.py`
+olarak çalıştırılabilir.
+
+Yalnızca bir tarafı çalıştırmak için:
+
+```bash
+python3 launcher.py --backend-only
+python3 launcher.py --frontend-only
+python3 launcher.py --backend-port 18000 --frontend-port 5174
+```
+
 ```bash
 cd backend
 python3 -m venv .venv
