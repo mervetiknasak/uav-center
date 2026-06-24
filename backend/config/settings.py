@@ -93,14 +93,45 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = env_int("FILE_UPLOAD_MAX_MEMORY_SIZE", 25 * 1024 *
 DOCUMENT_MAX_TEXT_LENGTH = env_int("DOCUMENT_MAX_TEXT_LENGTH", 120_000)
 AI_PROVIDER = os.getenv("AI_PROVIDER", "local")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
+QWEN_MODEL = os.getenv("QWEN_MODEL", os.getenv("OLLAMA_MODEL", "qwen2.5:14b"))
+LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", "http://127.0.0.1:8001")
+LOCAL_LLM_API_KEY = os.getenv("LOCAL_LLM_API_KEY", "")
+WHISPER_CONNECTION = os.getenv("WHISPER_CONNECTION", "local")
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
+WHISPER_BASE_URL = os.getenv("WHISPER_BASE_URL", "http://127.0.0.1:8002")
 
 CORS_ALLOWED_ORIGINS = env_list(
     "CORS_ALLOWED_ORIGINS",
-    ["http://localhost:5173", "http://127.0.0.1:5173"],
+    [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ],
 )
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = env_list(
+    "CSRF_TRUSTED_ORIGINS",
+    [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+    ],
+)
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = os.getenv("CSRF_COOKIE_SAMESITE", "Lax")
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "Lax")
 
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",

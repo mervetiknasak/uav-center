@@ -1,17 +1,16 @@
-import json
 import re
-import urllib.error
-import urllib.request
 
 from django.conf import settings
+
+from .ai_wrapper import AIProviderError, AIWrapper
 
 
 def process_document_text(text, filename, prompt):
     provider = getattr(settings, "AI_PROVIDER", "local")
-    if provider == "ollama":
+    if provider in {"ollama", "local_llm", "local-http", "local_http"}:
         try:
-            return _process_with_ollama(text, filename, prompt)
-        except RuntimeError as exc:
+            return _process_with_qwen(text, filename, prompt)
+        except AIProviderError as exc:
             fallback = _process_locally(text, filename, prompt)
             fallback["provider_error"] = str(exc)
             return fallback
@@ -43,38 +42,24 @@ def _process_locally(text, filename, prompt):
     }
 
 
-def _process_with_ollama(text, filename, prompt):
+def _process_with_qwen(text, filename, prompt):
+    system_prompt = (
+        "Sen UAV Center içinde çalışan yerel bir belge analiz asistanısın. "
+        "Yanıtlarını Türkçe, net ve uygulanabilir maddeler halinde ver."
+    )
     full_prompt = (
         f"Kullanıcı isteği:\n{prompt}\n\n"
         f"Dosya: {filename}\n\n"
         f"Belge metni:\n{text[:24000]}"
     )
-    payload = json.dumps(
-        {
-            "model": getattr(settings, "OLLAMA_MODEL", "llama3.1"),
-            "prompt": full_prompt,
-            "stream": False,
-        }
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        f"{settings.OLLAMA_BASE_URL}/api/generate",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(request, timeout=120) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"Ollama bağlantısı başarısız: {exc}") from exc
+    result = AIWrapper().generate(full_prompt, system_prompt=system_prompt)
 
     return {
-        "provider": "ollama",
+        "provider": result["provider"],
         "filename": filename,
-        "model": getattr(settings, "OLLAMA_MODEL", "llama3.1"),
+        "model": result["model"],
         "prompt": prompt,
-        "response": data.get("response", "").strip(),
+        "response": result["response"],
     }
 
 

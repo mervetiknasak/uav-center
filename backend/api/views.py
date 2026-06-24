@@ -1,17 +1,31 @@
+from django.contrib.auth import login, logout
+from django.middleware.csrf import get_token
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics, status
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Document
-from .serializers import DocumentDetailSerializer, DocumentListSerializer, DocumentUploadSerializer
+from .serializers import (
+    DocumentDetailSerializer,
+    DocumentListSerializer,
+    DocumentUploadSerializer,
+    LoginSerializer,
+    RegisterSerializer,
+    UserSerializer,
+)
 from .services.ai_processor import process_document_text
 from .services.document_extractor import UnsupportedDocumentError, extract_text
 
 
 @api_view(["GET"])
+@permission_classes([AllowAny])
+@ensure_csrf_cookie
 def health_check(_request):
     return Response(
         {
@@ -20,6 +34,69 @@ def health_check(_request):
             "timestamp": timezone.now().isoformat(),
         }
     )
+
+
+class CsrfTokenView(APIView):
+    permission_classes = [AllowAny]
+
+    @method_decorator(ensure_csrf_cookie)
+    def get(self, request):
+        return Response({"csrfToken": get_token(request)})
+
+
+class CurrentUserView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response({"authenticated": False, "user": None})
+
+        return Response(
+            {
+                "authenticated": True,
+                "user": UserSerializer(request.user).data,
+            }
+        )
+
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        login(request, serializer.validated_data["user"])
+        return Response(
+            {
+                "authenticated": True,
+                "user": UserSerializer(request.user).data,
+            }
+        )
+
+
+class RegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        login(request, user)
+        return Response(
+            {
+                "authenticated": True,
+                "user": UserSerializer(user).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        logout(request)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class DocumentListView(generics.ListAPIView):

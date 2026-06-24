@@ -1,6 +1,9 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
+
 const loading = ref(false);
 const error = ref("");
 const health = ref(null);
@@ -11,6 +14,16 @@ const activeDocument = ref(null);
 const prompt = ref("Bu belgeyi incele ve önemli bilgileri kısa maddeler halinde çıkar.");
 const deletingDocumentId = ref(null);
 const activeMenuKey = ref("documents");
+const csrfToken = ref("");
+const authChecking = ref(true);
+const authLoading = ref(false);
+const authMode = ref("login");
+const authError = ref("");
+const currentUser = ref(null);
+const credentials = ref({
+  username: "",
+  password: ""
+});
 
 const menuTargets = {
   status: "system-status",
@@ -59,16 +72,81 @@ const documentStatus = computed(() => {
   return "Belge sırada";
 });
 
+const authTitle = computed(() => (authMode.value === "login" ? "Giriş Yap" : "Yeni Üyelik"));
+const authButtonLabel = computed(() => (authMode.value === "login" ? "Giriş Yap" : "Üye Ol"));
+
+function apiUrl(path) {
+  return `${API_BASE_URL}${path}`;
+}
+
+async function readResponse(response) {
+  if (response.status === 204) return null;
+
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  return response.text();
+}
+
+function responseError(data, fallback) {
+  if (!data) return fallback;
+  if (typeof data === "string") return data || fallback;
+  if (data.detail) return data.detail;
+  if (data.non_field_errors?.length) return data.non_field_errors.join(" ");
+  if (data.username?.length) return data.username.join(" ");
+  if (data.password?.length) return data.password.join(" ");
+  if (data.file?.length) return data.file.join(" ");
+  if (data.error_message) return data.error_message;
+  return fallback;
+}
+
+async function ensureCsrfToken() {
+  if (csrfToken.value) return csrfToken.value;
+
+  const response = await fetch(apiUrl("/api/auth/csrf/"), {
+    credentials: "include"
+  });
+  const data = await readResponse(response);
+
+  if (!response.ok) {
+    throw new Error(responseError(data, `CSRF hazırlanamadı: HTTP ${response.status}`));
+  }
+
+  csrfToken.value = data.csrfToken;
+  return csrfToken.value;
+}
+
+async function apiFetch(path, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
+  const headers = new Headers(options.headers || {});
+
+  if (!SAFE_METHODS.has(method)) {
+    headers.set("X-CSRFToken", await ensureCsrfToken());
+  }
+
+  const response = await fetch(apiUrl(path), {
+    ...options,
+    method,
+    credentials: "include",
+    headers
+  });
+  const data = await readResponse(response);
+
+  if (!response.ok) {
+    throw new Error(responseError(data, `HTTP ${response.status}`));
+  }
+
+  return data;
+}
+
 async function checkBackend() {
   loading.value = true;
   error.value = "";
 
   try {
-    const response = await fetch("/api/health/");
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    health.value = await response.json();
+    health.value = await apiFetch("/api/health/");
   } catch (err) {
     health.value = null;
     error.value = err instanceof Error ? err.message : "Bilinmeyen hata";
@@ -77,15 +155,71 @@ async function checkBackend() {
   }
 }
 
+async function loadSession() {
+  authChecking.value = true;
+  authError.value = "";
+
+  try {
+    await ensureCsrfToken();
+    const data = await apiFetch("/api/auth/me/");
+    currentUser.value = data.authenticated ? data.user : null;
+    if (currentUser.value) {
+      await Promise.all([checkBackend(), loadDocuments()]);
+    }
+  } catch (err) {
+    authError.value = err instanceof Error ? err.message : "Oturum bilgisi alınamadı";
+    currentUser.value = null;
+  } finally {
+    authChecking.value = false;
+  }
+}
+
+async function submitAuth() {
+  authLoading.value = true;
+  authError.value = "";
+
+  try {
+    const data = await apiFetch(`/api/auth/${authMode.value}/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(credentials.value)
+    });
+    currentUser.value = data.user;
+    csrfToken.value = "";
+    credentials.value.password = "";
+    await Promise.all([checkBackend(), loadDocuments()]);
+  } catch (err) {
+    authError.value = err instanceof Error ? err.message : "İşlem tamamlanamadı";
+  } finally {
+    authLoading.value = false;
+  }
+}
+
+async function logoutUser() {
+  authLoading.value = true;
+  authError.value = "";
+
+  try {
+    await apiFetch("/api/auth/logout/", {
+      method: "POST"
+    });
+    currentUser.value = null;
+    documents.value = [];
+    activeDocument.value = null;
+  } catch (err) {
+    authError.value = err instanceof Error ? err.message : "Çıkış yapılamadı";
+  } finally {
+    authLoading.value = false;
+  }
+}
+
 async function loadDocuments() {
   documentsLoading.value = true;
 
   try {
-    const response = await fetch("/api/documents/");
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const data = await response.json();
+    const data = await apiFetch("/api/documents/");
     documents.value = Array.isArray(data) ? data : [];
   } finally {
     documentsLoading.value = false;
@@ -106,15 +240,10 @@ async function uploadDocument({ file, onFinish, onError }) {
   formData.append("prompt", trimmedPrompt);
 
   try {
-    const response = await fetch("/api/documents/upload/", {
+    const data = await apiFetch("/api/documents/upload/", {
       method: "POST",
       body: formData
     });
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error_message || data.file?.[0] || data.detail || `HTTP ${response.status}`);
-    }
 
     activeDocument.value = data;
     await loadDocuments();
@@ -126,10 +255,11 @@ async function uploadDocument({ file, onFinish, onError }) {
 }
 
 async function openDocument(documentId) {
-  const response = await fetch(`/api/documents/${documentId}/`);
-  if (!response.ok) return;
-  const data = await response.json();
-  activeDocument.value = data;
+  try {
+    activeDocument.value = await apiFetch(`/api/documents/${documentId}/`);
+  } catch {
+    activeDocument.value = null;
+  }
 }
 
 async function deleteDocument(document) {
@@ -140,13 +270,9 @@ async function deleteDocument(document) {
   deletingDocumentId.value = document.id;
 
   try {
-    const response = await fetch(`/api/documents/${document.id}/`, {
+    await apiFetch(`/api/documents/${document.id}/`, {
       method: "DELETE"
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
 
     if (activeDocument.value?.id === document.id) {
       activeDocument.value = null;
@@ -158,6 +284,11 @@ async function deleteDocument(document) {
   } finally {
     deletingDocumentId.value = null;
   }
+}
+
+function switchAuthMode(mode) {
+  authMode.value = mode;
+  authError.value = "";
 }
 
 function handleMenuUpdate(key) {
@@ -180,19 +311,78 @@ function formatBytes(size) {
 }
 
 onMounted(() => {
-  checkBackend();
-  loadDocuments();
+  loadSession();
 });
 </script>
 
 <template>
   <n-config-provider>
     <n-message-provider>
-      <main class="app-shell">
+      <main v-if="authChecking" class="auth-shell">
+        <n-spin size="large" />
+      </main>
+
+      <main v-else-if="!currentUser" class="auth-shell">
+        <section class="auth-panel">
+          <div class="auth-heading">
+            <p>UAV Center</p>
+            <h1>{{ authTitle }}</h1>
+          </div>
+
+          <n-tabs :value="authMode" type="segment" @update:value="switchAuthMode">
+            <n-tab-pane name="login" tab="Giriş" />
+            <n-tab-pane name="register" tab="Üyelik" />
+          </n-tabs>
+
+          <n-form class="auth-form" @submit.prevent="submitAuth">
+            <n-form-item label="Kullanıcı adı">
+              <n-input
+                v-model:value="credentials.username"
+                autocomplete="username"
+                placeholder="kullanici_adi"
+              />
+            </n-form-item>
+
+            <n-form-item label="Şifre">
+              <n-input
+                v-model:value="credentials.password"
+                type="password"
+                show-password-on="click"
+                :autocomplete="authMode === 'login' ? 'current-password' : 'new-password'"
+                placeholder="••••••••"
+              />
+            </n-form-item>
+
+            <n-alert v-if="authError" type="error" title="Oturum hatası">
+              {{ authError }}
+            </n-alert>
+
+            <n-button
+              attr-type="submit"
+              type="primary"
+              block
+              :loading="authLoading"
+              :disabled="!credentials.username || !credentials.password"
+            >
+              {{ authButtonLabel }}
+            </n-button>
+          </n-form>
+        </section>
+      </main>
+
+      <main v-else class="app-shell">
         <aside class="toolbox-sidebar">
           <div class="toolbox-brand">
             <span>UAV Center</span>
             <strong>Toolbox</strong>
+          </div>
+
+          <div class="session-box">
+            <span>Oturum</span>
+            <strong>{{ currentUser.username }}</strong>
+            <n-button size="small" secondary :loading="authLoading" @click="logoutUser">
+              Çıkış Yap
+            </n-button>
           </div>
 
           <n-menu

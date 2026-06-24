@@ -15,7 +15,8 @@ Python Django backend ve Vue 3 + Naive UI frontend ile lokal belge işleme uygul
 - Belgeden metin çıkarma
 - Çıkarılan metni lokal AI işlem katmanına gönderme
 - Varsayılan lokal özetleyici ile özet, anahtar kelime ve metrik üretme
-- İsteğe bağlı Ollama bağlantısı ile yerel LLM kullanma
+- İsteğe bağlı Ollama veya OpenAI uyumlu lokal bağlantı ile Qwen2.5 kullanma
+- Whisper için lokal Python modeli veya lokal HTTP transkripsiyon servisi wrapper'ı
 
 ## Backend
 
@@ -79,13 +80,43 @@ Varsayılan mod dış servise bağlanmaz:
 
 `backend/.env` içinde `AI_PROVIDER=local`
 
-Ollama kullanmak için:
+Qwen2.5:14b modelini Ollama ile kullanmak için:
 
-`backend/.env` içinde `AI_PROVIDER=ollama` ve `OLLAMA_MODEL=llama3.1`
+`backend/.env` içinde `AI_PROVIDER=ollama` ve `QWEN_MODEL=qwen2.5:14b`
 
 Ollama `http://127.0.0.1:11434` adresinde çalışmalıdır. Farklı adres için:
 
 `backend/.env` içinde `OLLAMA_BASE_URL=http://127.0.0.1:11434`
+
+OpenAI uyumlu lokal bir Qwen servisine bağlanmak için:
+
+```env
+AI_PROVIDER=local_llm
+LOCAL_LLM_BASE_URL=http://127.0.0.1:8001
+QWEN_MODEL=qwen2.5:14b
+LOCAL_LLM_API_KEY=
+```
+
+Wrapper `POST /v1/chat/completions` endpoint'ini bekler.
+
+Whisper transkripsiyon wrapper'ı için iki seçenek vardır:
+
+```env
+WHISPER_CONNECTION=local
+WHISPER_MODEL=base
+```
+
+Bu modda backend ortamında `openai-whisper` paketi bulunmalıdır. Lokal HTTP servis
+kullanmak için:
+
+```env
+WHISPER_CONNECTION=http
+WHISPER_BASE_URL=http://127.0.0.1:8002
+WHISPER_MODEL=whisper-1
+```
+
+HTTP modunda wrapper OpenAI uyumlu `POST /v1/audio/transcriptions` endpoint'ine
+multipart dosya gönderir.
 
 ## Frontend
 
