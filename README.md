@@ -20,6 +20,9 @@ Python Django backend ve Vue 3 + Naive UI frontend ile lokal belge işleme uygul
 
 ## Backend
 
+Backend Python 3.11 ile çalışacak şekilde hedeflenmiştir. Launcher yeni sanal
+ortam oluştururken Python 3.11 yorumlayıcısını arar.
+
 Tüm geliştirme ortamını tek komutla başlatmak için:
 
 ```bash
@@ -41,7 +44,7 @@ python3 launcher.py --backend-port 18000 --frontend-port 5174
 
 ```bash
 cd backend
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate

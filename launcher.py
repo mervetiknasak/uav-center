@@ -12,12 +12,14 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 
 ROOT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = ROOT_DIR / "backend"
 FRONTEND_DIR = ROOT_DIR / "frontend"
 VENV_DIR = BACKEND_DIR / ".venv"
+REQUIRED_PYTHON = (3, 11)
 
 
 def is_windows() -> bool:
@@ -32,6 +34,49 @@ def venv_python() -> Path:
 
 def npm_bin() -> str:
     return "npm.cmd" if is_windows() else "npm"
+
+
+def python_version_text(version: tuple[int, int]) -> str:
+    return ".".join(str(part) for part in version)
+
+
+def command_python_version(command: list[str]) -> Optional[tuple[int, int]]:
+    try:
+        output = subprocess.check_output(
+            [*command, "-c", "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')"],
+            cwd=ROOT_DIR,
+            env=child_env(),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+    try:
+        major, minor = output.split(".", 1)
+        return int(major), int(minor)
+    except ValueError:
+        return None
+
+
+def find_backend_python() -> list[str]:
+    if sys.version_info[:2] == REQUIRED_PYTHON:
+        return [sys.executable]
+
+    candidates: list[list[str]] = []
+    if is_windows():
+        candidates.append(["py", f"-{python_version_text(REQUIRED_PYTHON)}"])
+
+    executable = shutil.which(f"python{python_version_text(REQUIRED_PYTHON)}")
+    if executable:
+        candidates.append([executable])
+
+    for candidate in candidates:
+        if command_python_version(candidate) == REQUIRED_PYTHON:
+            return candidate
+
+    required = python_version_text(REQUIRED_PYTHON)
+    raise SystemExit(f"Python {required} bulunamadı. Backend sanal ortamı için Python {required} kurulu ve PATH içinde olmalı.")
 
 
 def run_step(label: str, command: list[str], cwd: Path) -> None:
@@ -71,7 +116,10 @@ def ensure_backend(skip_install: bool) -> None:
     if not python_path.exists():
         if skip_install:
             raise SystemExit("Backend sanal ortamı eksik: backend/.venv")
-        run_step("Backend sanal ortamı oluşturuluyor", [sys.executable, "-m", "venv", str(VENV_DIR)], ROOT_DIR)
+        run_step("Backend sanal ortamı oluşturuluyor", [*find_backend_python(), "-m", "venv", str(VENV_DIR)], ROOT_DIR)
+    elif command_python_version([str(python_path)]) != REQUIRED_PYTHON:
+        required = python_version_text(REQUIRED_PYTHON)
+        raise SystemExit(f"Backend sanal ortamı Python {required} olmalı. Lütfen backend/.venv'i Python {required} ile yeniden oluşturun.")
 
     if not skip_install:
         run_step(

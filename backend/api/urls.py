@@ -1,6 +1,8 @@
 from django.urls import path
 
 from .views import (
+    AdminUserListView,
+    AdminUserStatusView,
     CsrfTokenView,
     CurrentUserView,
     DocumentDetailView,
@@ -19,6 +21,8 @@ urlpatterns = [
     path("auth/login/", LoginView.as_view(), name="login"),
     path("auth/logout/", LogoutView.as_view(), name="logout"),
     path("auth/register/", RegisterView.as_view(), name="register"),
+    path("admin/users/", AdminUserListView.as_view(), name="admin-user-list"),
+    path("admin/users/<int:user_id>/status/", AdminUserStatusView.as_view(), name="admin-user-status"),
     path("documents/", DocumentListView.as_view(), name="document-list"),
     path("documents/upload/", DocumentUploadView.as_view(), name="document-upload"),
     path("documents/<int:document_id>/", DocumentDetailView.as_view(), name="document-detail"),

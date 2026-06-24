@@ -120,6 +120,12 @@ body {
   white-space: nowrap;
 }
 
+.session-box small {
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .workspace {
   flex: 1;
   width: min(1040px, 100%);
@@ -150,6 +156,29 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
   gap: 16px;
+}
+
+.user-admin-panel {
+  margin-top: 16px;
+}
+
+.user-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.user-row .n-thing {
+  min-width: 0;
+}
+
+.user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .document-layout {
@@ -236,5 +265,14 @@ h2 {
   .status-grid,
   .document-layout {
     grid-template-columns: 1fr;
+  }
+
+  .user-row {
+    display: grid;
+    gap: 10px;
+  }
+
+  .user-actions {
+    justify-content: flex-start;
   }
 }

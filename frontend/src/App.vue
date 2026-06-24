@@ -19,44 +19,69 @@ const authChecking = ref(true);
 const authLoading = ref(false);
 const authMode = ref("login");
 const authError = ref("");
+const registerMessage = ref("");
 const currentUser = ref(null);
+const adminUsers = ref([]);
+const adminUsersLoading = ref(false);
+const adminUsersError = ref("");
+const updatingUserId = ref(null);
 const credentials = ref({
   username: "",
-  password: ""
+  email: "",
+  password: "",
+  passwordConfirm: ""
 });
 
 const menuTargets = {
   status: "system-status",
   documents: "document-tools",
-  results: "ai-results"
+  results: "ai-results",
+  users: "user-admin"
 };
 
-const menuOptions = [
-  {
-    label: "Araçlar",
-    key: "tools",
-    children: [
-      {
-        label: "Belge İşleme",
-        key: "documents"
-      },
-      {
-        label: "AI Sonuçları",
-        key: "results"
-      }
-    ]
-  },
-  {
-    label: "Sistem",
-    key: "system",
-    children: [
-      {
-        label: "Durum Kontrolü",
-        key: "status"
-      }
-    ]
+const menuOptions = computed(() => {
+  const options = [
+    {
+      label: "Araçlar",
+      key: "tools",
+      children: [
+        {
+          label: "Belge İşleme",
+          key: "documents"
+        },
+        {
+          label: "AI Sonuçları",
+          key: "results"
+        }
+      ]
+    },
+    {
+      label: "Sistem",
+      key: "system",
+      children: [
+        {
+          label: "Durum Kontrolü",
+          key: "status"
+        }
+      ]
+    }
+  ];
+
+  if (currentUser.value?.is_staff) {
+    options.push({
+      label: "Admin",
+      key: "admin",
+      children: [
+        {
+          label: "Üyeler",
+          key: "users"
+        }
+      ]
+    });
   }
-];
+
+  return options;
+});
 
 const apiStatus = computed(() => {
   if (loading.value) return "Bağlantı kontrol ediliyor";
@@ -74,6 +99,14 @@ const documentStatus = computed(() => {
 
 const authTitle = computed(() => (authMode.value === "login" ? "Giriş Yap" : "Yeni Üyelik"));
 const authButtonLabel = computed(() => (authMode.value === "login" ? "Giriş Yap" : "Üye Ol"));
+const registerPasswordsMatch = computed(
+  () => credentials.value.password && credentials.value.password === credentials.value.passwordConfirm
+);
+const authSubmitDisabled = computed(() => {
+  if (!credentials.value.username || !credentials.value.password) return true;
+  if (authMode.value === "login") return false;
+  return !credentials.value.email || !credentials.value.passwordConfirm || !registerPasswordsMatch.value;
+});
 
 function apiUrl(path) {
   return `${API_BASE_URL}${path}`;
@@ -96,7 +129,9 @@ function responseError(data, fallback) {
   if (data.detail) return data.detail;
   if (data.non_field_errors?.length) return data.non_field_errors.join(" ");
   if (data.username?.length) return data.username.join(" ");
+  if (data.email?.length) return data.email.join(" ");
   if (data.password?.length) return data.password.join(" ");
+  if (data.password_confirm?.length) return data.password_confirm.join(" ");
   if (data.file?.length) return data.file.join(" ");
   if (data.error_message) return data.error_message;
   return fallback;
@@ -164,7 +199,7 @@ async function loadSession() {
     const data = await apiFetch("/api/auth/me/");
     currentUser.value = data.authenticated ? data.user : null;
     if (currentUser.value) {
-      await Promise.all([checkBackend(), loadDocuments()]);
+      await Promise.all([checkBackend(), loadDocuments(), loadAdminUsersIfNeeded()]);
     }
   } catch (err) {
     authError.value = err instanceof Error ? err.message : "Oturum bilgisi alınamadı";
@@ -177,19 +212,46 @@ async function loadSession() {
 async function submitAuth() {
   authLoading.value = true;
   authError.value = "";
+  registerMessage.value = "";
 
   try {
+    const payload =
+      authMode.value === "login"
+        ? {
+            username: credentials.value.username,
+            password: credentials.value.password
+          }
+        : {
+            username: credentials.value.username,
+            email: credentials.value.email,
+            password: credentials.value.password,
+            password_confirm: credentials.value.passwordConfirm
+          };
     const data = await apiFetch(`/api/auth/${authMode.value}/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(credentials.value)
+      body: JSON.stringify(payload)
     });
+
+    if (authMode.value === "register") {
+      registerMessage.value = data.message || "Üyelik isteğiniz alındı. Admin onayı bekleniyor.";
+      credentials.value = {
+        username: "",
+        email: "",
+        password: "",
+        passwordConfirm: ""
+      };
+      authMode.value = "login";
+      return;
+    }
+
     currentUser.value = data.user;
     csrfToken.value = "";
     credentials.value.password = "";
-    await Promise.all([checkBackend(), loadDocuments()]);
+    credentials.value.passwordConfirm = "";
+    await Promise.all([checkBackend(), loadDocuments(), loadAdminUsersIfNeeded()]);
   } catch (err) {
     authError.value = err instanceof Error ? err.message : "İşlem tamamlanamadı";
   } finally {
@@ -207,11 +269,51 @@ async function logoutUser() {
     });
     currentUser.value = null;
     documents.value = [];
+    adminUsers.value = [];
     activeDocument.value = null;
   } catch (err) {
     authError.value = err instanceof Error ? err.message : "Çıkış yapılamadı";
   } finally {
     authLoading.value = false;
+  }
+}
+
+async function loadAdminUsersIfNeeded() {
+  if (!currentUser.value?.is_staff) return;
+  await loadAdminUsers();
+}
+
+async function loadAdminUsers() {
+  adminUsersLoading.value = true;
+  adminUsersError.value = "";
+
+  try {
+    const data = await apiFetch("/api/admin/users/");
+    adminUsers.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    adminUsersError.value = err instanceof Error ? err.message : "Üyeler alınamadı";
+  } finally {
+    adminUsersLoading.value = false;
+  }
+}
+
+async function updateUserStatus(user, isActive) {
+  updatingUserId.value = user.id;
+  adminUsersError.value = "";
+
+  try {
+    const updatedUser = await apiFetch(`/api/admin/users/${user.id}/status/`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ is_active: isActive })
+    });
+    adminUsers.value = adminUsers.value.map((item) => (item.id === updatedUser.id ? updatedUser : item));
+  } catch (err) {
+    adminUsersError.value = err instanceof Error ? err.message : "Kullanıcı durumu güncellenemedi";
+  } finally {
+    updatingUserId.value = null;
   }
 }
 
@@ -289,6 +391,7 @@ async function deleteDocument(document) {
 function switchAuthMode(mode) {
   authMode.value = mode;
   authError.value = "";
+  registerMessage.value = "";
 }
 
 function handleMenuUpdate(key) {
@@ -343,6 +446,14 @@ onMounted(() => {
               />
             </n-form-item>
 
+            <n-form-item v-if="authMode === 'register'" label="E-posta">
+              <n-input
+                v-model:value="credentials.email"
+                autocomplete="email"
+                placeholder="operator@example.com"
+              />
+            </n-form-item>
+
             <n-form-item label="Şifre">
               <n-input
                 v-model:value="credentials.password"
@@ -353,8 +464,30 @@ onMounted(() => {
               />
             </n-form-item>
 
+            <n-form-item v-if="authMode === 'register'" label="Şifre Tekrarı">
+              <n-input
+                v-model:value="credentials.passwordConfirm"
+                type="password"
+                show-password-on="click"
+                autocomplete="new-password"
+                placeholder="••••••••"
+              />
+            </n-form-item>
+
+            <n-alert
+              v-if="authMode === 'register' && credentials.passwordConfirm && !registerPasswordsMatch"
+              type="warning"
+              title="Şifre kontrolü"
+            >
+              Şifreler aynı olmalı.
+            </n-alert>
+
             <n-alert v-if="authError" type="error" title="Oturum hatası">
               {{ authError }}
+            </n-alert>
+
+            <n-alert v-if="registerMessage" type="success" title="Üyelik isteği alındı">
+              {{ registerMessage }}
             </n-alert>
 
             <n-button
@@ -362,7 +495,7 @@ onMounted(() => {
               type="primary"
               block
               :loading="authLoading"
-              :disabled="!credentials.username || !credentials.password"
+              :disabled="authSubmitDisabled"
             >
               {{ authButtonLabel }}
             </n-button>
@@ -380,6 +513,7 @@ onMounted(() => {
           <div class="session-box">
             <span>Oturum</span>
             <strong>{{ currentUser.username }}</strong>
+            <small v-if="currentUser.is_staff">Admin</small>
             <n-button size="small" secondary :loading="authLoading" @click="logoutUser">
               Çıkış Yap
             </n-button>
@@ -390,7 +524,7 @@ onMounted(() => {
             :value="activeMenuKey"
             :options="menuOptions"
             :indent="18"
-            :default-expanded-keys="['tools', 'system']"
+            :default-expanded-keys="['tools', 'system', 'admin']"
             @update:value="handleMenuUpdate"
           />
         </aside>
@@ -429,6 +563,56 @@ onMounted(() => {
               </n-descriptions>
             </n-card>
           </div>
+
+          <section v-if="currentUser.is_staff" id="user-admin" class="user-admin-panel">
+            <n-card title="Üye Yönetimi" size="small">
+              <n-space vertical :size="16">
+                <n-alert v-if="adminUsersError" type="error" title="Üye yönetimi hatası">
+                  {{ adminUsersError }}
+                </n-alert>
+
+                <n-spin :show="adminUsersLoading">
+                  <n-empty v-if="adminUsers.length === 0" description="Henüz kullanıcı yok" />
+                  <n-list v-else hoverable>
+                    <n-list-item v-for="user in adminUsers" :key="user.id">
+                      <div class="user-row">
+                        <n-thing
+                          :title="user.username"
+                          :description="user.email || 'E-posta yok'"
+                        />
+                        <div class="user-actions">
+                          <n-tag :type="user.is_active ? 'success' : 'warning'">
+                            {{ user.is_active ? "Aktif" : "Pending" }}
+                          </n-tag>
+                          <n-tag v-if="user.is_staff" type="info">Admin</n-tag>
+                          <n-button
+                            v-if="!user.is_active"
+                            size="small"
+                            type="primary"
+                            secondary
+                            :loading="updatingUserId === user.id"
+                            @click="updateUserStatus(user, true)"
+                          >
+                            Onayla
+                          </n-button>
+                          <n-button
+                            v-else
+                            size="small"
+                            type="error"
+                            secondary
+                            :loading="updatingUserId === user.id"
+                            @click="updateUserStatus(user, false)"
+                          >
+                            Devre Dışı Bırak
+                          </n-button>
+                        </div>
+                      </div>
+                    </n-list-item>
+                  </n-list>
+                </n-spin>
+              </n-space>
+            </n-card>
+          </section>
 
           <div id="document-tools" class="document-layout">
             <section class="upload-panel">

@@ -1,4 +1,4 @@
-from django.contrib.auth import login, logout
+from django.contrib.auth import get_user_model, login, logout
 from django.middleware.csrf import get_token
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -6,12 +6,14 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Document
 from .serializers import (
+    AdminUserSerializer,
+    AdminUserStatusSerializer,
     DocumentDetailSerializer,
     DocumentListSerializer,
     DocumentUploadSerializer,
@@ -21,6 +23,18 @@ from .serializers import (
 )
 from .services.ai_processor import process_document_text
 from .services.document_extractor import UnsupportedDocumentError, extract_text
+
+User = get_user_model()
+
+
+class IsActiveAuthenticated(IsAuthenticated):
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and request.user.is_active
+
+
+class IsActiveAdminUser(IsAdminUser):
+    def has_permission(self, request, view):
+        return super().has_permission(request, view) and request.user.is_active
 
 
 @api_view(["GET"])
@@ -48,7 +62,9 @@ class CurrentUserView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        if not request.user.is_authenticated:
+        if not request.user.is_authenticated or not request.user.is_active:
+            if request.user.is_authenticated:
+                logout(request)
             return Response({"authenticated": False, "user": None})
 
         return Response(
@@ -81,11 +97,11 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        login(request, user)
         return Response(
             {
-                "authenticated": True,
+                "authenticated": False,
                 "user": UserSerializer(user).data,
+                "message": "Üyelik isteğiniz alındı. Admin onayından sonra giriş yapabilirsiniz.",
             },
             status=status.HTTP_201_CREATED,
         )
@@ -99,7 +115,27 @@ class LogoutView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class AdminUserListView(generics.ListAPIView):
+    permission_classes = [IsActiveAdminUser]
+    serializer_class = AdminUserSerializer
+
+    def get_queryset(self):
+        return User.objects.order_by("is_active", "-date_joined")
+
+
+class AdminUserStatusView(APIView):
+    permission_classes = [IsActiveAdminUser]
+
+    def patch(self, request, user_id):
+        user = generics.get_object_or_404(User, pk=user_id)
+        serializer = AdminUserStatusSerializer(user, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(AdminUserSerializer(user).data)
+
+
 class DocumentListView(generics.ListAPIView):
+    permission_classes = [IsActiveAuthenticated]
     serializer_class = DocumentListSerializer
 
     def get_queryset(self):
@@ -107,6 +143,7 @@ class DocumentListView(generics.ListAPIView):
 
 
 class DocumentDetailView(generics.RetrieveDestroyAPIView):
+    permission_classes = [IsActiveAuthenticated]
     queryset = Document.objects.all()
     serializer_class = DocumentDetailSerializer
     lookup_url_kwarg = "document_id"
@@ -117,6 +154,7 @@ class DocumentDetailView(generics.RetrieveDestroyAPIView):
 
 
 class DocumentUploadView(APIView):
+    permission_classes = [IsActiveAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
