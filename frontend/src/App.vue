@@ -1,5 +1,7 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
+import AdminMembershipView from "./views/AdminMembershipView.vue";
+import SystemView from "./views/SystemView.vue";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
@@ -33,10 +35,8 @@ const credentials = ref({
 });
 
 const menuTargets = {
-  status: "system-status",
   documents: "document-tools",
-  results: "ai-results",
-  users: "user-admin"
+  results: "ai-results"
 };
 
 const menuOptions = computed(() => {
@@ -54,20 +54,21 @@ const menuOptions = computed(() => {
           key: "results"
         }
       ]
-    },
-    {
-      label: "Sistem",
-      key: "system",
-      children: [
-        {
-          label: "Durum Kontrolü",
-          key: "status"
-        }
-      ]
     }
   ];
 
   if (currentUser.value?.is_staff) {
+    options.push({
+      label: "Sistem",
+      key: "system",
+      children: [
+        {
+          label: "Kontrol Paneli",
+          key: "system-dashboard"
+        }
+      ]
+    });
+
     options.push({
       label: "Admin",
       key: "admin",
@@ -394,12 +395,23 @@ function switchAuthMode(mode) {
   registerMessage.value = "";
 }
 
-function handleMenuUpdate(key) {
+async function handleMenuUpdate(key) {
   activeMenuKey.value = key;
+
+  if (key === "system-dashboard") {
+    await Promise.all([checkBackend(), loadDocuments(), loadAdminUsersIfNeeded()]);
+    return;
+  }
+
+  if (key === "users") {
+    await loadAdminUsersIfNeeded();
+    return;
+  }
 
   const targetId = menuTargets[key];
   if (!targetId) return;
 
+  await nextTick();
   document.getElementById(targetId)?.scrollIntoView({
     behavior: "smooth",
     block: "start"
@@ -524,97 +536,47 @@ onMounted(() => {
             :value="activeMenuKey"
             :options="menuOptions"
             :indent="18"
-            :default-expanded-keys="['tools', 'system', 'admin']"
+            :default-expanded-keys="currentUser.is_staff ? ['tools', 'system', 'admin'] : ['tools']"
             @update:value="handleMenuUpdate"
           />
         </aside>
 
         <section class="workspace">
-          <div class="page-heading">
-            <p>UAV Center</p>
-            <h1>Yerel Belge İşleme Paneli</h1>
-          </div>
+          <AdminMembershipView
+            v-if="activeMenuKey === 'users' && currentUser.is_staff"
+            :users="adminUsers"
+            :loading="adminUsersLoading"
+            :error="adminUsersError"
+            :updating-user-id="updatingUserId"
+            @refresh="loadAdminUsers"
+            @update-status="updateUserStatus"
+          />
 
-          <div id="system-status" class="status-grid">
-            <n-card title="Sistem Durumu" size="small">
-              <n-space vertical :size="16">
-                <n-alert
-                  :type="error ? 'error' : health ? 'success' : 'info'"
-                  :title="apiStatus"
-                >
-                  <span v-if="error">Hata: {{ error }}</span>
-                  <span v-else-if="health">
-                    {{ health.service }} servisi {{ health.timestamp }} zamanında yanıt verdi.
-                  </span>
-                  <span v-else>Backend bağlantısı için kontrol başlatılabilir.</span>
-                </n-alert>
+          <SystemView
+            v-else-if="activeMenuKey === 'system-dashboard' && currentUser.is_staff"
+            :health="health"
+            :api-status="apiStatus"
+            :error="error"
+            :loading="loading"
+            :documents="documents"
+            :documents-loading="documentsLoading"
+            :admin-users="adminUsers"
+            :admin-users-loading="adminUsersLoading"
+            :admin-users-error="adminUsersError"
+            :current-user="currentUser"
+            :api-base-url="API_BASE_URL"
+            @check-backend="checkBackend"
+            @refresh-documents="loadDocuments"
+            @refresh-users="loadAdminUsers"
+          />
 
-                <n-button type="primary" :loading="loading" @click="checkBackend">
-                  Backend'i Test Et
-                </n-button>
-              </n-space>
-            </n-card>
+          <template v-else>
+            <div class="page-heading">
+              <p>UAV Center</p>
+              <h1>Yerel Belge İşleme Paneli</h1>
+            </div>
 
-            <n-card title="Desteklenen Dosyalar" size="small">
-              <n-descriptions :column="1" bordered size="small">
-                <n-descriptions-item label="PDF">.pdf</n-descriptions-item>
-                <n-descriptions-item label="Office">.docx, .xlsx, .pptx</n-descriptions-item>
-                <n-descriptions-item label="Metin">.txt, .csv, .md</n-descriptions-item>
-              </n-descriptions>
-            </n-card>
-          </div>
-
-          <section v-if="currentUser.is_staff" id="user-admin" class="user-admin-panel">
-            <n-card title="Üye Yönetimi" size="small">
-              <n-space vertical :size="16">
-                <n-alert v-if="adminUsersError" type="error" title="Üye yönetimi hatası">
-                  {{ adminUsersError }}
-                </n-alert>
-
-                <n-spin :show="adminUsersLoading">
-                  <n-empty v-if="adminUsers.length === 0" description="Henüz kullanıcı yok" />
-                  <n-list v-else hoverable>
-                    <n-list-item v-for="user in adminUsers" :key="user.id">
-                      <div class="user-row">
-                        <n-thing
-                          :title="user.username"
-                          :description="user.email || 'E-posta yok'"
-                        />
-                        <div class="user-actions">
-                          <n-tag :type="user.is_active ? 'success' : 'warning'">
-                            {{ user.is_active ? "Aktif" : "Pending" }}
-                          </n-tag>
-                          <n-tag v-if="user.is_staff" type="info">Admin</n-tag>
-                          <n-button
-                            v-if="!user.is_active"
-                            size="small"
-                            type="primary"
-                            secondary
-                            :loading="updatingUserId === user.id"
-                            @click="updateUserStatus(user, true)"
-                          >
-                            Onayla
-                          </n-button>
-                          <n-button
-                            v-else
-                            size="small"
-                            type="error"
-                            secondary
-                            :loading="updatingUserId === user.id"
-                            @click="updateUserStatus(user, false)"
-                          >
-                            Devre Dışı Bırak
-                          </n-button>
-                        </div>
-                      </div>
-                    </n-list-item>
-                  </n-list>
-                </n-spin>
-              </n-space>
-            </n-card>
-          </section>
-
-          <div id="document-tools" class="document-layout">
+            <div id="document-tools" class="document-layout">
             <section class="upload-panel">
               <n-card title="Belge Yükle" size="small">
                 <n-space vertical :size="16">
@@ -748,7 +710,8 @@ onMounted(() => {
                 </n-space>
               </n-card>
             </section>
-          </div>
+            </div>
+          </template>
         </section>
       </main>
     </n-message-provider>

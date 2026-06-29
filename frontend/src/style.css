@@ -152,14 +152,26 @@ body {
   line-height: 1.2;
 }
 
-.status-grid {
+.system-view {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
   gap: 16px;
 }
 
-.user-admin-panel {
-  margin-top: 16px;
+.system-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.admin-membership-view {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-membership-toolbar {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .user-row {
@@ -262,7 +274,7 @@ h2 {
     padding: 20px;
   }
 
-  .status-grid,
+  .system-grid,
   .document-layout {
     grid-template-columns: 1fr;
   }

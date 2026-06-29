@@ -121,6 +121,46 @@ WHISPER_MODEL=whisper-1
 HTTP modunda wrapper OpenAI uyumlu `POST /v1/audio/transcriptions` endpoint'ine
 multipart dosya gönderir.
 
+## Jira Connector
+
+`api.services.jira_connector.JiraConnector`, diğer backend modüllerinin
+kullanabileceği Jira servis katmanıdır. Issue oluşturma/güncelleme/silme, JQL
+arama, atama ve durum geçişleri; yorum, dosya eki, worklog, issue linki,
+takipçi ve oy işlemleri; proje, kullanıcı, sürüm ve bileşen sorgularını kapsar.
+
+Jira Cloud için:
+
+```env
+JIRA_SERVER=https://kurum.atlassian.net
+JIRA_EMAIL=kullanici@kurum.com
+JIRA_API_TOKEN=atlassian-api-token
+JIRA_VERIFY_SSL=true
+JIRA_TIMEOUT=30
+```
+
+Jira Data Center/Server için personal access token kullanılabilir:
+
+```env
+JIRA_SERVER=https://jira.kurum.local
+JIRA_PERSONAL_ACCESS_TOKEN=token
+```
+
+Alternatif olarak `JIRA_USERNAME` ve `JIRA_PASSWORD` ile basic auth
+kullanılabilir. Örnek:
+
+```python
+from api.services.jira_connector import JiraConnector
+
+jira = JiraConnector()
+issue = jira.create_issue(
+    project_key="UAV",
+    summary="Uçuş öncesi kontrol",
+    issue_type="Task",
+    labels=["operation"],
+)
+jira.transition_issue(issue.key, "In Progress")
+```
+
 ## Frontend
 
 ```bash
