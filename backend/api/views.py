@@ -6,11 +6,11 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
+from rest_framework.permissions import SAFE_METHODS, AllowAny, BasePermission, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Document
+from .models import Document, PanelResponsible, Project, ProjectPanel
 from .serializers import (
     AdminUserSerializer,
     AdminUserStatusSerializer,
@@ -18,6 +18,9 @@ from .serializers import (
     DocumentListSerializer,
     DocumentUploadSerializer,
     LoginSerializer,
+    PanelResponsibleSerializer,
+    ProjectPanelSerializer,
+    ProjectSerializer,
     RegisterSerializer,
     UserSerializer,
 )
@@ -35,6 +38,13 @@ class IsActiveAuthenticated(IsAuthenticated):
 class IsActiveAdminUser(IsAdminUser):
     def has_permission(self, request, view):
         return super().has_permission(request, view) and request.user.is_active
+
+
+class IsOrganizationReaderOrAdmin(BasePermission):
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated or not request.user.is_active:
+            return False
+        return request.method in SAFE_METHODS or request.user.is_staff
 
 
 @api_view(["GET"])
@@ -204,3 +214,58 @@ class DocumentUploadView(APIView):
             else status.HTTP_422_UNPROCESSABLE_ENTITY
         )
         return Response(DocumentDetailSerializer(document).data, status=response_status)
+
+
+class ProjectListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = ProjectSerializer
+
+    def get_queryset(self):
+        return Project.objects.prefetch_related("panels__responsibles").all()
+
+
+class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = ProjectSerializer
+    queryset = Project.objects.prefetch_related("panels__responsibles")
+    lookup_url_kwarg = "project_id"
+
+
+class ProjectPanelListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = ProjectPanelSerializer
+
+    def get_queryset(self):
+        return ProjectPanel.objects.filter(project_id=self.kwargs["project_id"]).prefetch_related(
+            "responsibles"
+        )
+
+    def perform_create(self, serializer):
+        project = generics.get_object_or_404(Project, pk=self.kwargs["project_id"])
+        serializer.save(project=project)
+
+
+class ProjectPanelDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = ProjectPanelSerializer
+    queryset = ProjectPanel.objects.prefetch_related("responsibles")
+    lookup_url_kwarg = "panel_id"
+
+
+class PanelResponsibleListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = PanelResponsibleSerializer
+
+    def get_queryset(self):
+        return PanelResponsible.objects.filter(panel_id=self.kwargs["panel_id"])
+
+    def perform_create(self, serializer):
+        panel = generics.get_object_or_404(ProjectPanel, pk=self.kwargs["panel_id"])
+        serializer.save(panel=panel)
+
+
+class PanelResponsibleDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = PanelResponsibleSerializer
+    queryset = PanelResponsible.objects.all()
+    lookup_url_kwarg = "responsible_id"

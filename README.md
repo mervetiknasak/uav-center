@@ -17,6 +17,8 @@ Python Django backend ve Vue 3 + Naive UI frontend ile lokal belge işleme uygul
 - Varsayılan lokal özetleyici ile özet, anahtar kelime ve metrik üretme
 - İsteğe bağlı Ollama veya OpenAI uyumlu lokal bağlantı ile Qwen2.5 kullanma
 - Whisper için lokal Python modeli veya lokal HTTP transkripsiyon servisi wrapper'ı
+- Admin tarafından yönetilen proje, alt panel ve panel sorumlusu organizasyon yapısı
+- Aktif kullanıcılar için salt okunur organizasyon görünümü
 
 ## Backend
 
@@ -60,6 +62,7 @@ http://localhost:8000/api/health/
 http://localhost:8000/api/documents/
 http://localhost:8000/api/documents/upload/
 http://localhost:8000/api/documents/<id>/
+http://localhost:8000/api/organization/projects/
 ```
 
 DRF yanıt formatı:
@@ -68,6 +71,8 @@ DRF yanıt formatı:
 - `POST /api/documents/upload/`: `file` ve `prompt` alanlarıyla işlenen belge objesi
 - `GET /api/documents/<id>/`: çıkarılan metin dahil belge objesi
 - `DELETE /api/documents/<id>/`: belge kaydını ve lokal dosyayı siler
+- `GET /api/organization/projects/`: projeleri alt panelleri ve sorumlularıyla listeler
+- Organizasyon API'sindeki `POST`, `PATCH` ve `DELETE` işlemleri yalnızca admin kullanıcılarına açıktır
 
 Örnek upload:
 

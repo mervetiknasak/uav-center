@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from "vue";
 import AdminMembershipView from "./views/AdminMembershipView.vue";
+import OrganizationView from "./views/OrganizationView.vue";
 import SystemView from "./views/SystemView.vue";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -27,6 +28,10 @@ const adminUsers = ref([]);
 const adminUsersLoading = ref(false);
 const adminUsersError = ref("");
 const updatingUserId = ref(null);
+const projects = ref([]);
+const projectsLoading = ref(false);
+const organizationSaving = ref(false);
+const organizationError = ref("");
 const credentials = ref({
   username: "",
   email: "",
@@ -41,6 +46,16 @@ const menuTargets = {
 
 const menuOptions = computed(() => {
   const options = [
+    {
+      label: "Organizasyon",
+      key: "organization",
+      children: [
+        {
+          label: "Projeler ve Paneller",
+          key: "organization-projects"
+        }
+      ]
+    },
     {
       label: "Araçlar",
       key: "tools",
@@ -73,6 +88,10 @@ const menuOptions = computed(() => {
       label: "Admin",
       key: "admin",
       children: [
+        {
+          label: "Organizasyon Yönetimi",
+          key: "organization-admin"
+        },
         {
           label: "Üyeler",
           key: "users"
@@ -135,6 +154,10 @@ function responseError(data, fallback) {
   if (data.password_confirm?.length) return data.password_confirm.join(" ");
   if (data.file?.length) return data.file.join(" ");
   if (data.error_message) return data.error_message;
+  if (typeof data === "object") {
+    const firstMessage = Object.values(data).flat().find((message) => typeof message === "string");
+    if (firstMessage) return firstMessage;
+  }
   return fallback;
 }
 
@@ -200,7 +223,7 @@ async function loadSession() {
     const data = await apiFetch("/api/auth/me/");
     currentUser.value = data.authenticated ? data.user : null;
     if (currentUser.value) {
-      await Promise.all([checkBackend(), loadDocuments(), loadAdminUsersIfNeeded()]);
+      await Promise.all([checkBackend(), loadDocuments(), loadProjects(), loadAdminUsersIfNeeded()]);
     }
   } catch (err) {
     authError.value = err instanceof Error ? err.message : "Oturum bilgisi alınamadı";
@@ -252,7 +275,7 @@ async function submitAuth() {
     csrfToken.value = "";
     credentials.value.password = "";
     credentials.value.passwordConfirm = "";
-    await Promise.all([checkBackend(), loadDocuments(), loadAdminUsersIfNeeded()]);
+    await Promise.all([checkBackend(), loadDocuments(), loadProjects(), loadAdminUsersIfNeeded()]);
   } catch (err) {
     authError.value = err instanceof Error ? err.message : "İşlem tamamlanamadı";
   } finally {
@@ -271,6 +294,7 @@ async function logoutUser() {
     currentUser.value = null;
     documents.value = [];
     adminUsers.value = [];
+    projects.value = [];
     activeDocument.value = null;
   } catch (err) {
     authError.value = err instanceof Error ? err.message : "Çıkış yapılamadı";
@@ -315,6 +339,86 @@ async function updateUserStatus(user, isActive) {
     adminUsersError.value = err instanceof Error ? err.message : "Kullanıcı durumu güncellenemedi";
   } finally {
     updatingUserId.value = null;
+  }
+}
+
+async function loadProjects() {
+  projectsLoading.value = true;
+  organizationError.value = "";
+  try {
+    const data = await apiFetch("/api/organization/projects/");
+    projects.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    organizationError.value = err instanceof Error ? err.message : "Organizasyon bilgileri alınamadı";
+  } finally {
+    projectsLoading.value = false;
+  }
+}
+
+async function saveOrganizationItem({ type, id, parentId, payload, done }) {
+  organizationSaving.value = true;
+  organizationError.value = "";
+  const paths = {
+    project: id ? `/api/organization/projects/${id}/` : "/api/organization/projects/",
+    panel: id
+      ? `/api/organization/panels/${id}/`
+      : `/api/organization/projects/${parentId}/panels/`,
+    responsible: id
+      ? `/api/organization/responsibles/${id}/`
+      : `/api/organization/panels/${parentId}/responsibles/`
+  };
+  try {
+    await apiFetch(paths[type], {
+      method: id ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    await loadProjects();
+    done?.();
+  } catch (err) {
+    organizationError.value = err instanceof Error ? err.message : "Kayıt kaydedilemedi";
+  } finally {
+    organizationSaving.value = false;
+  }
+}
+
+async function deleteOrganizationItem({ type, item }) {
+  organizationSaving.value = true;
+  organizationError.value = "";
+  const paths = {
+    project: `/api/organization/projects/${item.id}/`,
+    panel: `/api/organization/panels/${item.id}/`,
+    responsible: `/api/organization/responsibles/${item.id}/`
+  };
+  try {
+    await apiFetch(paths[type], { method: "DELETE" });
+    await loadProjects();
+  } catch (err) {
+    organizationError.value = err instanceof Error ? err.message : "Kayıt silinemedi";
+  } finally {
+    organizationSaving.value = false;
+  }
+}
+
+async function reorderResponsibles({ items }) {
+  organizationSaving.value = true;
+  organizationError.value = "";
+  try {
+    await Promise.all(
+      items.map((item) =>
+        apiFetch(`/api/organization/responsibles/${item.id}/`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order: item.order })
+        })
+      )
+    );
+    await loadProjects();
+  } catch (err) {
+    organizationError.value = err instanceof Error ? err.message : "Sorumlu sıralaması güncellenemedi";
+    await loadProjects();
+  } finally {
+    organizationSaving.value = false;
   }
 }
 
@@ -405,6 +509,11 @@ async function handleMenuUpdate(key) {
 
   if (key === "users") {
     await loadAdminUsersIfNeeded();
+    return;
+  }
+
+  if (key === "organization-projects" || key === "organization-admin") {
+    await loadProjects();
     return;
   }
 
@@ -536,14 +645,27 @@ onMounted(() => {
             :value="activeMenuKey"
             :options="menuOptions"
             :indent="18"
-            :default-expanded-keys="currentUser.is_staff ? ['tools', 'system', 'admin'] : ['tools']"
+            :default-expanded-keys="currentUser.is_staff ? ['organization', 'tools', 'system', 'admin'] : ['organization', 'tools']"
             @update:value="handleMenuUpdate"
           />
         </aside>
 
         <section class="workspace">
+          <OrganizationView
+            v-if="activeMenuKey === 'organization-projects' || (activeMenuKey === 'organization-admin' && currentUser.is_staff)"
+            :projects="projects"
+            :loading="projectsLoading"
+            :saving="organizationSaving"
+            :error="organizationError"
+            :can-edit="activeMenuKey === 'organization-admin' && currentUser.is_staff"
+            @refresh="loadProjects"
+            @save="saveOrganizationItem"
+            @delete="deleteOrganizationItem"
+            @reorder-responsibles="reorderResponsibles"
+          />
+
           <AdminMembershipView
-            v-if="activeMenuKey === 'users' && currentUser.is_staff"
+            v-else-if="activeMenuKey === 'users' && currentUser.is_staff"
             :users="adminUsers"
             :loading="adminUsersLoading"
             :error="adminUsersError"

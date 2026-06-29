@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from .models import PanelResponsible, Project, ProjectPanel
+
 
 class AuthApiTests(TestCase):
     def setUp(self):
@@ -119,3 +121,81 @@ class AuthApiTests(TestCase):
         response = self.client.get(reverse("document-list"))
 
         self.assertEqual(response.status_code, 403)
+
+
+class OrganizationApiTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="viewer", password="StrongPass123!")
+        self.admin = user_model.objects.create_user(
+            username="organization-admin",
+            password="StrongPass123!",
+            is_staff=True,
+        )
+        self.project = Project.objects.create(name="Uçuş Sistemleri", code="UAV")
+        self.panel = ProjectPanel.objects.create(project=self.project, name="Aviyonik")
+        PanelResponsible.objects.create(
+            panel=self.panel,
+            name="Ada Yılmaz",
+            title="Panel Lideri",
+            email="ada@example.com",
+        )
+
+    def test_authenticated_user_sees_nested_organization(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("project-list"))
+
+        self.assertEqual(response.status_code, 200)
+        project = response.json()[0]
+        self.assertEqual(project["code"], "UAV")
+        self.assertEqual(project["panels"][0]["name"], "Aviyonik")
+        self.assertEqual(project["panels"][0]["responsibles"][0]["name"], "Ada Yılmaz")
+
+    def test_regular_user_cannot_change_organization(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("project-list"),
+            data={"name": "Yeni Proje", "code": "NEW"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(Project.objects.filter(code="NEW").exists())
+
+    def test_admin_can_manage_all_organization_levels(self):
+        self.client.force_login(self.admin)
+        project_response = self.client.post(
+            reverse("project-list"),
+            data={"name": "Yer İstasyonu", "code": "GCS"},
+            content_type="application/json",
+        )
+        self.assertEqual(project_response.status_code, 201)
+
+        panel_response = self.client.post(
+            reverse("project-panel-list", kwargs={"project_id": project_response.json()["id"]}),
+            data={"name": "Haberleşme"},
+            content_type="application/json",
+        )
+        self.assertEqual(panel_response.status_code, 201)
+
+        responsible_response = self.client.post(
+            reverse("panel-responsible-list", kwargs={"panel_id": panel_response.json()["id"]}),
+            data={"name": "Deniz Kaya", "email": "deniz@example.com"},
+            content_type="application/json",
+        )
+        self.assertEqual(responsible_response.status_code, 201)
+        self.assertEqual(responsible_response.json()["order"], 0)
+
+        second_responsible_response = self.client.post(
+            reverse("panel-responsible-list", kwargs={"panel_id": panel_response.json()["id"]}),
+            data={"name": "Ece Arslan", "order": 99},
+            content_type="application/json",
+        )
+        self.assertEqual(second_responsible_response.status_code, 201)
+        self.assertEqual(second_responsible_response.json()["order"], 1)
+
+        delete_response = self.client.delete(
+            reverse("project-detail", kwargs={"project_id": project_response.json()["id"]})
+        )
+        self.assertEqual(delete_response.status_code, 204)
+        self.assertFalse(ProjectPanel.objects.filter(id=panel_response.json()["id"]).exists())

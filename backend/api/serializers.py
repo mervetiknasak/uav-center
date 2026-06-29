@@ -1,8 +1,9 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.db.models import Max
 
-from .models import Document
+from .models import Document, PanelResponsible, Project, ProjectPanel
 from .services.document_extractor import SUPPORTED_EXTENSIONS
 
 
@@ -138,3 +139,44 @@ class DocumentUploadSerializer(serializers.Serializer):
             raise serializers.ValidationError(f"Desteklenmeyen dosya tipi. Desteklenenler: {supported}")
 
         return uploaded_file
+
+
+class PanelResponsibleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PanelResponsible
+        fields = ["id", "panel", "name", "title", "email", "phone", "order"]
+        read_only_fields = ["panel"]
+
+    def create(self, validated_data):
+        panel = validated_data["panel"]
+        last_order = panel.responsibles.aggregate(max_order=Max("order"))["max_order"]
+        validated_data["order"] = (last_order if last_order is not None else -1) + 1
+        return super().create(validated_data)
+
+
+class ProjectPanelSerializer(serializers.ModelSerializer):
+    responsibles = PanelResponsibleSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ProjectPanel
+        fields = ["id", "project", "name", "description", "order", "responsibles"]
+        read_only_fields = ["project"]
+
+
+class ProjectSerializer(serializers.ModelSerializer):
+    panels = ProjectPanelSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Project
+        fields = [
+            "id",
+            "name",
+            "code",
+            "description",
+            "is_active",
+            "order",
+            "created_at",
+            "updated_at",
+            "panels",
+        ]
+        read_only_fields = ["created_at", "updated_at"]

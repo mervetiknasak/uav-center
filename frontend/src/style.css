@@ -169,6 +169,106 @@ body {
   gap: 16px;
 }
 
+.organization-view {
+  display: grid;
+  gap: 18px;
+}
+
+.organization-heading {
+  display: flex;
+  gap: 20px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.organization-heading span,
+.project-description,
+.panel-description {
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.project-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.project-card {
+  border-top: 3px solid #0f766e;
+}
+
+.project-title,
+.panel-title,
+.panel-toolbar,
+.responsible-toolbar,
+.responsible-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.panel-title {
+  flex-wrap: wrap;
+}
+
+.panel-toolbar,
+.responsible-toolbar,
+.responsible-row {
+  justify-content: space-between;
+}
+
+.panel-toolbar {
+  margin: 20px 0 10px;
+}
+
+.responsible-toolbar {
+  margin: 8px 0;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.responsible-row {
+  width: 100%;
+}
+
+.responsible-dynamic-item {
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.responsible-inline {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(120px, 1fr) minmax(170px, 1.4fr) minmax(100px, 0.8fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.responsible-inline > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.responsible-inline span,
+.responsible-inline a {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.responsible-actions {
+  margin-left: 12px;
+  white-space: nowrap;
+}
+
+.organization-modal {
+  width: min(560px, calc(100vw - 32px));
+}
+
 .admin-membership-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -282,6 +382,25 @@ h2 {
   .user-row {
     display: grid;
     gap: 10px;
+  }
+
+  .organization-heading,
+  .responsible-row {
+    display: grid;
+    align-items: start;
+  }
+
+  .responsible-dynamic-item {
+    align-items: flex-start;
+  }
+
+  .responsible-inline {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .responsible-actions {
+    margin-left: 8px;
   }
 
   .user-actions {
