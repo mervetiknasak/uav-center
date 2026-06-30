@@ -128,7 +128,8 @@ body {
 
 .workspace {
   flex: 1;
-  width: min(1040px, 100%);
+  min-width: 0;
+  width: min(1480px, 100%);
   margin: 0 auto;
   padding: 32px;
 }
@@ -356,6 +357,127 @@ h2 {
   white-space: pre-wrap;
 }
 
+.technical-documents-view {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.technical-documents-view > .n-spin-container,
+.technical-documents-view > .n-spin-container > .n-spin-content {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.td-page-header {
+  min-width: 0;
+}
+
+.td-project-tabs {
+  min-width: 0;
+}
+
+.td-metric-grid {
+  margin-bottom: 20px;
+}
+
+.td-metric-card {
+  height: 112px;
+  border-top: 3px solid #0f766e;
+}
+
+.td-metric-card .n-statistic {
+  margin-bottom: 8px;
+}
+
+.td-metric-card-primary {
+  background: #f0fdfa;
+}
+
+.td-metric-card-danger {
+  border-top-color: #dc2626;
+}
+
+.td-table-card {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.td-table-toolbar {
+  padding: 16px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.td-table-summary {
+  padding: 11px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.td-data-table .n-data-table-th {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.td-data-table .n-data-table-td {
+  color: #334155;
+  font-size: 12px;
+}
+
+.td-data-table .n-data-table-empty {
+  padding: 60px 20px;
+}
+
+.td-data-table .n-data-table__pagination {
+  padding: 14px 16px;
+  border-top: 1px solid #eef2f6;
+}
+
+.td-document-cell {
+  min-width: 0;
+}
+
+.td-document-cell .n-button {
+  max-width: 300px;
+}
+
+.td-document-cell .n-button__content {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.td-status-select {
+  width: 150px;
+}
+
+.td-date-stack {
+  white-space: nowrap;
+}
+
+.td-editor-modal {
+  width: min(920px, calc(100vw - 32px));
+}
+
+.td-notify-modal {
+  width: min(640px, calc(100vw - 32px));
+}
+
+.td-detail-heading {
+  margin-bottom: 20px;
+}
+
+.td-recipient-box {
+  margin-bottom: 18px;
+}
+
 @media (max-width: 760px) {
   .app-shell {
     display: block;
@@ -406,4 +528,5 @@ h2 {
   .user-actions {
     justify-content: flex-start;
   }
+
 }

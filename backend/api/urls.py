@@ -17,6 +17,9 @@ from .views import (
     ProjectPanelDetailView,
     ProjectPanelListCreateView,
     RegisterView,
+    TechnicalDocumentDetailView,
+    TechnicalDocumentListCreateView,
+    TechnicalDocumentNotifyView,
     health_check,
 )
 
@@ -54,4 +57,19 @@ urlpatterns = [
     path("documents/", DocumentListView.as_view(), name="document-list"),
     path("documents/upload/", DocumentUploadView.as_view(), name="document-upload"),
     path("documents/<int:document_id>/", DocumentDetailView.as_view(), name="document-detail"),
+    path(
+        "technical-documents/",
+        TechnicalDocumentListCreateView.as_view(),
+        name="technical-document-list",
+    ),
+    path(
+        "technical-documents/<int:technical_document_id>/",
+        TechnicalDocumentDetailView.as_view(),
+        name="technical-document-detail",
+    ),
+    path(
+        "technical-documents/<int:technical_document_id>/notify/",
+        TechnicalDocumentNotifyView.as_view(),
+        name="technical-document-notify",
+    ),
 ]

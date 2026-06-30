@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref } from "vue";
 import AdminMembershipView from "./views/AdminMembershipView.vue";
 import OrganizationView from "./views/OrganizationView.vue";
 import SystemView from "./views/SystemView.vue";
+import TechnicalDocumentsView from "./views/TechnicalDocumentsView.vue";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
@@ -16,7 +17,7 @@ const uploadError = ref("");
 const activeDocument = ref(null);
 const prompt = ref("Bu belgeyi incele ve önemli bilgileri kısa maddeler halinde çıkar.");
 const deletingDocumentId = ref(null);
-const activeMenuKey = ref("documents");
+const activeMenuKey = ref("technical-documents");
 const csrfToken = ref("");
 const authChecking = ref(true);
 const authLoading = ref(false);
@@ -32,6 +33,12 @@ const projects = ref([]);
 const projectsLoading = ref(false);
 const organizationSaving = ref(false);
 const organizationError = ref("");
+const technicalDocuments = ref([]);
+const technicalDocumentsLoading = ref(false);
+const technicalDocumentSaving = ref(false);
+const technicalDocumentError = ref("");
+const technicalDocumentNotice = ref("");
+const notifyingTechnicalDocumentId = ref(null);
 const credentials = ref({
   username: "",
   email: "",
@@ -46,6 +53,16 @@ const menuTargets = {
 
 const menuOptions = computed(() => {
   const options = [
+    {
+      label: "Doküman Yönetimi",
+      key: "document-management",
+      children: [
+        {
+          label: "Teknik Dokümanlar",
+          key: "technical-documents"
+        }
+      ]
+    },
     {
       label: "Organizasyon",
       key: "organization",
@@ -223,7 +240,13 @@ async function loadSession() {
     const data = await apiFetch("/api/auth/me/");
     currentUser.value = data.authenticated ? data.user : null;
     if (currentUser.value) {
-      await Promise.all([checkBackend(), loadDocuments(), loadProjects(), loadAdminUsersIfNeeded()]);
+      await Promise.all([
+        checkBackend(),
+        loadDocuments(),
+        loadProjects(),
+        loadTechnicalDocuments(),
+        loadAdminUsersIfNeeded()
+      ]);
     }
   } catch (err) {
     authError.value = err instanceof Error ? err.message : "Oturum bilgisi alınamadı";
@@ -275,7 +298,13 @@ async function submitAuth() {
     csrfToken.value = "";
     credentials.value.password = "";
     credentials.value.passwordConfirm = "";
-    await Promise.all([checkBackend(), loadDocuments(), loadProjects(), loadAdminUsersIfNeeded()]);
+    await Promise.all([
+      checkBackend(),
+      loadDocuments(),
+      loadProjects(),
+      loadTechnicalDocuments(),
+      loadAdminUsersIfNeeded()
+    ]);
   } catch (err) {
     authError.value = err instanceof Error ? err.message : "İşlem tamamlanamadı";
   } finally {
@@ -295,6 +324,7 @@ async function logoutUser() {
     documents.value = [];
     adminUsers.value = [];
     projects.value = [];
+    technicalDocuments.value = [];
     activeDocument.value = null;
   } catch (err) {
     authError.value = err instanceof Error ? err.message : "Çıkış yapılamadı";
@@ -422,6 +452,91 @@ async function reorderResponsibles({ items }) {
   }
 }
 
+async function loadTechnicalDocuments() {
+  technicalDocumentsLoading.value = true;
+  technicalDocumentError.value = "";
+  try {
+    const data = await apiFetch("/api/technical-documents/");
+    technicalDocuments.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    technicalDocumentError.value =
+      err instanceof Error ? err.message : "Teknik dokümanlar alınamadı";
+  } finally {
+    technicalDocumentsLoading.value = false;
+  }
+}
+
+async function saveTechnicalDocument({ id, payload, done }) {
+  technicalDocumentSaving.value = true;
+  technicalDocumentError.value = "";
+  technicalDocumentNotice.value = "";
+  try {
+    const updated = await apiFetch(
+      id ? `/api/technical-documents/${id}/` : "/api/technical-documents/",
+      {
+        method: id ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }
+    );
+    if (id) {
+      technicalDocuments.value = technicalDocuments.value.map((document) =>
+        document.id === updated.id ? updated : document
+      );
+    } else {
+      technicalDocuments.value = [updated, ...technicalDocuments.value];
+    }
+    technicalDocumentNotice.value = id
+      ? `${updated.code} güncellendi.`
+      : `${updated.code} teknik dokümanı oluşturuldu.`;
+    done?.();
+  } catch (err) {
+    technicalDocumentError.value =
+      err instanceof Error ? err.message : "Teknik doküman kaydedilemedi";
+  } finally {
+    technicalDocumentSaving.value = false;
+  }
+}
+
+async function deleteTechnicalDocument(document) {
+  technicalDocumentSaving.value = true;
+  technicalDocumentError.value = "";
+  technicalDocumentNotice.value = "";
+  try {
+    await apiFetch(`/api/technical-documents/${document.id}/`, { method: "DELETE" });
+    technicalDocuments.value = technicalDocuments.value.filter((item) => item.id !== document.id);
+    technicalDocumentNotice.value = `${document.code} silindi.`;
+  } catch (err) {
+    technicalDocumentError.value =
+      err instanceof Error ? err.message : "Teknik doküman silinemedi";
+  } finally {
+    technicalDocumentSaving.value = false;
+  }
+}
+
+async function notifyTechnicalDocument({ document, payload, done }) {
+  notifyingTechnicalDocumentId.value = document.id;
+  technicalDocumentError.value = "";
+  technicalDocumentNotice.value = "";
+  try {
+    const data = await apiFetch(`/api/technical-documents/${document.id}/notify/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    technicalDocuments.value = technicalDocuments.value.map((item) =>
+      item.id === data.document.id ? data.document : item
+    );
+    technicalDocumentNotice.value = data.message;
+    done?.();
+  } catch (err) {
+    technicalDocumentError.value =
+      err instanceof Error ? err.message : "Panel sorumlularına e-posta gönderilemedi";
+  } finally {
+    notifyingTechnicalDocumentId.value = null;
+  }
+}
+
 async function loadDocuments() {
   documentsLoading.value = true;
 
@@ -512,6 +627,11 @@ async function handleMenuUpdate(key) {
     return;
   }
 
+  if (key === "technical-documents") {
+    await Promise.all([loadProjects(), loadTechnicalDocuments()]);
+    return;
+  }
+
   if (key === "organization-projects" || key === "organization-admin") {
     await loadProjects();
     return;
@@ -542,6 +662,7 @@ onMounted(() => {
 <template>
   <n-config-provider>
     <n-message-provider>
+      <n-dialog-provider>
       <main v-if="authChecking" class="auth-shell">
         <n-spin size="large" />
       </main>
@@ -645,14 +766,30 @@ onMounted(() => {
             :value="activeMenuKey"
             :options="menuOptions"
             :indent="18"
-            :default-expanded-keys="currentUser.is_staff ? ['organization', 'tools', 'system', 'admin'] : ['organization', 'tools']"
+            :default-expanded-keys="currentUser.is_staff ? ['document-management', 'organization', 'tools', 'system', 'admin'] : ['document-management', 'organization', 'tools']"
             @update:value="handleMenuUpdate"
           />
         </aside>
 
         <section class="workspace">
+          <TechnicalDocumentsView
+            v-if="activeMenuKey === 'technical-documents'"
+            :projects="projects"
+            :documents="technicalDocuments"
+            :loading="technicalDocumentsLoading"
+            :saving="technicalDocumentSaving"
+            :notifying-id="notifyingTechnicalDocumentId"
+            :error="technicalDocumentError"
+            :notice="technicalDocumentNotice"
+            :can-edit="currentUser.is_staff"
+            @refresh="loadTechnicalDocuments"
+            @save="saveTechnicalDocument"
+            @delete="deleteTechnicalDocument"
+            @notify="notifyTechnicalDocument"
+          />
+
           <OrganizationView
-            v-if="activeMenuKey === 'organization-projects' || (activeMenuKey === 'organization-admin' && currentUser.is_staff)"
+            v-else-if="activeMenuKey === 'organization-projects' || (activeMenuKey === 'organization-admin' && currentUser.is_staff)"
             :projects="projects"
             :loading="projectsLoading"
             :saving="organizationSaving"
@@ -836,6 +973,7 @@ onMounted(() => {
           </template>
         </section>
       </main>
+      </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
 </template>

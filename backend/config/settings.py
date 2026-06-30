@@ -100,6 +100,18 @@ WHISPER_CONNECTION = os.getenv("WHISPER_CONNECTION", "local")
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
 WHISPER_BASE_URL = os.getenv("WHISPER_BASE_URL", "http://127.0.0.1:8002")
 
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
+EMAIL_PORT = env_int("EMAIL_PORT", 25)
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", False)
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "UAV Center <noreply@uav-center.local>")
+
 JIRA_SERVER = os.getenv("JIRA_SERVER", "")
 JIRA_EMAIL = os.getenv("JIRA_EMAIL", "")
 JIRA_API_TOKEN = os.getenv("JIRA_API_TOKEN", "")

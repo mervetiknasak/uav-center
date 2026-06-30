@@ -19,6 +19,10 @@ Python Django backend ve Vue 3 + Naive UI frontend ile lokal belge işleme uygul
 - Whisper için lokal Python modeli veya lokal HTTP transkripsiyon servisi wrapper'ı
 - Admin tarafından yönetilen proje, alt panel ve panel sorumlusu organizasyon yapısı
 - Aktif kullanıcılar için salt okunur organizasyon görünümü
+- Proje sekmeleri, KPI kartları ve gelişmiş filtrelerle teknik doküman dashboardu
+- Doküman durum/revizyon/yayın/termin takibi ve denetlenebilir durum geçmişi
+- Bir teknik dokümanı aynı projedeki birden fazla panelle ilişkilendirme
+- Panel sorumlularına alıcı önizlemeli e-posta bildirimi ve bildirim geçmişi
 
 ## Backend
 
@@ -63,6 +67,7 @@ http://localhost:8000/api/documents/
 http://localhost:8000/api/documents/upload/
 http://localhost:8000/api/documents/<id>/
 http://localhost:8000/api/organization/projects/
+http://localhost:8000/api/technical-documents/
 ```
 
 DRF yanıt formatı:
@@ -73,6 +78,21 @@ DRF yanıt formatı:
 - `DELETE /api/documents/<id>/`: belge kaydını ve lokal dosyayı siler
 - `GET /api/organization/projects/`: projeleri alt panelleri ve sorumlularıyla listeler
 - Organizasyon API'sindeki `POST`, `PATCH` ve `DELETE` işlemleri yalnızca admin kullanıcılarına açıktır
+- `GET|POST /api/technical-documents/`: teknik doküman listesi ve admin oluşturma işlemi
+- `GET|PATCH|DELETE /api/technical-documents/<id>/`: detay, statü dahil güncelleme ve silme
+- `POST /api/technical-documents/<id>/notify/`: bağlı panellerdeki e-posta adresi bulunan sorumlulara bildirim gönderme
+
+Yerel demo dokümanlarını mevcut projelere idempotent olarak eklemek için:
+
+```bash
+cd backend
+python manage.py seed_technical_documents
+```
+
+E-posta geliştirme ortamında varsayılan olarak konsola yazılır. SMTP kullanımı için
+`backend/.env` içinde `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`,
+`EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` ve
+`DEFAULT_FROM_EMAIL` değerleri tanımlanabilir.
 
 Örnek upload:
 

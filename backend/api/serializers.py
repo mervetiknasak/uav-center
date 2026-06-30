@@ -1,9 +1,18 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.db import transaction
 from django.db.models import Max
 
-from .models import Document, PanelResponsible, Project, ProjectPanel
+from .models import (
+    Document,
+    PanelResponsible,
+    Project,
+    ProjectPanel,
+    TechnicalDocument,
+    TechnicalDocumentNotification,
+    TechnicalDocumentStatusHistory,
+)
 from .services.document_extractor import SUPPORTED_EXTENSIONS
 
 
@@ -180,3 +189,210 @@ class ProjectSerializer(serializers.ModelSerializer):
             "panels",
         ]
         read_only_fields = ["created_at", "updated_at"]
+
+
+class TechnicalDocumentPanelSerializer(serializers.ModelSerializer):
+    responsible_count = serializers.IntegerField(source="responsibles.count", read_only=True)
+
+    class Meta:
+        model = ProjectPanel
+        fields = ["id", "name", "responsible_count"]
+
+
+class TechnicalDocumentStatusHistorySerializer(serializers.ModelSerializer):
+    changed_by_name = serializers.CharField(source="changed_by.username", read_only=True)
+    from_status_display = serializers.CharField(source="get_from_status_display", read_only=True)
+    to_status_display = serializers.CharField(source="get_to_status_display", read_only=True)
+
+    class Meta:
+        model = TechnicalDocumentStatusHistory
+        fields = [
+            "id",
+            "from_status",
+            "from_status_display",
+            "to_status",
+            "to_status_display",
+            "note",
+            "changed_by_name",
+            "created_at",
+        ]
+
+
+class TechnicalDocumentNotificationSerializer(serializers.ModelSerializer):
+    sent_by_name = serializers.CharField(source="sent_by.username", read_only=True)
+
+    class Meta:
+        model = TechnicalDocumentNotification
+        fields = [
+            "id",
+            "subject",
+            "message",
+            "recipients",
+            "recipient_count",
+            "status",
+            "error_message",
+            "sent_by_name",
+            "created_at",
+        ]
+
+
+class TechnicalDocumentSerializer(serializers.ModelSerializer):
+    panels = serializers.PrimaryKeyRelatedField(
+        queryset=ProjectPanel.objects.select_related("project"),
+        many=True,
+        required=False,
+        write_only=True,
+    )
+    panel_details = TechnicalDocumentPanelSerializer(source="panels", many=True, read_only=True)
+    project_name = serializers.CharField(source="project.name", read_only=True)
+    project_code = serializers.CharField(source="project.code", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    priority_display = serializers.CharField(source="get_priority_display", read_only=True)
+    classification_display = serializers.CharField(source="get_classification_display", read_only=True)
+    notification_recipients = serializers.SerializerMethodField()
+    status_history = TechnicalDocumentStatusHistorySerializer(many=True, read_only=True)
+    notifications = TechnicalDocumentNotificationSerializer(many=True, read_only=True)
+    created_by_name = serializers.CharField(source="created_by.username", read_only=True)
+    updated_by_name = serializers.CharField(source="updated_by.username", read_only=True)
+
+    class Meta:
+        model = TechnicalDocument
+        fields = [
+            "id",
+            "project",
+            "project_name",
+            "project_code",
+            "panels",
+            "panel_details",
+            "code",
+            "title",
+            "description",
+            "category",
+            "document_type",
+            "revision",
+            "status",
+            "status_display",
+            "priority",
+            "priority_display",
+            "classification",
+            "classification_display",
+            "owner_name",
+            "publication_date",
+            "due_date",
+            "review_date",
+            "source_url",
+            "notes",
+            "notification_recipients",
+            "last_notification_at",
+            "last_notification_recipient_count",
+            "status_history",
+            "notifications",
+            "created_by_name",
+            "updated_by_name",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "last_notification_at",
+            "last_notification_recipient_count",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_notification_recipients(self, document):
+        recipients = {}
+        for panel in document.panels.all():
+            for responsible in panel.responsibles.all():
+                if responsible.email:
+                    recipients[responsible.email.lower()] = {
+                        "name": responsible.name,
+                        "email": responsible.email,
+                        "panel": panel.name,
+                    }
+        return list(recipients.values())
+
+    def validate_code(self, value):
+        return value.strip().upper()
+
+    def validate(self, attrs):
+        project = attrs.get("project", getattr(self.instance, "project", None))
+        panels = attrs.get("panels")
+        status_value = attrs.get("status", getattr(self.instance, "status", TechnicalDocument.STATUS_DRAFT))
+        publication_date = attrs.get(
+            "publication_date",
+            getattr(self.instance, "publication_date", None),
+        )
+
+        if panels is not None and project:
+            invalid_panels = [panel.name for panel in panels if panel.project_id != project.id]
+            if invalid_panels:
+                raise serializers.ValidationError(
+                    {"panels": [f"Seçilen paneller bu projeye ait değil: {', '.join(invalid_panels)}"]}
+                )
+        elif (
+            self.instance
+            and project
+            and project.id != self.instance.project_id
+            and self.instance.panels.exclude(project_id=project.id).exists()
+        ):
+            raise serializers.ValidationError(
+                {
+                    "panels": [
+                        "Proje değiştirilirken yeni projeye ait panel seçimi de gönderilmelidir."
+                    ]
+                }
+            )
+
+        if status_value == TechnicalDocument.STATUS_PUBLISHED and not publication_date:
+            raise serializers.ValidationError(
+                {"publication_date": ["Yayınlanan bir doküman için yayın tarihi zorunludur."]}
+            )
+
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        panels = validated_data.pop("panels", [])
+        user = self.context["request"].user
+        document = TechnicalDocument.objects.create(
+            **validated_data,
+            created_by=user,
+            updated_by=user,
+        )
+        document.panels.set(panels)
+        TechnicalDocumentStatusHistory.objects.create(
+            document=document,
+            to_status=document.status,
+            note="Doküman kaydı oluşturuldu.",
+            changed_by=user,
+        )
+        return document
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        panels = validated_data.pop("panels", None)
+        previous_status = instance.status
+        status_note = self.context["request"].data.get("status_note", "")
+        user = self.context["request"].user
+
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.updated_by = user
+        instance.save()
+        if panels is not None:
+            instance.panels.set(panels)
+
+        if previous_status != instance.status:
+            TechnicalDocumentStatusHistory.objects.create(
+                document=instance,
+                from_status=previous_status,
+                to_status=instance.status,
+                note=status_note,
+                changed_by=user,
+            )
+        return instance
+
+
+class TechnicalDocumentNotificationRequestSerializer(serializers.Serializer):
+    subject = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    message = serializers.CharField(max_length=5000, required=False, allow_blank=True)

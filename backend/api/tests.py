@@ -1,8 +1,16 @@
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.core import mail
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
-from .models import PanelResponsible, Project, ProjectPanel
+from .models import (
+    PanelResponsible,
+    Project,
+    ProjectPanel,
+    TechnicalDocument,
+    TechnicalDocumentNotification,
+    TechnicalDocumentStatusHistory,
+)
 
 
 class AuthApiTests(TestCase):
@@ -199,3 +207,139 @@ class OrganizationApiTests(TestCase):
         )
         self.assertEqual(delete_response.status_code, 204)
         self.assertFalse(ProjectPanel.objects.filter(id=panel_response.json()["id"]).exists())
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class TechnicalDocumentApiTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(username="engineer", password="StrongPass123!")
+        self.admin = user_model.objects.create_user(
+            username="document-admin",
+            password="StrongPass123!",
+            is_staff=True,
+        )
+        self.project = Project.objects.create(name="TULPAR", code="TPL")
+        self.panel = ProjectPanel.objects.create(project=self.project, name="Aviyonik")
+        self.other_project = Project.objects.create(name="GÖKBEY", code="GKB")
+        self.other_panel = ProjectPanel.objects.create(project=self.other_project, name="Yapısal")
+        PanelResponsible.objects.create(
+            panel=self.panel,
+            name="Ada Yılmaz",
+            title="Panel Lideri",
+            email="ada@example.com",
+        )
+
+    def create_document(self, **overrides):
+        values = {
+            "project": self.project,
+            "code": "TPL-SYS-001",
+            "title": "Sistem Gereksinimleri",
+            "status": TechnicalDocument.STATUS_IN_REVIEW,
+            "revision": "B",
+        }
+        values.update(overrides)
+        document = TechnicalDocument.objects.create(**values)
+        document.panels.add(self.panel)
+        return document
+
+    def test_admin_creates_document_with_multiple_panel_relation_and_history(self):
+        second_panel = ProjectPanel.objects.create(project=self.project, name="Uçuş Kontrol")
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("technical-document-list"),
+            data={
+                "project": self.project.id,
+                "panels": [self.panel.id, second_panel.id],
+                "code": "tpl-icd-002",
+                "title": "Arayüz Kontrol Dokümanı",
+                "revision": "A",
+                "status": "draft",
+                "priority": "high",
+                "classification": "internal",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        document = TechnicalDocument.objects.get(pk=response.json()["id"])
+        self.assertEqual(document.code, "TPL-ICD-002")
+        self.assertEqual(document.panels.count(), 2)
+        self.assertEqual(document.status_history.count(), 1)
+        self.assertEqual(document.created_by, self.admin)
+
+    def test_document_rejects_panel_from_another_project(self):
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("technical-document-list"),
+            data={
+                "project": self.project.id,
+                "panels": [self.other_panel.id],
+                "code": "TPL-BAD-001",
+                "title": "Geçersiz İlişki",
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("panels", response.json())
+
+    def test_regular_user_can_read_but_cannot_create_document(self):
+        document = self.create_document()
+        self.client.force_login(self.user)
+
+        list_response = self.client.get(
+            reverse("technical-document-list"),
+            {"project": self.project.id, "status": "in_review"},
+        )
+        create_response = self.client.post(
+            reverse("technical-document-list"),
+            data={"project": self.project.id, "code": "TPL-X", "title": "Yetkisiz"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(list_response.json()[0]["id"], document.id)
+        self.assertEqual(create_response.status_code, 403)
+
+    def test_status_update_creates_audit_history(self):
+        document = self.create_document()
+        self.client.force_login(self.admin)
+
+        response = self.client.patch(
+            reverse(
+                "technical-document-detail",
+                kwargs={"technical_document_id": document.id},
+            ),
+            data={"status": "approved", "status_note": "Teknik kurul onayı tamamlandı."},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        history = TechnicalDocumentStatusHistory.objects.get(document=document)
+        self.assertEqual(history.from_status, "in_review")
+        self.assertEqual(history.to_status, "approved")
+        self.assertEqual(history.changed_by, self.admin)
+
+    def test_notification_sends_to_panel_responsibles_and_records_audit(self):
+        document = self.create_document()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse(
+                "technical-document-notify",
+                kwargs={"technical_document_id": document.id},
+            ),
+            data={"message": "Dokümanın incelemesi için bilginize."},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].bcc, ["ada@example.com"])
+        notification = TechnicalDocumentNotification.objects.get(document=document)
+        self.assertEqual(notification.status, "sent")
+        self.assertEqual(notification.recipient_count, 1)
+        document.refresh_from_db()
+        self.assertEqual(document.last_notification_recipient_count, 1)

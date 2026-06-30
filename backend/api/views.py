@@ -1,4 +1,7 @@
 from django.contrib.auth import get_user_model, login, logout
+from django.conf import settings
+from django.core.mail import EmailMessage
+from django.db.models import Prefetch, Q
 from django.middleware.csrf import get_token
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -10,7 +13,14 @@ from rest_framework.permissions import SAFE_METHODS, AllowAny, BasePermission, I
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Document, PanelResponsible, Project, ProjectPanel
+from .models import (
+    Document,
+    PanelResponsible,
+    Project,
+    ProjectPanel,
+    TechnicalDocument,
+    TechnicalDocumentNotification,
+)
 from .serializers import (
     AdminUserSerializer,
     AdminUserStatusSerializer,
@@ -22,6 +32,8 @@ from .serializers import (
     ProjectPanelSerializer,
     ProjectSerializer,
     RegisterSerializer,
+    TechnicalDocumentNotificationRequestSerializer,
+    TechnicalDocumentSerializer,
     UserSerializer,
 )
 from .services.ai_processor import process_document_text
@@ -269,3 +281,143 @@ class PanelResponsibleDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = PanelResponsibleSerializer
     queryset = PanelResponsible.objects.all()
     lookup_url_kwarg = "responsible_id"
+
+
+def technical_document_queryset():
+    return TechnicalDocument.objects.select_related(
+        "project",
+        "created_by",
+        "updated_by",
+    ).prefetch_related(
+        Prefetch(
+            "panels",
+            queryset=ProjectPanel.objects.prefetch_related("responsibles"),
+        ),
+        "status_history__changed_by",
+        "notifications__sent_by",
+    )
+
+
+class TechnicalDocumentListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = TechnicalDocumentSerializer
+
+    def get_queryset(self):
+        queryset = technical_document_queryset()
+        project_id = self.request.query_params.get("project")
+        panel_id = self.request.query_params.get("panel")
+        status_value = self.request.query_params.get("status")
+        search = self.request.query_params.get("search", "").strip()
+
+        if project_id:
+            queryset = queryset.filter(project_id=project_id)
+        if panel_id:
+            queryset = queryset.filter(panels__id=panel_id)
+        if status_value:
+            queryset = queryset.filter(status=status_value)
+        if search:
+            queryset = queryset.filter(
+                Q(code__icontains=search)
+                | Q(title__icontains=search)
+                | Q(category__icontains=search)
+                | Q(owner_name__icontains=search)
+            )
+        return queryset.distinct()
+
+
+class TechnicalDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = TechnicalDocumentSerializer
+    queryset = technical_document_queryset()
+    lookup_url_kwarg = "technical_document_id"
+
+
+class TechnicalDocumentNotifyView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def post(self, request, technical_document_id):
+        document = generics.get_object_or_404(
+            technical_document_queryset(),
+            pk=technical_document_id,
+        )
+        serializer = TechnicalDocumentNotificationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        recipients = sorted(
+            {
+                responsible.email.strip().lower()
+                for panel in document.panels.all()
+                for responsible in panel.responsibles.all()
+                if responsible.email.strip()
+            }
+        )
+        if not recipients:
+            return Response(
+                {"detail": "Seçili panellerde e-posta adresi bulunan sorumlu yok."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        subject = serializer.validated_data.get("subject", "").strip() or (
+            f"[{document.project.code}] {document.code} — {document.title}"
+        )
+        custom_message = serializer.validated_data.get("message", "").strip()
+        message = custom_message or (
+            f"{document.code} kodlu “{document.title}” dokümanı için bilgilendirme.\n\n"
+            f"Durum: {document.get_status_display()}\n"
+            f"Revizyon: {document.revision}\n"
+            f"Yayın tarihi: {document.publication_date or '—'}\n"
+            f"Termin: {document.due_date or '—'}\n\n"
+            "Bu ileti UAV Center Teknik Doküman Yönetimi üzerinden gönderilmiştir."
+        )
+
+        notification = TechnicalDocumentNotification(
+            document=document,
+            subject=subject,
+            message=message,
+            recipients=recipients,
+            recipient_count=len(recipients),
+            status=TechnicalDocumentNotification.STATUS_SENT,
+            sent_by=request.user,
+        )
+
+        try:
+            email = EmailMessage(
+                subject=subject,
+                body=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                bcc=recipients,
+            )
+            email.send(fail_silently=False)
+        except Exception as exc:
+            notification.status = TechnicalDocumentNotification.STATUS_FAILED
+            notification.error_message = str(exc)
+            notification.save()
+            return Response(
+                {
+                    "detail": "E-posta gönderilemedi. Hata denetim kaydına işlendi.",
+                    "notification": {
+                        "id": notification.id,
+                        "status": notification.status,
+                    },
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        notification.save()
+        document.last_notification_at = notification.created_at
+        document.last_notification_recipient_count = len(recipients)
+        document.save(
+            update_fields=[
+                "last_notification_at",
+                "last_notification_recipient_count",
+            ]
+        )
+        return Response(
+            {
+                "message": f"Bildirim {len(recipients)} panel sorumlusuna gönderildi.",
+                "document": TechnicalDocumentSerializer(
+                    technical_document_queryset().get(pk=document.pk),
+                    context={"request": request},
+                ).data,
+            }
+        )
