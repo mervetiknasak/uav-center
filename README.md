@@ -46,7 +46,12 @@ Yalnızca bir tarafı çalıştırmak için:
 python3 launcher.py --backend-only
 python3 launcher.py --frontend-only
 python3 launcher.py --backend-port 18000 --frontend-port 5174
+python3 launcher.py --no-reload
 ```
+
+Launcher, Django kaynak dosyalarındaki değişiklikleri varsayılan olarak izler ve
+backend'i otomatik yeniden yükler. Bu davranış gerektiğinde `--no-reload` ile
+kapatılabilir.
 
 ```bash
 cd backend

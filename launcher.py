@@ -220,7 +220,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--backend-port", type=int, default=8000, help="Django portu. Varsayılan: 8000")
     parser.add_argument("--frontend-host", default="127.0.0.1", help="Vite host'u. Varsayılan: 127.0.0.1")
     parser.add_argument("--frontend-port", type=int, default=5173, help="Vite portu. Varsayılan: 5173")
-    parser.add_argument("--reload", action="store_true", help="Django auto-reload izleyicisini etkinleştir.")
+    reload_group = parser.add_mutually_exclusive_group()
+    reload_group.add_argument(
+        "--reload",
+        dest="reload",
+        action="store_true",
+        help="Django auto-reload izleyicisini etkinleştir (varsayılan).",
+    )
+    reload_group.add_argument(
+        "--no-reload",
+        dest="reload",
+        action="store_false",
+        help="Django auto-reload izleyicisini devre dışı bırak.",
+    )
+    parser.set_defaults(reload=True)
     return parser.parse_args()
 
 
