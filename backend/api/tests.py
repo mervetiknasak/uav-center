@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+from django.core.files.uploadedfile import SimpleUploadedFile
+from io import BytesIO
 
 from .models import (
     PanelResponsible,
@@ -130,6 +132,152 @@ class AuthApiTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
+
+class WordTableParseApiTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(
+            username="word-reader",
+            password="StrongPass123!",
+        )
+        self.client.force_login(user)
+
+    @staticmethod
+    def word_file():
+        from docx import Document
+
+        document = Document()
+        table = document.add_table(rows=2, cols=2)
+        table.cell(0, 0).text = "Başlık"
+        table.cell(0, 1).text = "Değer"
+        table.cell(1, 0).text = "Özet"
+        table.cell(1, 1).text = "Uçuş kontrolü"
+        table.cell(0, 0).merge(table.cell(0, 1))
+        content = BytesIO()
+        document.save(content)
+        return SimpleUploadedFile(
+            "gorev.docx",
+            content.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+    def test_parse_returns_zero_based_cell_coordinates(self):
+        response = self.client.post(
+            reverse("word-table-parse"),
+            data={"file": self.word_file()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["table_count"], 1)
+        self.assertEqual(payload["cell_count"], 3)
+        self.assertEqual(
+            payload["cells"][2],
+            {
+                "index": 2,
+                "table_index": 0,
+                "row_index": 1,
+                "column_index": 1,
+                "text": "Uçuş kontrolü",
+            },
+        )
+        self.assertEqual(payload["cells"][0]["text"], "Başlık\nDeğer")
+        self.assertFalse(payload["jira_ready"])
+
+    def test_parse_rejects_non_docx_file(self):
+        response = self.client.post(
+            reverse("word-table-parse"),
+            data={"file": SimpleUploadedFile("notlar.txt", b"test")},
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_parse_keeps_all_distinct_cells(self):
+        from docx import Document
+
+        document = Document()
+        table = document.add_table(rows=10, cols=5)
+        for row_index, row in enumerate(table.rows):
+            for column_index, cell in enumerate(row.cells):
+                cell.text = f"{row_index}:{column_index}"
+
+        content = BytesIO()
+        document.save(content)
+        upload = SimpleUploadedFile(
+            "buyuk-tablo.docx",
+            content.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        response = self.client.post(
+            reverse("word-table-parse"),
+            data={"file": upload},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["cell_count"], 50)
+        self.assertEqual(payload["cells"][-1]["text"], "9:4")
+
+    def test_extracts_mapped_fields_and_dynamic_action_item_range(self):
+        from docx import Document
+
+        document = Document()
+        table = document.add_table(rows=15, cols=4)
+        table.cell(1, 2).text = "UAV"
+        table.cell(2, 2).text = "Uçuş hazırlığı"
+        table.cell(3, 2).text = "MOM-42"
+        table.cell(4, 2).text = "B"
+        table.cell(8, 0).merge(table.cell(8, 3)).text = "Action Item List"
+        headers = ["No", "Action Item", "Responsible", "Due Date"]
+        for column_index, header in enumerate(headers):
+            table.cell(9, column_index).text = header
+        first_item = ["1", "Motor kontrolünü tamamla", "Ada", "2026-07-10"]
+        second_item = ["2", "Telemetri raporunu paylaş", "Deniz", "2026-07-12"]
+        for column_index, value in enumerate(first_item):
+            table.cell(10, column_index).text = value
+        for column_index, value in enumerate(second_item):
+            table.cell(11, column_index).text = value
+        table.cell(12, 0).merge(table.cell(12, 3)).text = "Attachments / Ekler"
+        table.cell(13, 0).text = "action-items.pdf"
+
+        content = BytesIO()
+        document.save(content)
+        upload = SimpleUploadedFile(
+            "mom.docx",
+            content.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        response = self.client.post(
+            reverse("word-table-parse"),
+            data={"file": upload},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        extracted = response.json()["extracted_data"]
+        self.assertEqual(extracted["project"], "UAV")
+        self.assertEqual(extracted["subject"], "Uçuş hazırlığı")
+        self.assertEqual(extracted["mom_no"], "MOM-42")
+        self.assertEqual(extracted["revision"], "B")
+        self.assertEqual(
+            extracted["action_items"],
+            [
+                {
+                    "no": "1",
+                    "action_item": "Motor kontrolünü tamamla",
+                    "responsible": "Ada",
+                    "due_date": "2026-07-10",
+                },
+                {
+                    "no": "2",
+                    "action_item": "Telemetri raporunu paylaş",
+                    "responsible": "Deniz",
+                    "due_date": "2026-07-12",
+                },
+            ],
+        )
+        self.assertTrue(extracted["action_item_list_found"])
+        self.assertTrue(extracted["attachments_found"])
 
 class OrganizationApiTests(TestCase):
     def setUp(self):

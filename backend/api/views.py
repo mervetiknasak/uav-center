@@ -38,6 +38,7 @@ from .serializers import (
 )
 from .services.ai_processor import process_document_text
 from .services.document_extractor import UnsupportedDocumentError, extract_text
+from .services.word_table_parser import WordTableParseError, parse_word_table
 
 User = get_user_model()
 
@@ -226,6 +227,46 @@ class DocumentUploadView(APIView):
             else status.HTTP_422_UNPROCESSABLE_ENTITY
         )
         return Response(DocumentDetailSerializer(document).data, status=response_status)
+
+
+class WordTableParseView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        upload = request.FILES.get("file")
+        if upload is None:
+            return Response(
+                {"file": ["Word dosyası zorunludur."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not upload.name.lower().endswith(".docx"):
+            return Response(
+                {"file": ["Yalnızca .docx uzantılı Word dosyaları destekleniyor."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from tempfile import NamedTemporaryFile
+
+        try:
+            with NamedTemporaryFile(suffix=".docx") as temporary_file:
+                for chunk in upload.chunks():
+                    temporary_file.write(chunk)
+                temporary_file.flush()
+                result = parse_word_table(temporary_file.name)
+        except WordTableParseError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+
+        return Response(
+            {
+                "file_name": upload.name,
+                **result,
+                "jira_ready": False,
+            }
+        )
 
 
 class ProjectListCreateView(generics.ListCreateAPIView):

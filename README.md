@@ -68,6 +68,7 @@ http://localhost:8000/api/documents/upload/
 http://localhost:8000/api/documents/<id>/
 http://localhost:8000/api/organization/projects/
 http://localhost:8000/api/technical-documents/
+http://localhost:8000/api/word-to-jira/parse/
 ```
 
 DRF yanıt formatı:
@@ -81,6 +82,7 @@ DRF yanıt formatı:
 - `GET|POST /api/technical-documents/`: teknik doküman listesi ve admin oluşturma işlemi
 - `GET|PATCH|DELETE /api/technical-documents/<id>/`: detay, statü dahil güncelleme ve silme
 - `POST /api/technical-documents/<id>/notify/`: bağlı panellerdeki e-posta adresi bulunan sorumlulara bildirim gönderme
+- `POST /api/word-to-jira/parse/`: `.docx` tablo hücrelerini 0 tabanlı global, tablo, satır ve sütun indeksleriyle okuma
 
 Yerel demo dokümanlarını mevcut projelere idempotent olarak eklemek için:
 

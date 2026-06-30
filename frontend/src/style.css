@@ -357,6 +357,39 @@ h2 {
   white-space: pre-wrap;
 }
 
+.word-jira-view {
+  display: grid;
+  gap: 18px;
+}
+
+.word-jira-view .page-heading span {
+  display: block;
+  margin-top: 8px;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.word-cell-table-wrap {
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.word-action-items {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.word-multiline-text {
+  white-space: pre-line;
+}
+
+.word-index-table {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
 .technical-documents-view {
   display: grid;
   gap: 20px;

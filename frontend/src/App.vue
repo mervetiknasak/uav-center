@@ -4,6 +4,7 @@ import AdminMembershipView from "./views/AdminMembershipView.vue";
 import OrganizationView from "./views/OrganizationView.vue";
 import SystemView from "./views/SystemView.vue";
 import TechnicalDocumentsView from "./views/TechnicalDocumentsView.vue";
+import WordToJiraView from "./views/WordToJiraView.vue";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
@@ -39,6 +40,9 @@ const technicalDocumentSaving = ref(false);
 const technicalDocumentError = ref("");
 const technicalDocumentNotice = ref("");
 const notifyingTechnicalDocumentId = ref(null);
+const wordParseLoading = ref(false);
+const wordParseError = ref("");
+const wordParseResult = ref(null);
 const credentials = ref({
   username: "",
   email: "",
@@ -84,6 +88,10 @@ const menuOptions = computed(() => {
         {
           label: "AI Sonuçları",
           key: "results"
+        },
+        {
+          label: "Word → Jira",
+          key: "word-to-jira"
         }
       ]
     }
@@ -608,6 +616,36 @@ async function deleteDocument(document) {
   }
 }
 
+async function parseWordTable({ file, onFinish, onError }) {
+  wordParseLoading.value = true;
+  wordParseError.value = "";
+  wordParseResult.value = null;
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const data = await apiFetch("/api/word-to-jira/parse/", {
+      method: "POST",
+      body: formData
+    });
+    wordParseResult.value = data;
+    console.group(`[Word → Jira] ${data.file_name}`);
+    data.cells.forEach((cell) => {
+      console.log(
+        `index=${cell.index} table=${cell.table_index} row=${cell.row_index} column=${cell.column_index}`,
+        cell.text
+      );
+    });
+    console.groupEnd();
+    onFinish?.();
+  } catch (err) {
+    wordParseError.value = err instanceof Error ? err.message : "Word dosyası okunamadı";
+    onError?.();
+  } finally {
+    wordParseLoading.value = false;
+  }
+}
+
 function switchAuthMode(mode) {
   authMode.value = mode;
   authError.value = "";
@@ -827,6 +865,14 @@ onMounted(() => {
             @check-backend="checkBackend"
             @refresh-documents="loadDocuments"
             @refresh-users="loadAdminUsers"
+          />
+
+          <WordToJiraView
+            v-else-if="activeMenuKey === 'word-to-jira'"
+            :loading="wordParseLoading"
+            :error="wordParseError"
+            :result="wordParseResult"
+            @parse="parseWordTable"
           />
 
           <template v-else>
