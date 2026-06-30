@@ -90,7 +90,7 @@ const menuOptions = computed(() => {
           key: "results"
         },
         {
-          label: "Word → Jira",
+          label: "Toplantı Tutanağı Okuyucu",
           key: "word-to-jira"
         }
       ]

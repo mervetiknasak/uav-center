@@ -19,9 +19,9 @@ const selectedFileName = ref("");
 
 const actionItemColumns = [
   { title: "No", key: "no", width: 80 },
-  { title: "Action Item", key: "action_item", minWidth: 320 },
-  { title: "Responsible", key: "responsible", minWidth: 180 },
-  { title: "Due Date", key: "due_date", width: 150 }
+  { title: "Aksiyon Maddesi", key: "action_item", minWidth: 320 },
+  { title: "Sorumlu", key: "responsible", minWidth: 180 },
+  { title: "Termin Tarihi", key: "due_date", width: 150 }
 ];
 
 const cellColumns = [
@@ -42,11 +42,11 @@ function parseFile({ file, onFinish, onError }) {
   <section class="word-jira-view">
     <div class="page-heading">
       <p>Araçlar</p>
-      <h1>Word → Jira</h1>
-      <span>Word tablosundaki hücreleri indeksleyin; Jira alan eşlemesini sonraki adımda tanımlayın.</span>
+      <h1>Toplantı Tutanağı Okuyucu</h1>
+      <span>Word formatındaki toplantı tutanağını yükleyin; toplantı bilgilerini, kararları ve aksiyon maddelerini otomatik olarak çıkarın.</span>
     </div>
 
-    <n-card title="Word Tablosunu Oku" size="small">
+    <n-card title="Toplantı Tutanağı Yükle" size="small">
       <n-space vertical :size="16">
         <n-upload
           directory-dnd
@@ -56,20 +56,20 @@ function parseFile({ file, onFinish, onError }) {
           :disabled="loading"
         >
           <n-upload-dragger>
-            <div class="upload-title">.docx dosyasını buraya bırakın</div>
+            <div class="upload-title">Toplantı tutanağını buraya bırakın</div>
             <div class="upload-subtitle">
-              {{ selectedFileName || "Dosyanın tamamının tablolardan oluşması beklenir." }}
+              {{ selectedFileName || "Desteklenen dosya biçimi: .docx" }}
             </div>
           </n-upload-dragger>
         </n-upload>
 
-        <n-alert v-if="error" type="error" title="Dosya okunamadı">{{ error }}</n-alert>
+        <n-alert v-if="error" type="error" title="Tutanak okunamadı">{{ error }}</n-alert>
       </n-space>
     </n-card>
 
-    <n-card v-if="result" title="Hücre İndeksleri" size="small">
+    <n-card v-if="result" title="Tutanak Özeti" size="small">
       <n-space vertical :size="14">
-        <n-card title="Eşlenen Alanlar" size="small" embedded>
+        <n-card title="Toplantı Bilgileri" size="small" embedded>
           <n-descriptions
             :column="1"
             label-placement="left"
@@ -82,22 +82,22 @@ function parseFile({ file, onFinish, onError }) {
             <n-descriptions-item label="Konu">
               {{ result.extracted_data?.subject || "Bulunamadı" }}
             </n-descriptions-item>
-            <n-descriptions-item label="MoM No">
+            <n-descriptions-item label="Tutanak No">
               {{ result.extracted_data?.mom_no || "Bulunamadı" }}
             </n-descriptions-item>
-            <n-descriptions-item label="Revision">
+            <n-descriptions-item label="Revizyon">
               {{ result.extracted_data?.revision || "Bulunamadı" }}
             </n-descriptions-item>
-            <n-descriptions-item label="Date/Time">
+            <n-descriptions-item label="Tarih / Saat">
               {{ result.extracted_data?.date_time || "Bulunamadı" }}
             </n-descriptions-item>
-            <n-descriptions-item label="Location">
+            <n-descriptions-item label="Toplantı Yeri">
               {{ result.extracted_data?.location || "Bulunamadı" }}
             </n-descriptions-item>
-            <n-descriptions-item label="Agenda">
+            <n-descriptions-item label="Gündem">
               {{ result.extracted_data?.agenda || "Bulunamadı" }}
             </n-descriptions-item>
-            <n-descriptions-item label="Discussions & Decisions">
+            <n-descriptions-item label="Görüşmeler ve Kararlar">
               <span class="word-multiline-text">
                 {{ result.extracted_data?.discussions_decisions || "Bulunamadı" }}
               </span>
@@ -105,13 +105,13 @@ function parseFile({ file, onFinish, onError }) {
           </n-descriptions>
 
           <div class="word-action-items">
-            <strong>Action Item List</strong>
+            <strong>Aksiyon Maddeleri</strong>
             <n-alert
               v-if="!result.extracted_data?.action_item_list_found || !result.extracted_data?.attachments_found"
               type="warning"
-              title="Bölüm sınırları bulunamadı"
+              title="Aksiyon listesi bulunamadı"
             >
-              “Action Item List” ve “attachments” metinlerinin ikisi de belgede bulunmalı.
+              Tutanaktaki aksiyon listesi veya ekler bölümü tanımlanamadı.
             </n-alert>
             <div
               v-else-if="result.extracted_data.action_items.length"
@@ -126,19 +126,19 @@ function parseFile({ file, onFinish, onError }) {
                 striped
               />
             </div>
-            <n-empty v-else description="Sınırlar arasında dolu hücre bulunamadı" />
+            <n-empty v-else description="Tutanakta aksiyon maddesi bulunamadı" />
           </div>
         </n-card>
 
         <n-descriptions :column="3" bordered size="small">
-          <n-descriptions-item label="Dosya">{{ result.file_name }}</n-descriptions-item>
-          <n-descriptions-item label="Tablo">{{ result.table_count }}</n-descriptions-item>
-          <n-descriptions-item label="Hücre">{{ result.cell_count }}</n-descriptions-item>
+          <n-descriptions-item label="Kaynak Dosya">{{ result.file_name }}</n-descriptions-item>
+          <n-descriptions-item label="Okunan Tablo">{{ result.table_count }}</n-descriptions-item>
+          <n-descriptions-item label="İşlenen Alan">{{ result.cell_count }}</n-descriptions-item>
         </n-descriptions>
 
         <n-collapse>
           <n-collapse-item
-            title="Hücre Detaylarını Görüntüle"
+            title="Teknik Okuma Detaylarını Görüntüle"
             name="word-cell-details"
           >
             <n-data-table
