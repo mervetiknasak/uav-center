@@ -6,6 +6,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from io import BytesIO
 
 from .models import (
+    CoverPage,
     PanelResponsible,
     Project,
     ProjectPanel,
@@ -432,6 +433,34 @@ class TechnicalDocumentApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("panels", response.json())
+
+    def test_documents_can_share_a_cover_page(self):
+        self.client.force_login(self.admin)
+        payload = {
+            "project": self.project.id,
+            "code": "TPL-COV-001",
+            "title": "Kapaklı Doküman",
+            "cover_page": {"number": "KP-100", "issue": "02"},
+        }
+        first_response = self.client.post(
+            reverse("technical-document-list"),
+            data=payload,
+            content_type="application/json",
+        )
+        payload["code"] = "TPL-COV-002"
+        second_response = self.client.post(
+            reverse("technical-document-list"),
+            data=payload,
+            content_type="application/json",
+        )
+
+        self.assertEqual(first_response.status_code, 201)
+        self.assertEqual(second_response.status_code, 201)
+        self.assertEqual(CoverPage.objects.count(), 1)
+        cover_page = CoverPage.objects.get()
+        self.assertEqual(cover_page.technical_documents.count(), 2)
+        self.assertEqual(first_response.json()["cover_page"]["number"], "KP-100")
+        self.assertEqual(first_response.json()["cover_page"]["issue"], "02")
 
     def test_regular_user_can_read_but_cannot_create_document(self):
         document = self.create_document()

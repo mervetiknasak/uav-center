@@ -80,6 +80,26 @@ class PanelResponsible(models.Model):
         return self.name
 
 
+class CoverPage(models.Model):
+    project = models.ForeignKey(Project, related_name="cover_pages", on_delete=models.CASCADE)
+    number = models.CharField(max_length=80)
+    issue = models.CharField(max_length=40)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["number", "issue"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "number", "issue"],
+                name="unique_cover_page_number_issue_per_project",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.number} — Issue {self.issue}"
+
+
 class TechnicalDocument(models.Model):
     STATUS_DRAFT = "draft"
     STATUS_IN_REVIEW = "in_review"
@@ -120,6 +140,13 @@ class TechnicalDocument(models.Model):
     ]
 
     project = models.ForeignKey(Project, related_name="technical_documents", on_delete=models.CASCADE)
+    cover_page = models.ForeignKey(
+        CoverPage,
+        related_name="technical_documents",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
     panels = models.ManyToManyField(ProjectPanel, related_name="technical_documents", blank=True)
     code = models.CharField(max_length=80)
     title = models.CharField(max_length=255)

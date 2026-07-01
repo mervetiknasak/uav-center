@@ -240,25 +240,32 @@ body {
 }
 
 .responsible-inline {
-  display: grid;
-  grid-template-columns: minmax(120px, 1.2fr) minmax(120px, 1fr) minmax(170px, 1.4fr) minmax(100px, 0.8fr);
-  gap: 12px;
   align-items: center;
   width: 100%;
   min-width: 0;
 }
 
-.responsible-inline > * {
+.responsible-cell {
+  display: flex;
+  align-items: center;
   min-width: 0;
+}
+
+.responsible-cell > * {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.responsible-inline span,
-.responsible-inline a {
+.responsible-cell span,
+.responsible-cell a {
   color: #64748b;
   font-size: 13px;
+}
+
+.responsible-name {
+  color: #1e293b;
 }
 
 .responsible-actions {
@@ -603,11 +610,6 @@ h2 {
 
   .responsible-dynamic-item {
     align-items: flex-start;
-  }
-
-  .responsible-inline {
-    grid-template-columns: 1fr;
-    gap: 4px;
   }
 
   .responsible-actions {

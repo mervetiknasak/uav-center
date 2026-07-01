@@ -89,6 +89,8 @@ const form = reactive({
   description: "",
   category: "",
   document_type: "",
+  cover_page_number: "",
+  cover_page_issue: "",
   revision: "A",
   status: "draft",
   priority: "normal",
@@ -140,7 +142,14 @@ const filteredDocuments = computed(() => {
   return projectDocuments.value.filter((document) => {
     const matchesSearch =
       !query ||
-      [document.code, document.title, document.owner_name, document.category].some((value) =>
+      [
+        document.code,
+        document.title,
+        document.owner_name,
+        document.category,
+        document.cover_page?.number,
+        document.cover_page?.issue
+      ].some((value) =>
         normalizedSearch(value).includes(query)
       );
     const matchesStatus = !statusFilter.value || document.status === statusFilter.value;
@@ -267,6 +276,28 @@ const tableColumns = computed(() => [
               { depth: 3 },
               { default: () => document.category || document.document_type || "Kategorisiz" }
             )
+          ]
+        }
+      );
+    }
+  },
+  {
+    title: "Kapak sayfası",
+    key: "cover_page",
+    width: 145,
+    sorter: (a, b) =>
+      (a.cover_page?.number || "").localeCompare(b.cover_page?.number || "", "tr"),
+    render(document) {
+      if (!document.cover_page) {
+        return h(NText, { depth: 3 }, { default: () => "—" });
+      }
+      return h(
+        NSpace,
+        { vertical: true, size: 1 },
+        {
+          default: () => [
+            h(NText, { strong: true }, { default: () => document.cover_page.number }),
+            h(NText, { depth: 3 }, { default: () => `Issue ${document.cover_page.issue}` })
           ]
         }
       );
@@ -430,6 +461,8 @@ function resetForm() {
     description: "",
     category: "",
     document_type: "",
+    cover_page_number: "",
+    cover_page_issue: "",
     revision: "A",
     status: "draft",
     priority: "normal",
@@ -456,6 +489,8 @@ function openEditor(document = null) {
       description: document.description,
       category: document.category,
       document_type: document.document_type,
+      cover_page_number: document.cover_page?.number || "",
+      cover_page_issue: document.cover_page?.issue || "",
       revision: document.revision,
       status: document.status,
       priority: document.priority,
@@ -481,10 +516,19 @@ function submitDocument() {
     formError.value = "Yayınlanan doküman için yayın tarihi zorunludur.";
     return;
   }
+  if (Boolean(form.cover_page_number.trim()) !== Boolean(form.cover_page_issue.trim())) {
+    formError.value = "Kapak sayfası numarası ve issue birlikte girilmelidir.";
+    return;
+  }
+  const { cover_page_number, cover_page_issue, ...documentFields } = form;
+  const coverPage = cover_page_number.trim()
+    ? { number: cover_page_number.trim(), issue: cover_page_issue.trim() }
+    : null;
   emit("save", {
     id: editingId.value,
     payload: {
-      ...form,
+      ...documentFields,
+      cover_page: coverPage,
       code: form.code.trim(),
       title: form.title.trim(),
       publication_date: form.publication_date || null,
@@ -670,7 +714,7 @@ function updateStatus(document, status) {
               <n-input
                 v-model:value="searchTerm"
                 clearable
-                placeholder="Kod, başlık, kategori veya sorumlu ara…"
+                placeholder="Kod, başlık, kapak veya sorumlu ara…"
               >
                 <template #prefix><n-icon><Search /></n-icon></template>
               </n-input>
@@ -713,7 +757,7 @@ function updateStatus(document, status) {
             :loading="loading"
             :pagination="tablePagination"
             :row-key="(document) => document.id"
-            :scroll-x="1256"
+            :scroll-x="1401"
             striped
           />
         </n-card>
@@ -756,6 +800,16 @@ function updateStatus(document, status) {
           <n-grid-item>
             <n-form-item label="Revizyon" required>
               <n-input v-model:value="form.revision" placeholder="A, B.1, 02…" />
+            </n-form-item>
+          </n-grid-item>
+          <n-grid-item>
+            <n-form-item label="Kapak sayfası numarası">
+              <n-input v-model:value="form.cover_page_number" placeholder="KP-100" />
+            </n-form-item>
+          </n-grid-item>
+          <n-grid-item>
+            <n-form-item label="Kapak sayfası issue">
+              <n-input v-model:value="form.cover_page_issue" placeholder="01, A, B.2…" />
             </n-form-item>
           </n-grid-item>
           <n-grid-item span="1 m:2">
@@ -884,6 +938,8 @@ function updateStatus(document, status) {
           <n-descriptions-item label="Sorumlu">{{ detailDocument.owner_name || "—" }}</n-descriptions-item>
           <n-descriptions-item label="Kategori">{{ detailDocument.category || "—" }}</n-descriptions-item>
           <n-descriptions-item label="Tip">{{ detailDocument.document_type || "—" }}</n-descriptions-item>
+          <n-descriptions-item label="Kapak sayfası">{{ detailDocument.cover_page?.number || "—" }}</n-descriptions-item>
+          <n-descriptions-item label="Kapak revizyonu">{{ detailDocument.cover_page?.issue || "—" }}</n-descriptions-item>
           <n-descriptions-item label="Yayın tarihi">{{ formatDate(detailDocument.publication_date) }}</n-descriptions-item>
           <n-descriptions-item label="Termin">{{ formatDate(detailDocument.due_date) }}</n-descriptions-item>
           <n-descriptions-item label="Bilgi sınıfı">{{ detailDocument.classification_display }}</n-descriptions-item>

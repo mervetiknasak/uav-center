@@ -379,6 +379,7 @@ class PanelResponsibleDetailView(generics.RetrieveUpdateDestroyAPIView):
 def technical_document_queryset():
     return TechnicalDocument.objects.select_related(
         "project",
+        "cover_page",
         "created_by",
         "updated_by",
     ).prefetch_related(
@@ -414,6 +415,8 @@ class TechnicalDocumentListCreateView(generics.ListCreateAPIView):
                 | Q(title__icontains=search)
                 | Q(category__icontains=search)
                 | Q(owner_name__icontains=search)
+                | Q(cover_page__number__icontains=search)
+                | Q(cover_page__issue__icontains=search)
             )
         return queryset.distinct()
 

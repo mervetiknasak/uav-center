@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Max
 
 from .models import (
+    CoverPage,
     Document,
     PanelResponsible,
     Project,
@@ -236,6 +237,16 @@ class TechnicalDocumentNotificationSerializer(serializers.ModelSerializer):
         ]
 
 
+class CoverPageSerializer(serializers.ModelSerializer):
+    number = serializers.CharField(max_length=80, trim_whitespace=True)
+    issue = serializers.CharField(max_length=40, trim_whitespace=True)
+
+    class Meta:
+        model = CoverPage
+        fields = ["id", "number", "issue"]
+        read_only_fields = ["id"]
+
+
 class TechnicalDocumentSerializer(serializers.ModelSerializer):
     panels = serializers.PrimaryKeyRelatedField(
         queryset=ProjectPanel.objects.select_related("project"),
@@ -254,6 +265,7 @@ class TechnicalDocumentSerializer(serializers.ModelSerializer):
     notifications = TechnicalDocumentNotificationSerializer(many=True, read_only=True)
     created_by_name = serializers.CharField(source="created_by.username", read_only=True)
     updated_by_name = serializers.CharField(source="updated_by.username", read_only=True)
+    cover_page = CoverPageSerializer(required=False, allow_null=True)
 
     class Meta:
         model = TechnicalDocument
@@ -262,6 +274,7 @@ class TechnicalDocumentSerializer(serializers.ModelSerializer):
             "project",
             "project_name",
             "project_code",
+            "cover_page",
             "panels",
             "panel_details",
             "code",
@@ -322,6 +335,7 @@ class TechnicalDocumentSerializer(serializers.ModelSerializer):
             "publication_date",
             getattr(self.instance, "publication_date", None),
         )
+        cover_page = attrs.get("cover_page", serializers.empty)
 
         if panels is not None and project:
             invalid_panels = [panel.name for panel in panels if panel.project_id != project.id]
@@ -348,14 +362,33 @@ class TechnicalDocumentSerializer(serializers.ModelSerializer):
                 {"publication_date": ["Yayınlanan bir doküman için yayın tarihi zorunludur."]}
             )
 
+        if cover_page is not serializers.empty and cover_page is not None:
+            if not cover_page.get("number") or not cover_page.get("issue"):
+                raise serializers.ValidationError(
+                    {"cover_page": ["Kapak sayfası numarası ve issue birlikte girilmelidir."]}
+                )
+
         return attrs
+
+    @staticmethod
+    def resolve_cover_page(project, cover_page_data):
+        if cover_page_data is None:
+            return None
+        cover_page, _ = CoverPage.objects.get_or_create(
+            project=project,
+            number=cover_page_data["number"].strip(),
+            issue=cover_page_data["issue"].strip(),
+        )
+        return cover_page
 
     @transaction.atomic
     def create(self, validated_data):
         panels = validated_data.pop("panels", [])
+        cover_page_data = validated_data.pop("cover_page", None)
         user = self.context["request"].user
         document = TechnicalDocument.objects.create(
             **validated_data,
+            cover_page=self.resolve_cover_page(validated_data["project"], cover_page_data),
             created_by=user,
             updated_by=user,
         )
@@ -371,12 +404,15 @@ class TechnicalDocumentSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def update(self, instance, validated_data):
         panels = validated_data.pop("panels", None)
+        cover_page_data = validated_data.pop("cover_page", serializers.empty)
         previous_status = instance.status
         status_note = self.context["request"].data.get("status_note", "")
         user = self.context["request"].user
 
         for field, value in validated_data.items():
             setattr(instance, field, value)
+        if cover_page_data is not serializers.empty:
+            instance.cover_page = self.resolve_cover_page(instance.project, cover_page_data)
         instance.updated_by = user
         instance.save()
         if panels is not None:
