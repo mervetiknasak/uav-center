@@ -39,6 +39,8 @@ from .serializers import (
 from .services.ai_processor import process_document_text
 from .services.document_extractor import UnsupportedDocumentError, extract_text
 from .services.word_table_parser import WordTableParseError, parse_word_table
+from .services.word_to_jira import build_jira_draft, publish_jira_draft
+from .services.jira_connector import JiraConnectorError
 
 User = get_user_model()
 
@@ -264,8 +266,58 @@ class WordTableParseView(APIView):
             {
                 "file_name": upload.name,
                 **result,
-                "jira_ready": False,
+                "jira_draft": build_jira_draft(result["extracted_data"]),
+                "jira_ready": bool(result["extracted_data"]["action_items"]),
             }
+        )
+
+
+class WordToJiraPublishView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def post(self, request):
+        task = request.data.get("task")
+        subtasks = request.data.get("subtasks", [])
+        if not isinstance(task, dict):
+            return Response(
+                {"task": ["Ana Task bilgileri zorunludur."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not str(task.get("project_key") or "").strip():
+            return Response(
+                {"project_key": ["Jira proje anahtarı zorunludur."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not str(task.get("summary") or "").strip():
+            return Response(
+                {"summary": ["Task özeti zorunludur."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not isinstance(subtasks, list):
+            return Response(
+                {"subtasks": ["Alt görevler liste biçiminde olmalıdır."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        enabled_subtasks = [item for item in subtasks if item.get("enabled", True)]
+        if any(not str(item.get("summary") or "").strip() for item in enabled_subtasks):
+            return Response(
+                {"subtasks": ["Dahil edilen her alt görev için özet zorunludur."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            result = publish_jira_draft({"task": task, "subtasks": subtasks})
+        except JiraConnectorError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response(
+            result,
+            status=(
+                status.HTTP_201_CREATED
+                if result["status"] == "created"
+                else status.HTTP_200_OK
+            ),
         )
 
 

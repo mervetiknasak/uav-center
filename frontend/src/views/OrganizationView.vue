@@ -46,7 +46,8 @@ function openEditor(type, item = null, parent = null) {
       name: item?.name ?? "",
       title: item?.title ?? "",
       email: item?.email ?? "",
-      phone: item?.phone ?? ""
+      phone: item?.phone ?? "",
+      username: item?.username ?? ""
     });
   }
   showModal.value = true;
@@ -244,6 +245,7 @@ function removeResponsible(panel, index) {
                     <a v-if="person.email" :href="`mailto:${person.email}`">{{ person.email }}</a>
                     <span v-else>—</span>
                     <span>{{ person.phone || "—" }}</span>
+                    <n-tag v-if="person.username" size="small">{{ person.username }}</n-tag>
                   </div>
                 </template>
                 <template v-if="canEdit" #action="{ value: person, index, remove, move }">
@@ -317,6 +319,9 @@ function removeResponsible(panel, index) {
           <n-form-item label="Görev / Ünvan"><n-input v-model:value="form.title" /></n-form-item>
           <n-form-item label="E-posta"><n-input v-model:value="form.email" type="email" /></n-form-item>
           <n-form-item label="Telefon"><n-input v-model:value="form.phone" /></n-form-item>
+          <n-form-item label="Username">
+            <n-input v-model:value="form.username" placeholder="Kullanıcı adı" />
+          </n-form-item>
         </template>
         <n-form-item v-if="editorType !== 'responsible'" label="Sıra">
           <n-input-number v-model:value="form.order" :min="0" />

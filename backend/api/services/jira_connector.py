@@ -312,6 +312,7 @@ class JiraConnector:
         issue_type: str,
         description: str | None = None,
         assignee: str | None = None,
+        assignee_username: str | None = None,
         priority: str | None = None,
         labels: Sequence[str] | None = None,
         components: Sequence[str] | None = None,
@@ -328,7 +329,11 @@ class JiraConnector:
             _without_none(
                 {
                     "description": description,
-                    "assignee": {"accountId": assignee} if assignee else None,
+                    "assignee": (
+                        {"name": assignee_username}
+                        if assignee_username
+                        else ({"accountId": assignee} if assignee else None)
+                    ),
                     "priority": {"name": priority} if priority else None,
                     "labels": list(labels) if labels is not None else None,
                     "components": (

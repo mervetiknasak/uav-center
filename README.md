@@ -88,6 +88,7 @@ DRF yanıt formatı:
 - `GET|PATCH|DELETE /api/technical-documents/<id>/`: detay, statü dahil güncelleme ve silme
 - `POST /api/technical-documents/<id>/notify/`: bağlı panellerdeki e-posta adresi bulunan sorumlulara bildirim gönderme
 - `POST /api/word-to-jira/parse/`: `.docx` tablo hücrelerini 0 tabanlı global, tablo, satır ve sütun indeksleriyle okuma
+- `POST /api/word-to-jira/publish/`: düzenlenen toplantı taslağından bir Jira Task ve ona bağlı Sub-task kayıtları oluşturma
 
 Yerel demo dokümanlarını mevcut projelere idempotent olarak eklemek için:
 
@@ -168,6 +169,7 @@ JIRA_EMAIL=kullanici@kurum.com
 JIRA_API_TOKEN=atlassian-api-token
 JIRA_VERIFY_SSL=true
 JIRA_TIMEOUT=30
+JIRA_MEETING_PROJECT_KEY=MOM
 ```
 
 Jira Data Center/Server için personal access token kullanılabilir:
@@ -192,6 +194,14 @@ issue = jira.create_issue(
 )
 jira.transition_issue(issue.key, "In Progress")
 ```
+
+`PanelResponsible.username` genel kullanıcı kimliğidir ve toplantı tutanağı
+aktarımında sorumlu ataması için de kullanılır. Ana Task tutanak bilgilerini
+açıklamasında taşır; her seçili aksiyon maddesi ana Task altında Sub-task olarak
+oluşturulur. Tutanak ve aksiyon etiketleri yeniden aktarımda mükerrer kayıtları
+önlemek ve yarım kalan alt görevleri güvenle tekrar denemek için kullanılır.
+Jira proje anahtarı organizasyon kayıtlarından türetilmez; taslaklarda varsayılan
+olarak `MOM`, `JIRA_MEETING_PROJECT_KEY` tanımlanmışsa onun değeri kullanılır.
 
 ## Frontend
 

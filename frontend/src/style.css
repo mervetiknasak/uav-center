@@ -390,6 +390,62 @@ h2 {
   border-radius: 6px;
 }
 
+.meeting-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.meeting-field-row {
+  display: grid;
+  grid-template-columns: minmax(210px, 260px) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.meeting-field-label {
+  display: flex;
+  align-items: flex-start;
+  min-height: 34px;
+  padding: 7px 12px;
+  background: #f8fafc;
+  border: 1px solid #d8dee9;
+  border-right: 0;
+  border-radius: 4px 0 0 4px;
+}
+
+.meeting-field-label .n-checkbox {
+  width: 100%;
+}
+
+.meeting-field-value {
+  min-width: 0;
+}
+
+.meeting-field-value .n-input {
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+}
+
+.meeting-field-row-disabled .meeting-field-label {
+  color: #94a3b8;
+  background: #f1f5f9;
+}
+
+@media (max-width: 680px) {
+  .meeting-field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .meeting-field-label {
+    border-right: 1px solid #d8dee9;
+    border-bottom: 0;
+    border-radius: 4px 4px 0 0;
+  }
+
+  .meeting-field-value .n-input {
+    border-radius: 0 0 4px 4px;
+  }
+}
+
 .technical-documents-view {
   display: grid;
   gap: 20px;

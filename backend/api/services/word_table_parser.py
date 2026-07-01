@@ -44,7 +44,10 @@ def _extract_mapped_data(cells):
         (
             index
             for index, cell in enumerate(cells)
-            if "action item list" in cell.text.casefold()
+            if any(
+                heading in cell.text.casefold()
+                for heading in ("action item list", "aksiyon listesi", "aksiyon maddeleri")
+            )
         ),
         None,
     )
@@ -54,13 +57,16 @@ def _extract_mapped_data(cells):
             for index, cell in enumerate(cells)
             if action_start is not None
             and index > action_start
-            and "attachments" in cell.text.casefold()
+            and any(
+                heading in cell.text.casefold()
+                for heading in ("attachments", "ekler")
+            )
         ),
         None,
     )
 
     action_items = []
-    if action_start is not None and attachments_start is not None:
+    if action_start is not None:
         item_cells = cells[action_start + 5 : attachments_start]
         for offset in range(0, len(item_cells), 4):
             group = item_cells[offset : offset + 4]

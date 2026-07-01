@@ -34,6 +34,19 @@ class JiraConnectorTests(SimpleTestCase):
         self.assertEqual(fields["components"], [{"name": "Propulsion"}])
         self.assertEqual(fields["customfield_10001"], "Hangar 2")
 
+    def test_create_issue_supports_local_jira_username(self):
+        self.connector.create_issue(
+            project_key="UAV",
+            summary="Motor kontrolü",
+            issue_type="Sub-task",
+            assignee_username="ada",
+            parent_key="UAV-10",
+        )
+
+        fields = self.client.create_issue.call_args.kwargs["fields"]
+        self.assertEqual(fields["assignee"], {"name": "ada"})
+        self.assertEqual(fields["parent"], {"key": "UAV-10"})
+
     def test_search_issues_passes_pagination_and_fields(self):
         self.connector.search_issues(
             "project = UAV ORDER BY created DESC",

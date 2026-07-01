@@ -153,7 +153,7 @@ class DocumentUploadSerializer(serializers.Serializer):
 class PanelResponsibleSerializer(serializers.ModelSerializer):
     class Meta:
         model = PanelResponsible
-        fields = ["id", "panel", "name", "title", "email", "phone", "order"]
+        fields = ["id", "panel", "name", "title", "email", "phone", "username", "order"]
         read_only_fields = ["panel"]
 
     def create(self, validated_data):

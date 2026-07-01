@@ -21,6 +21,7 @@ from .views import (
     TechnicalDocumentListCreateView,
     TechnicalDocumentNotifyView,
     WordTableParseView,
+    WordToJiraPublishView,
     health_check,
 )
 
@@ -59,6 +60,7 @@ urlpatterns = [
     path("documents/upload/", DocumentUploadView.as_view(), name="document-upload"),
     path("documents/<int:document_id>/", DocumentDetailView.as_view(), name="document-detail"),
     path("word-to-jira/parse/", WordTableParseView.as_view(), name="word-table-parse"),
+    path("word-to-jira/publish/", WordToJiraPublishView.as_view(), name="word-to-jira-publish"),
     path(
         "technical-documents/",
         TechnicalDocumentListCreateView.as_view(),

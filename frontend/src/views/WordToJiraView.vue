@@ -1,40 +1,53 @@
 <script setup>
-import { ref } from "vue";
+import { computed, ref, watch } from "vue";
+import { Trash2 } from "@lucide/vue";
 
-const emit = defineEmits(["parse"]);
-
-defineProps({
+const props = defineProps({
   loading: Boolean,
-  error: {
-    type: String,
-    default: ""
-  },
-  result: {
-    type: Object,
-    default: null
-  }
+  publishing: Boolean,
+  error: { type: String, default: "" },
+  result: { type: Object, default: null },
+  publishResult: { type: Object, default: null }
 });
 
+const emit = defineEmits(["parse", "publish"]);
 const selectedFileName = ref("");
+const draft = ref(null);
 
-const actionItemColumns = [
-  { title: "No", key: "no", width: 80 },
-  { title: "Aksiyon Maddesi", key: "action_item", minWidth: 320 },
-  { title: "Sorumlu", key: "responsible", minWidth: 180 },
-  { title: "Termin Tarihi", key: "due_date", width: 150 }
-];
+watch(
+  () => props.result,
+  (result) => {
+    draft.value = result?.jira_draft
+      ? JSON.parse(JSON.stringify(result.jira_draft))
+      : null;
+  },
+  { immediate: true }
+);
 
-const cellColumns = [
-  { title: "Index", key: "index", width: 80 },
-  { title: "Tablo", key: "table_index", width: 80 },
-  { title: "Satır", key: "row_index", width: 80 },
-  { title: "Sütun", key: "column_index", width: 80 },
-  { title: "Hücre İçeriği", key: "text", minWidth: 360 }
-];
+const enabledSubtasks = computed(
+  () => draft.value?.subtasks.filter((item) => item.enabled).length || 0
+);
+const enabledMeetingFields = computed(
+  () => draft.value?.task.meeting_fields.filter((field) => field.enabled).length || 0
+);
 
 function parseFile({ file, onFinish, onError }) {
   selectedFileName.value = file.name;
   emit("parse", { file: file.file, onFinish, onError });
+}
+
+function removeSubtask(index) {
+  draft.value.subtasks.splice(index, 1);
+}
+
+function setAllMeetingFields(enabled) {
+  draft.value.task.meeting_fields.forEach((field) => {
+    field.enabled = enabled;
+  });
+}
+
+function publish() {
+  emit("publish", JSON.parse(JSON.stringify(draft.value)));
 }
 </script>
 
@@ -42,119 +55,172 @@ function parseFile({ file, onFinish, onError }) {
   <section class="word-jira-view">
     <div class="page-heading">
       <p>Araçlar</p>
-      <h1>Toplantı Tutanağı Okuyucu</h1>
-      <span>Word formatındaki toplantı tutanağını yükleyin; toplantı bilgilerini, kararları ve aksiyon maddelerini otomatik olarak çıkarın.</span>
+      <h1>Toplantı Tutanağı → Jira</h1>
+      <span>Tutanaktan bir ana Task ve her aksiyon maddesi için bir Sub-task hazırlayın.</span>
     </div>
 
     <n-card title="Toplantı Tutanağı Yükle" size="small">
-      <n-space vertical :size="16">
-        <n-upload
-          directory-dnd
-          :max="1"
-          accept=".docx"
-          :custom-request="parseFile"
-          :disabled="loading"
-        >
-          <n-upload-dragger>
-            <div class="upload-title">Toplantı tutanağını buraya bırakın</div>
-            <div class="upload-subtitle">
-              {{ selectedFileName || "Desteklenen dosya biçimi: .docx" }}
-            </div>
-          </n-upload-dragger>
-        </n-upload>
-
-        <n-alert v-if="error" type="error" title="Tutanak okunamadı">{{ error }}</n-alert>
-      </n-space>
+      <n-upload directory-dnd :max="1" accept=".docx" :custom-request="parseFile" :disabled="loading">
+        <n-upload-dragger>
+          <div class="upload-title">Toplantı tutanağını buraya bırakın</div>
+          <div class="upload-subtitle">{{ selectedFileName || "Desteklenen dosya biçimi: .docx" }}</div>
+        </n-upload-dragger>
+      </n-upload>
+      <n-alert v-if="error" type="error" title="İşlem başarısız">{{ error }}</n-alert>
     </n-card>
 
-    <n-card v-if="result" title="Tutanak Özeti" size="small">
-      <n-space vertical :size="14">
-        <n-card title="Toplantı Bilgileri" size="small" embedded>
-          <n-descriptions
-            :column="1"
-            label-placement="left"
-            bordered
-            size="small"
-          >
-            <n-descriptions-item label="Proje">
-              {{ result.extracted_data?.project || "Bulunamadı" }}
-            </n-descriptions-item>
-            <n-descriptions-item label="Konu">
-              {{ result.extracted_data?.subject || "Bulunamadı" }}
-            </n-descriptions-item>
-            <n-descriptions-item label="Tutanak No">
-              {{ result.extracted_data?.mom_no || "Bulunamadı" }}
-            </n-descriptions-item>
-            <n-descriptions-item label="Revizyon">
-              {{ result.extracted_data?.revision || "Bulunamadı" }}
-            </n-descriptions-item>
-            <n-descriptions-item label="Tarih / Saat">
-              {{ result.extracted_data?.date_time || "Bulunamadı" }}
-            </n-descriptions-item>
-            <n-descriptions-item label="Toplantı Yeri">
-              {{ result.extracted_data?.location || "Bulunamadı" }}
-            </n-descriptions-item>
-            <n-descriptions-item label="Gündem">
-              {{ result.extracted_data?.agenda || "Bulunamadı" }}
-            </n-descriptions-item>
-            <n-descriptions-item label="Görüşmeler ve Kararlar">
-              <span class="word-multiline-text">
-                {{ result.extracted_data?.discussions_decisions || "Bulunamadı" }}
-              </span>
-            </n-descriptions-item>
-          </n-descriptions>
+    <template v-if="draft">
+      <n-alert
+        v-for="warning in draft.warnings"
+        :key="warning"
+        type="warning"
+        :show-icon="true"
+      >
+        {{ warning }}
+      </n-alert>
 
-          <div class="word-action-items">
-            <strong>Aksiyon Maddeleri</strong>
-            <n-alert
-              v-if="!result.extracted_data?.action_item_list_found || !result.extracted_data?.attachments_found"
-              type="warning"
-              title="Aksiyon listesi bulunamadı"
-            >
-              Tutanaktaki aksiyon listesi veya ekler bölümü tanımlanamadı.
-            </n-alert>
+      <n-card title="Ana Task" size="small">
+        <n-grid cols="1 700:3" :x-gap="14">
+          <n-form-item-gi label="Jira Proje Anahtarı" required>
+            <n-input v-model:value="draft.task.project_key" />
+          </n-form-item-gi>
+          <n-form-item-gi label="Issue Type">
+            <n-input v-model:value="draft.task.issue_type" />
+          </n-form-item-gi>
+          <n-form-item-gi label="Özet" required>
+            <n-input v-model:value="draft.task.summary" />
+          </n-form-item-gi>
+        </n-grid>
+
+        <n-divider />
+        <n-card
+          embedded
+          size="small"
+          :title="`Task açıklamasına eklenecek tutanak alanları (${enabledMeetingFields}/${draft.task.meeting_fields.length})`"
+        >
+          <template #header-extra>
+            <n-button-group size="small">
+              <n-button @click="setAllMeetingFields(true)">Tümünü Seç</n-button>
+              <n-button @click="setAllMeetingFields(false)">Temizle</n-button>
+            </n-button-group>
+          </template>
+          <div class="meeting-fields">
             <div
-              v-else-if="result.extracted_data.action_items.length"
-              class="word-cell-table-wrap"
+              v-for="field in draft.task.meeting_fields"
+              :key="field.key"
+              class="meeting-field-row"
+              :class="{ 'meeting-field-row-disabled': !field.enabled }"
             >
-              <n-data-table
-                :columns="actionItemColumns"
-                :data="result.extracted_data.action_items"
-                :row-key="(row) => `${row.no}-${row.action_item}`"
-                :scroll-x="730"
-                size="small"
-                striped
-              />
+              <div class="meeting-field-label">
+                <n-checkbox
+                  :checked="field.enabled"
+                  @update:checked="(checked) => (field.enabled = checked)"
+                >
+                  {{ field.label }}
+                </n-checkbox>
+              </div>
+              <div class="meeting-field-value">
+                <n-input
+                  v-model:value="field.value"
+                  type="textarea"
+                  autosize
+                  :disabled="!field.enabled"
+                  :placeholder="`${field.label} bilgisi`"
+                />
+              </div>
             </div>
-            <n-empty v-else description="Tutanakta aksiyon maddesi bulunamadı" />
           </div>
         </n-card>
+      </n-card>
 
-        <n-descriptions :column="3" bordered size="small">
-          <n-descriptions-item label="Kaynak Dosya">{{ result.file_name }}</n-descriptions-item>
-          <n-descriptions-item label="Okunan Tablo">{{ result.table_count }}</n-descriptions-item>
-          <n-descriptions-item label="İşlenen Alan">{{ result.cell_count }}</n-descriptions-item>
-        </n-descriptions>
-
-        <n-collapse>
+      <n-card :title="`Sub-task Taslakları (${enabledSubtasks}/${draft.subtasks.length})`" size="small">
+        <n-empty v-if="!draft.subtasks.length" description="Aksiyon maddesi bulunamadı" />
+        <n-collapse v-else>
           <n-collapse-item
-            title="Teknik Okuma Detaylarını Görüntüle"
-            name="word-cell-details"
+            v-for="(item, index) in draft.subtasks"
+            :key="item.client_id"
+            :name="item.client_id"
           >
-            <n-data-table
-              class="word-index-table"
-              :columns="cellColumns"
-              :data="result.cells"
-              :row-key="(row) => row.index"
-              :max-height="560"
-              :scroll-x="680"
-              size="small"
-              striped
-              virtual-scroll
-            />
+            <template #header>
+              <n-space align="center">
+                <n-checkbox v-model:checked="item.enabled" @click.stop />
+                <strong>{{ item.summary || `Sub-task ${index + 1}` }}</strong>
+                <n-tag v-if="item.username" type="success" size="small">
+                  {{ item.username }}
+                </n-tag>
+                <n-tag v-else-if="item.responsible" type="warning" size="small">
+                  {{ item.responsible }} eşleşmedi
+                </n-tag>
+              </n-space>
+            </template>
+            <template #header-extra>
+              <n-button circle quaternary type="error" @click.stop="removeSubtask(index)">
+                <template #icon><Trash2 :size="15" /></template>
+              </n-button>
+            </template>
+            <n-form :disabled="!item.enabled">
+              <n-form-item label="Özet" required><n-input v-model:value="item.summary" /></n-form-item>
+              <n-form-item label="Açıklama">
+                <n-input v-model:value="item.description" type="textarea" />
+              </n-form-item>
+              <n-grid cols="1 650:3" :x-gap="14">
+                <n-form-item-gi label="Tutanaktaki Sorumlu">
+                  <n-input v-model:value="item.responsible" />
+                </n-form-item-gi>
+                <n-form-item-gi label="Username">
+                  <n-input v-model:value="item.username" clearable />
+                </n-form-item-gi>
+                <n-form-item-gi label="Termin Tarihi">
+                  <n-input v-model:value="item.due_date" placeholder="YYYY-MM-DD" />
+                </n-form-item-gi>
+              </n-grid>
+            </n-form>
           </n-collapse-item>
         </n-collapse>
+      </n-card>
+
+      <n-space justify="end">
+        <n-button
+          type="primary"
+          :loading="publishing"
+          :disabled="!draft.task.project_key || !draft.task.summary"
+          @click="publish"
+        >
+          Task ve {{ enabledSubtasks }} Sub-task Oluştur
+        </n-button>
       </n-space>
-    </n-card>
+
+      <n-alert
+        v-if="publishResult"
+        :type="['created', 'existing'].includes(publishResult.status) ? 'success' : 'warning'"
+        title="Jira aktarım sonucu"
+      >
+        <div v-if="publishResult.message">{{ publishResult.message }}</div>
+        <a :href="publishResult.task.url" target="_blank">{{ publishResult.task.key }}</a>
+        <ul v-if="publishResult.subtasks?.length">
+          <li v-for="item in publishResult.subtasks" :key="item.client_id">
+            <a v-if="item.url" :href="item.url" target="_blank">{{ item.key }}</a>
+            <span v-else>{{ item.error }}</span>
+          </li>
+        </ul>
+      </n-alert>
+
+      <n-collapse>
+        <n-collapse-item title="Teknik okuma detayları" name="details">
+          <n-data-table
+            :columns="[
+              { title: 'Index', key: 'index' },
+              { title: 'Tablo', key: 'table_index' },
+              { title: 'Satır', key: 'row_index' },
+              { title: 'Sütun', key: 'column_index' },
+              { title: 'İçerik', key: 'text' }
+            ]"
+            :data="result.cells"
+            :max-height="500"
+            virtual-scroll
+          />
+        </n-collapse-item>
+      </n-collapse>
+    </template>
   </section>
 </template>

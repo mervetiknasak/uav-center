@@ -70,6 +70,7 @@ class PanelResponsible(models.Model):
     title = models.CharField(max_length=160, blank=True)
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=40, blank=True)
+    username = models.CharField(max_length=160, blank=True)
     order = models.PositiveIntegerField(default=0)
 
     class Meta:

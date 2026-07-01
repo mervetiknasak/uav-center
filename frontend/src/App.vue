@@ -43,6 +43,8 @@ const notifyingTechnicalDocumentId = ref(null);
 const wordParseLoading = ref(false);
 const wordParseError = ref("");
 const wordParseResult = ref(null);
+const wordPublishLoading = ref(false);
+const wordPublishResult = ref(null);
 const credentials = ref({
   username: "",
   email: "",
@@ -620,6 +622,7 @@ async function parseWordTable({ file, onFinish, onError }) {
   wordParseLoading.value = true;
   wordParseError.value = "";
   wordParseResult.value = null;
+  wordPublishResult.value = null;
   const formData = new FormData();
   formData.append("file", file);
 
@@ -643,6 +646,23 @@ async function parseWordTable({ file, onFinish, onError }) {
     onError?.();
   } finally {
     wordParseLoading.value = false;
+  }
+}
+
+async function publishWordToJira(draft) {
+  wordPublishLoading.value = true;
+  wordParseError.value = "";
+  wordPublishResult.value = null;
+  try {
+    wordPublishResult.value = await apiFetch("/api/word-to-jira/publish/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(draft)
+    });
+  } catch (err) {
+    wordParseError.value = err instanceof Error ? err.message : "Jira aktarımı başarısız";
+  } finally {
+    wordPublishLoading.value = false;
   }
 }
 
@@ -870,9 +890,12 @@ onMounted(() => {
           <WordToJiraView
             v-else-if="activeMenuKey === 'word-to-jira'"
             :loading="wordParseLoading"
+            :publishing="wordPublishLoading"
             :error="wordParseError"
             :result="wordParseResult"
+            :publish-result="wordPublishResult"
             @parse="parseWordTable"
+            @publish="publishWordToJira"
           />
 
           <template v-else>
