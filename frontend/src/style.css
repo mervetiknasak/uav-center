@@ -182,6 +182,14 @@ body {
   justify-content: space-between;
 }
 
+.organization-tab-toolbar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 14px 0 18px;
+}
+
 .organization-heading span,
 .project-description,
 .panel-description {
@@ -192,6 +200,33 @@ body {
 .project-grid {
   display: grid;
   gap: 16px;
+}
+
+.person-group-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.person-group-card {
+  border-top: 3px solid #2563eb;
+}
+
+.group-person-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.group-person-row:last-child {
+  border-bottom: 0;
+}
+
+.group-person-list {
+  display: grid;
 }
 
 .project-card {

@@ -1,9 +1,10 @@
 <script setup>
 import { computed, reactive, ref } from "vue";
-import { ArrowDown, ArrowUp, Pencil, Plus, Save, Trash2 } from "@lucide/vue";
+import { ArrowDown, ArrowUp, Pencil, Plus, Save, Trash2, Users } from "@lucide/vue";
 
 const props = defineProps({
   projects: { type: Array, required: true },
+  personGroups: { type: Array, default: () => [] },
   loading: { type: Boolean, required: true },
   saving: { type: Boolean, required: true },
   error: { type: String, default: "" },
@@ -16,9 +17,16 @@ const editorType = ref("project");
 const editorId = ref(null);
 const parentId = ref(null);
 const form = reactive({});
+const activeSection = ref("projects");
 
 const modalTitle = computed(() => {
-  const labels = { project: "Proje", panel: "Alt Panel", responsible: "Sorumlu" };
+  const labels = {
+    project: "Proje",
+    panel: "Alt Panel",
+    responsible: "Sorumlu",
+    group: "Kişi Grubu",
+    person: "Kişi"
+  };
   return `${editorId.value ? "Düzenle" : "Yeni"} ${labels[editorType.value]}`;
 });
 
@@ -41,13 +49,18 @@ function openEditor(type, item = null, parent = null) {
       description: item?.description ?? "",
       order: item?.order ?? 0
     });
-  } else {
+  } else if (type === "responsible" || type === "person") {
     Object.assign(form, {
       name: item?.name ?? "",
       title: item?.title ?? "",
       email: item?.email ?? "",
-      phone: item?.phone ?? "",
       username: item?.username ?? ""
+    });
+  } else {
+    Object.assign(form, {
+      name: item?.name ?? "",
+      description: item?.description ?? "",
+      order: item?.order ?? 0
     });
   }
   showModal.value = true;
@@ -87,27 +100,33 @@ function removeResponsible(panel, index) {
     <div class="page-heading organization-heading">
       <div>
         <p>{{ canEdit ? "Yönetim" : "Organizasyon" }}</p>
-        <h1>Projeler ve Paneller</h1>
-        <span>Projeleri, alt panelleri ve sorumluları tek yerden görüntüleyin.</span>
+        <h1>Organizasyon</h1>
+        <span>Projeleri, panelleri ve kişi gruplarını tek yerden yönetin.</span>
       </div>
-      <n-space>
-        <n-button secondary :loading="loading" @click="emit('refresh')">Yenile</n-button>
-        <n-button
-          v-if="canEdit"
-          circle
-          type="primary"
-          title="Yeni proje"
-          aria-label="Yeni proje"
-          @click="openEditor('project')"
-        >
-          <template #icon><Plus :size="18" /></template>
-        </n-button>
-      </n-space>
     </div>
 
     <n-alert v-if="error" type="error" title="Organizasyon bilgileri alınamadı">{{ error }}</n-alert>
 
-    <n-spin :show="loading">
+    <n-tabs v-model:value="activeSection" type="segment" animated>
+      <n-tab-pane name="projects" tab="Projeler ve Paneller">
+        <div class="organization-tab-toolbar">
+          <strong>Projeler ve Paneller</strong>
+          <n-space>
+            <n-button secondary :loading="loading" @click="emit('refresh')">Yenile</n-button>
+            <n-button
+              v-if="canEdit"
+              circle
+              type="primary"
+              title="Yeni proje"
+              aria-label="Yeni proje"
+              @click="openEditor('project')"
+            >
+              <template #icon><Plus :size="18" /></template>
+            </n-button>
+          </n-space>
+        </div>
+
+        <n-spin :show="loading">
       <n-empty v-if="!projects.length" description="Henüz proje eklenmedi">
         <template v-if="canEdit" #extra>
           <n-button
@@ -247,15 +266,21 @@ function removeResponsible(panel, index) {
                     responsive="screen"
                     item-responsive
                   >
+                    <n-grid-item span="12 m:2" class="responsible-cell">
+                      <n-tag v-if="person.username" size="small" :title="person.username">
+                        {{ person.username }}
+                      </n-tag>
+                      <span v-else>—</span>
+                    </n-grid-item>
                     <n-grid-item span="12 m:3" class="responsible-cell responsible-name">
                       <strong :title="person.name">{{ person.name }}</strong>
                     </n-grid-item>
-                    <n-grid-item span="12 m:2" class="responsible-cell">
+                    <n-grid-item span="12 m:3" class="responsible-cell">
                       <span :title="person.title || 'Görev bilgisi yok'">
                         {{ person.title || "Görev bilgisi yok" }}
                       </span>
                     </n-grid-item>
-                    <n-grid-item span="12 m:3" class="responsible-cell">
+                    <n-grid-item span="12 m:4" class="responsible-cell">
                       <a
                         v-if="person.email"
                         :href="`mailto:${person.email}`"
@@ -264,12 +289,6 @@ function removeResponsible(panel, index) {
                         {{ person.email }}
                       </a>
                       <span v-else>—</span>
-                    </n-grid-item>
-                    <n-grid-item span="12 m:2" class="responsible-cell">
-                      <span :title="person.phone || '—'">{{ person.phone || "—" }}</span>
-                    </n-grid-item>
-                    <n-grid-item v-if="person.username" span="12 m:2" class="responsible-cell">
-                      <n-tag size="small" :title="person.username">{{ person.username }}</n-tag>
                     </n-grid-item>
                   </n-grid>
                 </template>
@@ -321,7 +340,129 @@ function removeResponsible(panel, index) {
           </n-collapse>
         </n-card>
       </div>
-    </n-spin>
+        </n-spin>
+      </n-tab-pane>
+
+      <n-tab-pane name="groups" tab="Kişi Grupları">
+        <div class="organization-tab-toolbar">
+          <strong>Kişi Grupları</strong>
+          <n-space>
+            <n-button secondary :loading="loading" @click="emit('refresh')">Yenile</n-button>
+            <n-button
+              v-if="canEdit"
+              circle
+              type="primary"
+              title="Yeni kişi grubu"
+              aria-label="Yeni kişi grubu"
+              @click="openEditor('group')"
+            >
+              <template #icon><Plus :size="18" /></template>
+            </n-button>
+          </n-space>
+        </div>
+
+        <n-spin :show="loading">
+      <n-empty v-if="!personGroups?.length" description="Henüz kişi grubu oluşturulmadı">
+        <template v-if="canEdit" #extra>
+          <n-button type="primary" secondary @click="openEditor('group')">
+            <template #icon><Plus :size="16" /></template>
+            İlk grubu oluştur
+          </n-button>
+        </template>
+      </n-empty>
+
+      <div v-else class="person-group-grid">
+        <n-card v-for="group in (personGroups || [])" :key="group.id" class="person-group-card">
+          <template #header>
+            <div class="project-title">
+              <Users :size="18" />
+              <strong>{{ group.name }}</strong>
+              <n-tag size="small">{{ group.people?.length ?? 0 }} kişi</n-tag>
+            </div>
+          </template>
+          <template v-if="canEdit" #header-extra>
+            <n-space>
+              <n-button circle size="tiny" secondary title="Grubu düzenle" @click="openEditor('group', group)">
+                <template #icon><Pencil :size="14" /></template>
+              </n-button>
+              <n-button circle size="tiny" type="error" secondary title="Grubu sil" @click="requestDelete('group', group)">
+                <template #icon><Trash2 :size="14" /></template>
+              </n-button>
+            </n-space>
+          </template>
+
+          <p v-if="group.description" class="panel-description">{{ group.description }}</p>
+          <div class="responsible-toolbar">
+            <span>Grup Üyeleri</span>
+            <n-button v-if="canEdit" circle size="tiny" secondary title="Kişi ekle" @click="openEditor('person', null, group)">
+              <template #icon><Plus :size="14" /></template>
+            </n-button>
+          </div>
+          <n-empty
+            v-if="!group.people?.length"
+            size="small"
+            description="Bu grupta henüz kimse yok"
+          />
+          <div v-else class="group-person-list">
+            <div v-for="person in (group.people || [])" :key="person.id" class="group-person-row">
+              <n-grid
+                class="responsible-inline"
+                :cols="12"
+                :x-gap="12"
+                :y-gap="6"
+                responsive="screen"
+                item-responsive
+              >
+                <n-grid-item span="12 m:2" class="responsible-cell">
+                  <n-tag v-if="person.username" size="small" :title="person.username">
+                    {{ person.username }}
+                  </n-tag>
+                  <span v-else>—</span>
+                </n-grid-item>
+                <n-grid-item span="12 m:3" class="responsible-cell responsible-name">
+                  <strong :title="person.name">{{ person.name }}</strong>
+                </n-grid-item>
+                <n-grid-item span="12 m:3" class="responsible-cell">
+                  <span :title="person.title || 'Görev bilgisi yok'">
+                    {{ person.title || "Görev bilgisi yok" }}
+                  </span>
+                </n-grid-item>
+                <n-grid-item span="12 m:4" class="responsible-cell">
+                  <a v-if="person.email" :href="`mailto:${person.email}`" :title="person.email">
+                    {{ person.email }}
+                  </a>
+                  <span v-else>—</span>
+                </n-grid-item>
+              </n-grid>
+
+              <n-button-group v-if="canEdit" size="tiny" class="responsible-actions">
+                <n-button
+                  circle
+                  secondary
+                  title="Kişiyi düzenle"
+                  aria-label="Kişiyi düzenle"
+                  @click="openEditor('person', person, group)"
+                >
+                  <template #icon><Pencil :size="15" /></template>
+                </n-button>
+                <n-button
+                  circle
+                  type="error"
+                  secondary
+                  title="Kişiyi sil"
+                  aria-label="Kişiyi sil"
+                  @click="requestDelete('person', person)"
+                >
+                  <template #icon><Trash2 :size="15" /></template>
+                </n-button>
+              </n-button-group>
+            </div>
+          </div>
+        </n-card>
+      </div>
+        </n-spin>
+      </n-tab-pane>
+    </n-tabs>
 
     <n-modal v-model:show="showModal" preset="card" :title="modalTitle" class="organization-modal">
       <n-form @submit.prevent="submit">
@@ -337,18 +478,17 @@ function removeResponsible(panel, index) {
           </n-form-item>
           <n-form-item label="Durum"><n-switch v-model:value="form.is_active" />&nbsp; Aktif</n-form-item>
         </template>
-        <template v-else-if="editorType === 'panel'">
+        <template v-else-if="editorType === 'panel' || editorType === 'group'">
           <n-form-item label="Açıklama"><n-input v-model:value="form.description" type="textarea" /></n-form-item>
         </template>
         <template v-else>
           <n-form-item label="Görev / Ünvan"><n-input v-model:value="form.title" /></n-form-item>
           <n-form-item label="E-posta"><n-input v-model:value="form.email" type="email" /></n-form-item>
-          <n-form-item label="Telefon"><n-input v-model:value="form.phone" /></n-form-item>
           <n-form-item label="Username">
             <n-input v-model:value="form.username" placeholder="Kullanıcı adı" />
           </n-form-item>
         </template>
-        <n-form-item v-if="editorType !== 'responsible'" label="Sıra">
+        <n-form-item v-if="!['responsible', 'person'].includes(editorType)" label="Sıra">
           <n-input-number v-model:value="form.order" :min="0" />
         </n-form-item>
         <n-space justify="end">

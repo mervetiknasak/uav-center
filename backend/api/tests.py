@@ -8,6 +8,8 @@ from io import BytesIO
 from .models import (
     CoverPage,
     PanelResponsible,
+    Person,
+    PersonGroup,
     Project,
     ProjectPanel,
     TechnicalDocument,
@@ -356,6 +358,50 @@ class OrganizationApiTests(TestCase):
         )
         self.assertEqual(delete_response.status_code, 204)
         self.assertFalse(ProjectPanel.objects.filter(id=panel_response.json()["id"]).exists())
+
+    def test_authenticated_user_sees_person_groups_but_cannot_change_them(self):
+        group = PersonGroup.objects.create(name="Uçuş Ekibi", description="Test uçuşları")
+        person = Person.objects.create(name="Selin Ak", email="selin@example.com")
+        group.people.add(person)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("person-group-list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()[0]["name"], "Uçuş Ekibi")
+        self.assertEqual(response.json()[0]["people"][0]["name"], "Selin Ak")
+
+        create_response = self.client.post(
+            reverse("person-group-list"),
+            data={"name": "Yetkisiz Grup"},
+            content_type="application/json",
+        )
+        self.assertEqual(create_response.status_code, 403)
+
+    def test_admin_creates_group_and_person(self):
+        self.client.force_login(self.admin)
+        group_response = self.client.post(
+            reverse("person-group-list"),
+            data={"name": "Kalite Ekibi", "description": "Kalite güvence"},
+            content_type="application/json",
+        )
+        self.assertEqual(group_response.status_code, 201)
+
+        person_response = self.client.post(
+            reverse("group-person-list", kwargs={"group_id": group_response.json()["id"]}),
+            data={
+                "name": "Mert Can",
+                "title": "Kalite Mühendisi",
+                "email": "mert@example.com",
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(person_response.status_code, 201)
+        self.assertEqual(person_response.json()["groups"], [group_response.json()["id"]])
+        self.assertTrue(
+            PersonGroup.objects.get(pk=group_response.json()["id"])
+            .people.filter(pk=person_response.json()["id"])
+            .exists()
+        )
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")

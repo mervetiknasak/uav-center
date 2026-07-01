@@ -8,6 +8,8 @@ from .models import (
     CoverPage,
     Document,
     PanelResponsible,
+    Person,
+    PersonGroup,
     Project,
     ProjectPanel,
     TechnicalDocument,
@@ -154,7 +156,7 @@ class DocumentUploadSerializer(serializers.Serializer):
 class PanelResponsibleSerializer(serializers.ModelSerializer):
     class Meta:
         model = PanelResponsible
-        fields = ["id", "panel", "name", "title", "email", "phone", "username", "order"]
+        fields = ["id", "panel", "name", "title", "email", "username", "order"]
         read_only_fields = ["panel"]
 
     def create(self, validated_data):
@@ -188,6 +190,30 @@ class ProjectSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "panels",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+
+class PersonSerializer(serializers.ModelSerializer):
+    groups = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+
+    class Meta:
+        model = Person
+        fields = [
+            "id", "name", "title", "email", "username",
+            "groups", "created_at", "updated_at",
+        ]
+        read_only_fields = ["groups", "created_at", "updated_at"]
+
+
+class PersonGroupSerializer(serializers.ModelSerializer):
+    people = PersonSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = PersonGroup
+        fields = [
+            "id", "name", "description", "order", "people",
+            "created_at", "updated_at",
         ]
         read_only_fields = ["created_at", "updated_at"]
 

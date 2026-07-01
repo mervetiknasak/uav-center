@@ -69,9 +69,38 @@ class PanelResponsible(models.Model):
     name = models.CharField(max_length=160)
     title = models.CharField(max_length=160, blank=True)
     email = models.EmailField(blank=True)
-    phone = models.CharField(max_length=40, blank=True)
     username = models.CharField(max_length=160, blank=True)
     order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Person(models.Model):
+    name = models.CharField(max_length=160)
+    title = models.CharField(max_length=160, blank=True)
+    email = models.EmailField(blank=True)
+    username = models.CharField(max_length=160, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class PersonGroup(models.Model):
+    name = models.CharField(max_length=160, unique=True)
+    description = models.TextField(blank=True)
+    people = models.ManyToManyField(Person, related_name="groups", blank=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["order", "name"]

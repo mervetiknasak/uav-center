@@ -16,6 +16,8 @@ from rest_framework.views import APIView
 from .models import (
     Document,
     PanelResponsible,
+    Person,
+    PersonGroup,
     Project,
     ProjectPanel,
     TechnicalDocument,
@@ -29,6 +31,8 @@ from .serializers import (
     DocumentUploadSerializer,
     LoginSerializer,
     PanelResponsibleSerializer,
+    PersonGroupSerializer,
+    PersonSerializer,
     ProjectPanelSerializer,
     ProjectSerializer,
     RegisterSerializer,
@@ -374,6 +378,41 @@ class PanelResponsibleDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = PanelResponsibleSerializer
     queryset = PanelResponsible.objects.all()
     lookup_url_kwarg = "responsible_id"
+
+
+class PersonGroupListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = PersonGroupSerializer
+
+    def get_queryset(self):
+        return PersonGroup.objects.prefetch_related("people__groups").all()
+
+
+class PersonGroupDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = PersonGroupSerializer
+    queryset = PersonGroup.objects.prefetch_related("people__groups")
+    lookup_url_kwarg = "group_id"
+
+
+class GroupPersonListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = PersonSerializer
+
+    def get_queryset(self):
+        return Person.objects.filter(groups__id=self.kwargs["group_id"]).prefetch_related("groups")
+
+    def perform_create(self, serializer):
+        group = generics.get_object_or_404(PersonGroup, pk=self.kwargs["group_id"])
+        person = serializer.save()
+        group.people.add(person)
+
+
+class PersonDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsOrganizationReaderOrAdmin]
+    serializer_class = PersonSerializer
+    queryset = Person.objects.prefetch_related("groups")
+    lookup_url_kwarg = "person_id"
 
 
 def technical_document_queryset():
