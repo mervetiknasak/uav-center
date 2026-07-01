@@ -1,16 +1,14 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import AppSidebar from "./components/AppSidebar.vue";
 import AuthPanel from "./components/AuthPanel.vue";
 import { useApi } from "./composables/useApi";
-import AdminMembershipView from "./views/AdminMembershipView.vue";
-import DocumentProcessingView from "./views/DocumentProcessingView.vue";
-import OrganizationView from "./views/OrganizationView.vue";
-import SystemView from "./views/SystemView.vue";
-import TechnicalDocumentsView from "./views/TechnicalDocumentsView.vue";
-import WordToJiraView from "./views/WordToJiraView.vue";
+import { DEFAULT_ROUTE_NAME, menuSections } from "./router";
 
 const { API_BASE_URL, apiFetch, ensureCsrfToken, resetCsrfToken } = useApi();
+const route = useRoute();
+const router = useRouter();
 
 const loading = ref(false);
 const error = ref("");
@@ -21,7 +19,6 @@ const uploadError = ref("");
 const activeDocument = ref(null);
 const prompt = ref("Bu belgeyi incele ve önemli bilgileri kısa maddeler halinde çıkar.");
 const deletingDocumentId = ref(null);
-const activeMenuKey = ref("technical-documents");
 const authChecking = ref(true);
 const authLoading = ref(false);
 const authMode = ref("login");
@@ -55,83 +52,10 @@ const credentials = ref({
   passwordConfirm: ""
 });
 
-const menuTargets = {
-  documents: "document-tools",
-  results: "ai-results"
-};
-
-const menuOptions = computed(() => {
-  const options = [
-    {
-      label: "Doküman Yönetimi",
-      key: "document-management",
-      children: [
-        {
-          label: "Teknik Dokümanlar",
-          key: "technical-documents"
-        }
-      ]
-    },
-    {
-      label: "Organizasyon",
-      key: "organization",
-      children: [
-        {
-          label: "Projeler ve Paneller",
-          key: "organization-projects"
-        }
-      ]
-    },
-    {
-      label: "Araçlar",
-      key: "tools",
-      children: [
-        {
-          label: "Belge İşleme",
-          key: "documents"
-        },
-        {
-          label: "AI Sonuçları",
-          key: "results"
-        },
-        {
-          label: "Toplantı Tutanağı Okuyucu",
-          key: "word-to-jira"
-        }
-      ]
-    }
-  ];
-
-  if (currentUser.value?.is_staff) {
-    options.push({
-      label: "Sistem",
-      key: "system",
-      children: [
-        {
-          label: "Kontrol Paneli",
-          key: "system-dashboard"
-        }
-      ]
-    });
-
-    options.push({
-      label: "Admin",
-      key: "admin",
-      children: [
-        {
-          label: "Organizasyon Yönetimi",
-          key: "organization-admin"
-        },
-        {
-          label: "Üyeler",
-          key: "users"
-        }
-      ]
-    });
-  }
-
-  return options;
-});
+const activeMenuKey = computed(() => route.meta.menuKey || DEFAULT_ROUTE_NAME);
+const menuOptions = computed(() =>
+  menuSections.filter((section) => !section.requiresAdmin || currentUser.value?.is_staff)
+);
 
 const apiStatus = computed(() => {
   if (loading.value) return "Bağlantı kontrol ediliyor";
@@ -173,15 +97,6 @@ async function loadSession() {
     await ensureCsrfToken();
     const data = await apiFetch("/api/auth/me/");
     currentUser.value = data.authenticated ? data.user : null;
-    if (currentUser.value) {
-      await Promise.all([
-        checkBackend(),
-        loadDocuments(),
-        loadProjects(),
-        loadTechnicalDocuments(),
-        loadAdminUsersIfNeeded()
-      ]);
-    }
   } catch (err) {
     authError.value = err instanceof Error ? err.message : "Oturum bilgisi alınamadı";
     currentUser.value = null;
@@ -232,13 +147,6 @@ async function submitAuth() {
     resetCsrfToken();
     credentials.value.password = "";
     credentials.value.passwordConfirm = "";
-    await Promise.all([
-      checkBackend(),
-      loadDocuments(),
-      loadProjects(),
-      loadTechnicalDocuments(),
-      loadAdminUsersIfNeeded()
-    ]);
   } catch (err) {
     authError.value = err instanceof Error ? err.message : "İşlem tamamlanamadı";
   } finally {
@@ -647,9 +555,7 @@ function switchAuthMode(mode) {
   registerMessage.value = "";
 }
 
-async function handleMenuUpdate(key) {
-  activeMenuKey.value = key;
-
+async function loadRouteData(key) {
   if (key === "system-dashboard") {
     await Promise.all([checkBackend(), loadDocuments(), loadAdminUsersIfNeeded()]);
     return;
@@ -670,15 +576,127 @@ async function handleMenuUpdate(key) {
     return;
   }
 
-  const targetId = menuTargets[key];
-  if (!targetId) return;
-
-  await nextTick();
-  document.getElementById(targetId)?.scrollIntoView({
-    behavior: "smooth",
-    block: "start"
-  });
+  if (key === "documents" || key === "results") {
+    await loadDocuments();
+  }
 }
+
+function handleMenuUpdate(key) {
+  router.push({ name: key });
+}
+
+const routeProps = computed(() => {
+  switch (route.name) {
+    case "technical-documents":
+      return {
+        projects: projects.value,
+        documents: technicalDocuments.value,
+        loading: technicalDocumentsLoading.value,
+        saving: technicalDocumentSaving.value,
+        notifyingId: notifyingTechnicalDocumentId.value,
+        error: technicalDocumentError.value,
+        notice: technicalDocumentNotice.value,
+        canEdit: currentUser.value?.is_staff
+      };
+    case "organization-projects":
+    case "organization-admin":
+      return {
+        projects: projects.value,
+        personGroups: personGroups.value,
+        loading: projectsLoading.value,
+        saving: organizationSaving.value,
+        error: organizationError.value,
+        canEdit: route.name === "organization-admin" && currentUser.value?.is_staff
+      };
+    case "users":
+      return {
+        users: adminUsers.value,
+        loading: adminUsersLoading.value,
+        error: adminUsersError.value,
+        updatingUserId: updatingUserId.value
+      };
+    case "system-dashboard":
+      return {
+        health: health.value,
+        apiStatus: apiStatus.value,
+        error: error.value,
+        loading: loading.value,
+        documents: documents.value,
+        documentsLoading: documentsLoading.value,
+        adminUsers: adminUsers.value,
+        adminUsersLoading: adminUsersLoading.value,
+        adminUsersError: adminUsersError.value,
+        currentUser: currentUser.value,
+        apiBaseUrl: API_BASE_URL
+      };
+    case "word-to-jira":
+      return {
+        loading: wordParseLoading.value,
+        publishing: wordPublishLoading.value,
+        error: wordParseError.value,
+        result: wordParseResult.value,
+        publishResult: wordPublishResult.value
+      };
+    default:
+      return {
+        prompt: prompt.value,
+        documents: documents.value,
+        loading: documentsLoading.value,
+        uploadError: uploadError.value,
+        activeDocument: activeDocument.value,
+        deletingDocumentId: deletingDocumentId.value
+      };
+  }
+});
+
+const routeListeners = computed(() => {
+  switch (route.name) {
+    case "technical-documents":
+      return {
+        refresh: loadTechnicalDocuments,
+        save: saveTechnicalDocument,
+        delete: deleteTechnicalDocument,
+        notify: notifyTechnicalDocument
+      };
+    case "organization-projects":
+    case "organization-admin":
+      return {
+        refresh: loadProjects,
+        save: saveOrganizationItem,
+        delete: deleteOrganizationItem,
+        "reorder-responsibles": reorderResponsibles
+      };
+    case "users":
+      return { refresh: loadAdminUsers, "update-status": updateUserStatus };
+    case "system-dashboard":
+      return {
+        "check-backend": checkBackend,
+        "refresh-documents": loadDocuments,
+        "refresh-users": loadAdminUsers
+      };
+    case "word-to-jira":
+      return { parse: parseWordTable, publish: publishWordToJira };
+    default:
+      return {
+        "update:prompt": (value) => (prompt.value = value),
+        upload: uploadDocument,
+        open: openDocument,
+        delete: deleteDocument
+      };
+  }
+});
+
+watch(
+  () => [route.name, currentUser.value],
+  async ([routeName, user]) => {
+    if (!user) return;
+    if (route.meta.requiresAdmin && !user.is_staff) {
+      await router.replace({ name: DEFAULT_ROUTE_NAME });
+      return;
+    }
+    await loadRouteData(routeName);
+  }
+);
 
 onMounted(() => {
   loadSession();
@@ -716,87 +734,9 @@ onMounted(() => {
         />
 
         <section class="workspace">
-          <TechnicalDocumentsView
-            v-if="activeMenuKey === 'technical-documents'"
-            :projects="projects"
-            :documents="technicalDocuments"
-            :loading="technicalDocumentsLoading"
-            :saving="technicalDocumentSaving"
-            :notifying-id="notifyingTechnicalDocumentId"
-            :error="technicalDocumentError"
-            :notice="technicalDocumentNotice"
-            :can-edit="currentUser.is_staff"
-            @refresh="loadTechnicalDocuments"
-            @save="saveTechnicalDocument"
-            @delete="deleteTechnicalDocument"
-            @notify="notifyTechnicalDocument"
-          />
-
-          <OrganizationView
-            v-else-if="activeMenuKey === 'organization-projects' || (activeMenuKey === 'organization-admin' && currentUser.is_staff)"
-            :projects="projects"
-            :person-groups="personGroups"
-            :loading="projectsLoading"
-            :saving="organizationSaving"
-            :error="organizationError"
-            :can-edit="activeMenuKey === 'organization-admin' && currentUser.is_staff"
-            @refresh="loadProjects"
-            @save="saveOrganizationItem"
-            @delete="deleteOrganizationItem"
-            @reorder-responsibles="reorderResponsibles"
-          />
-
-          <AdminMembershipView
-            v-else-if="activeMenuKey === 'users' && currentUser.is_staff"
-            :users="adminUsers"
-            :loading="adminUsersLoading"
-            :error="adminUsersError"
-            :updating-user-id="updatingUserId"
-            @refresh="loadAdminUsers"
-            @update-status="updateUserStatus"
-          />
-
-          <SystemView
-            v-else-if="activeMenuKey === 'system-dashboard' && currentUser.is_staff"
-            :health="health"
-            :api-status="apiStatus"
-            :error="error"
-            :loading="loading"
-            :documents="documents"
-            :documents-loading="documentsLoading"
-            :admin-users="adminUsers"
-            :admin-users-loading="adminUsersLoading"
-            :admin-users-error="adminUsersError"
-            :current-user="currentUser"
-            :api-base-url="API_BASE_URL"
-            @check-backend="checkBackend"
-            @refresh-documents="loadDocuments"
-            @refresh-users="loadAdminUsers"
-          />
-
-          <WordToJiraView
-            v-else-if="activeMenuKey === 'word-to-jira'"
-            :loading="wordParseLoading"
-            :publishing="wordPublishLoading"
-            :error="wordParseError"
-            :result="wordParseResult"
-            :publish-result="wordPublishResult"
-            @parse="parseWordTable"
-            @publish="publishWordToJira"
-          />
-
-          <DocumentProcessingView
-            v-else
-            v-model:prompt="prompt"
-            :documents="documents"
-            :loading="documentsLoading"
-            :upload-error="uploadError"
-            :active-document="activeDocument"
-            :deleting-document-id="deletingDocumentId"
-            @upload="uploadDocument"
-            @open="openDocument"
-            @delete="deleteDocument"
-          />
+          <router-view v-slot="{ Component }">
+            <component :is="Component" v-bind="routeProps" v-on="routeListeners" />
+          </router-view>
         </section>
       </main>
       </n-dialog-provider>
