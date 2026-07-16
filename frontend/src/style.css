@@ -361,6 +361,34 @@ body {
   font-size: 13px;
 }
 
+.processing-options,
+.email-heading {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.processing-options div {
+  display: grid;
+  gap: 3px;
+}
+
+.processing-options span {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.email-heading h2 {
+  margin: 0;
+}
+
+.ocr-warning-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
 .document-list-item {
   cursor: pointer;
 }

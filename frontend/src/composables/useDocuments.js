@@ -2,6 +2,7 @@ import { ref } from "vue";
 import { errorMessage } from "./errorMessage";
 
 const DEFAULT_PROMPT = "Bu belgeyi incele ve önemli bilgileri kısa maddeler halinde çıkar.";
+const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"];
 
 export function useDocuments(apiFetch) {
   const documents = ref([]);
@@ -9,6 +10,8 @@ export function useDocuments(apiFetch) {
   const uploadError = ref("");
   const activeDocument = ref(null);
   const prompt = ref(DEFAULT_PROMPT);
+  const useOcr = ref(false);
+  const useAi = ref(true);
   const deletingDocumentId = ref(null);
 
   async function loadDocuments() {
@@ -24,8 +27,15 @@ export function useDocuments(apiFetch) {
   async function uploadDocument({ file, onFinish, onError }) {
     uploadError.value = "";
     const trimmedPrompt = prompt.value.trim();
-    if (!trimmedPrompt) {
+    const fileName = file.file?.name?.toLowerCase() || "";
+    const isImage = IMAGE_EXTENSIONS.some((extension) => fileName.endsWith(extension));
+    if (useAi.value && !trimmedPrompt) {
       uploadError.value = "Belgeyi işlemek için prompt girin.";
+      onError?.();
+      return;
+    }
+    if (isImage && !useOcr.value) {
+      uploadError.value = "Resim dosyalarından metin çıkarmak için OCR seçeneğini etkinleştirin.";
       onError?.();
       return;
     }
@@ -33,6 +43,8 @@ export function useDocuments(apiFetch) {
     const formData = new FormData();
     formData.append("file", file.file);
     formData.append("prompt", trimmedPrompt);
+    formData.append("use_ocr", String(useOcr.value));
+    formData.append("use_ai", String(useAi.value));
 
     try {
       activeDocument.value = await apiFetch("/api/documents/upload/", {
@@ -83,6 +95,8 @@ export function useDocuments(apiFetch) {
     uploadError,
     activeDocument,
     prompt,
+    useOcr,
+    useAi,
     deletingDocumentId,
     loadDocuments,
     uploadDocument,

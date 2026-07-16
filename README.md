@@ -9,7 +9,8 @@ Python Django backend ve Vue 3 + Naive UI frontend ile lokal belge işleme uygul
 
 ## Özellikler
 
-- PDF, DOCX, XLSX, PPTX, TXT, CSV ve MD dosyalarını yükleme
+- PDF, DOCX, XLSX, PPTX, TXT, CSV, MD ve yaygın resim dosyalarını yükleme
+- Türkçe ve İngilizce yerel OCR, taranmış PDF/gömülü görsel okuma ve e-posta adresi çıkarma
 - Django REST Framework tabanlı API
 - Dosyaları lokal diskte `backend/media/` altında saklama
 - Belgeden metin çıkarma
@@ -79,7 +80,7 @@ http://localhost:8000/api/word-to-jira/parse/
 DRF yanıt formatı:
 
 - `GET /api/documents/`: belge listesi
-- `POST /api/documents/upload/`: `file` ve `prompt` alanlarıyla işlenen belge objesi
+- `POST /api/documents/upload/`: `file`, `prompt`, `use_ocr` ve `use_ai` alanlarıyla işlenen belge objesi
 - `GET /api/documents/<id>/`: çıkarılan metin dahil belge objesi
 - `DELETE /api/documents/<id>/`: belge kaydını ve lokal dosyayı siler
 - `GET /api/organization/projects/`: projeleri alt panelleri ve sorumlularıyla listeler
@@ -109,6 +110,51 @@ curl -F "file=@ornek.pdf" \
   -F "prompt=Bu belgedeki riskleri ve aksiyonları listele." \
   http://localhost:8000/api/documents/upload/
 ```
+
+## Yerel OCR
+
+Belge İşleme panelindeki OCR seçeneği PNG, JPG/JPEG, WebP, BMP ve TIFF
+resimlerini; metin içermeyen PDF sayfalarını; DOCX, PPTX ve XLSX dosyalarına
+gömülü görselleri EasyOCR ile yerelde okur. Türkçe ve İngilizce birlikte
+kullanılır. OCR metninde bulunan geçerli e-posta adresleri sonuç ekranında
+tekrarsız olarak listelenir.
+
+API'de `use_ocr` varsayılan olarak `false`, `use_ai` ise `true` değerindedir.
+AI kapatıldığında prompt zorunlu değildir:
+
+```bash
+curl -F "file=@mail-ekran-goruntusu.png" \
+  -F "use_ocr=true" \
+  -F "use_ai=false" \
+  http://localhost:8000/api/documents/upload/
+```
+
+Görsel içerikleri hiçbir zaman dışarı gönderilmez. EasyOCR modellerini ilk
+kullanımdan önce `backend/.env` içinde geçici olarak
+`OCR_ALLOW_MODEL_DOWNLOAD=true` yapıp backend sanal ortamında şu komutu bir kez
+çalıştırarak `backend/ocr_models/` dizinine hazırlayın:
+
+```bash
+python manage.py shell -c "from api.services.ocr_processor import get_reader; get_reader()"
+```
+
+İndirme tamamlandıktan sonra `.env` içinde `OCR_ALLOW_MODEL_DOWNLOAD=false`
+kullanarak çalışma anında ağ erişimini kapalı tutun. Bu değer varsayılan olarak
+zaten `false` değerindedir. Model konumu ve kaynak limitleri şu ayarlarla
+değiştirilebilir:
+
+```env
+OCR_MODEL_DIR=/yerel/model/dizini
+OCR_ALLOW_MODEL_DOWNLOAD=false
+OCR_USE_GPU=false
+OCR_MAX_IMAGES=50
+OCR_MAX_PIXELS=20000000
+OCR_PDF_DPI=200
+OCR_PDF_MIN_TEXT_LENGTH=40
+```
+
+Model bulunamadığında veya indirme kapalıyken model dizini hazır değilse API,
+modelin nasıl hazırlanacağını belirten açık bir hata döndürür.
 
 ## Lokal AI Ayarları
 
@@ -202,6 +248,20 @@ oluşturulur. Tutanak ve aksiyon etiketleri yeniden aktarımda mükerrer kayıtl
 önlemek ve yarım kalan alt görevleri güvenle tekrar denemek için kullanılır.
 Jira proje anahtarı organizasyon kayıtlarından türetilmez; taslaklarda varsayılan
 olarak `MOM`, `JIRA_MEETING_PROJECT_KEY` tanımlanmışsa onun değeri kullanılır.
+
+## IBM DOORS 9.7.0 Connector
+
+`api.services.doors_connector.DoorsConnector`, aynı Windows oturumundaki IBM
+DOORS 9.7.0 istemcisine manual'da tanımlı `DOORS.Application` OLE Automation
+arayüzü üzerinden bağlanır. Sabit DXL köprüsü hiyerarşi, modül, öznitelik,
+nesne ve link okuma/yazma işlemlerini kapsar; serbest DXL çalıştırmaz ve kalıcı
+silme sunmaz.
+
+Windows koşullu `pywin32` bağımlılığı `backend/requirements.txt` içindedir.
+DOORS kurulum, güvenlik, kullanım, kabul testi ve mimari gerekçesi için
+[`docs/doors_connector.md`](docs/doors_connector.md), manual perm izlenebilirliği
+için [`docs/doors_manual_traceability.md`](docs/doors_manual_traceability.md)
+dosyalarına bakın.
 
 ## Frontend
 

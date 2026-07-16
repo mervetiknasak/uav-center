@@ -41,7 +41,7 @@ from .serializers import (
     UserSerializer,
 )
 from .services.ai_processor import process_document_text
-from .services.document_extractor import UnsupportedDocumentError, extract_text
+from .services.document_extractor import UnsupportedDocumentError, extract_document
 from .services.word_table_parser import WordTableParseError, parse_word_table
 from .services.word_to_jira import build_jira_draft, publish_jira_draft
 from .services.jira_connector import JiraConnectorError
@@ -192,6 +192,8 @@ class DocumentUploadView(APIView):
 
         upload = serializer.validated_data["file"]
         prompt = serializer.validated_data["prompt"]
+        use_ocr = serializer.validated_data["use_ocr"]
+        use_ai = serializer.validated_data["use_ai"]
         document = Document.objects.create(
             original_name=upload.name,
             file=upload,
@@ -201,8 +203,23 @@ class DocumentUploadView(APIView):
         )
 
         try:
-            extracted_text = extract_text(document.file.path)
-            ai_result = process_document_text(extracted_text, document.original_name, prompt)
+            extraction = extract_document(document.file.path, use_ocr=use_ocr)
+            extracted_text = extraction["text"]
+            if use_ai:
+                ai_result = process_document_text(extracted_text, document.original_name, prompt)
+            else:
+                ai_result = {
+                    "provider": "disabled",
+                    "filename": document.original_name,
+                    "prompt": "",
+                    "response": "",
+                    "metrics": {
+                        "characters": len(extracted_text),
+                        "words": len(extracted_text.split()),
+                    },
+                }
+            ai_result["ai_enabled"] = use_ai
+            ai_result["ocr"] = extraction["ocr"]
             document.extracted_text = extracted_text
             document.ai_result = ai_result
             document.status = Document.STATUS_PROCESSED

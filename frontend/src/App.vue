@@ -123,6 +123,8 @@ const routeProps = computed(() => {
     default:
       return {
         prompt: documentStore.prompt.value,
+        useOcr: documentStore.useOcr.value,
+        useAi: documentStore.useAi.value,
         documents: documentStore.documents.value,
         loading: documentStore.loading.value,
         uploadError: documentStore.uploadError.value,
@@ -162,6 +164,8 @@ const routeListeners = computed(() => {
     default:
       return {
         "update:prompt": (value) => (documentStore.prompt.value = value),
+        "update:use-ocr": (value) => (documentStore.useOcr.value = value),
+        "update:use-ai": (value) => (documentStore.useAi.value = value),
         upload: documentStore.uploadDocument,
         open: documentStore.openDocument,
         delete: documentStore.deleteDocument

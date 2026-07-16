@@ -1,0 +1,1376 @@
+/*
+ * IBM DOORS 9.7 Python connector bridge.
+ *
+ * DXL API source: IBM Rational DOORS DXL Reference Manual, version 9.6.1.
+ * The bridge exposes a fixed operation set through DOORS.Application.Result
+ * and runFile. It never evaluates request content as DXL.
+ *
+ * Protocol fields are UTF-8 bytes encoded as uppercase hexadecimal ASCII.
+ */
+
+pragma runLim, 0
+
+const string DXLC_PROTOCOL = "DXLC/1"
+const string DXLC_COMPLETE = "DXLC/1:OK"
+const int DXLC_MAX_ARGS = 1024
+
+string gArgs[DXLC_MAX_ARGS]
+int gArgCount = 0
+string gResponsePath = ""
+Stream gResponse = null
+
+string boolText(bool value)
+{
+    if (value) return "1"
+    return "0"
+}
+
+bool parseUnsigned(string text, int &value)
+{
+    Buffer source = create
+    source = text
+    int size = length(source)
+    int index = 0
+    int result = 0
+    char current
+
+    if (size == 0)
+    {
+        delete source
+        return false
+    }
+    for (index = 0; index < size; index++)
+    {
+        current = source[index]
+        if (!isdigit(current))
+        {
+            delete source
+            return false
+        }
+        result = (result * 10) + (intOf(current) - intOf('0'))
+    }
+    delete source
+    value = result
+    return true
+}
+
+int hexNibble(char value)
+{
+    if (value >= '0' && value <= '9') return intOf(value) - intOf('0')
+    if (value >= 'A' && value <= 'F') return 10 + intOf(value) - intOf('A')
+    if (value >= 'a' && value <= 'f') return 10 + intOf(value) - intOf('a')
+    return -1
+}
+
+bool hexDecode(string encoded, string &decoded)
+{
+    Buffer source = create
+    Buffer target = create
+    source = encoded
+    int size = length(source)
+    int index = 0
+    int high = 0
+    int low = 0
+
+    if ((size % 2) != 0)
+    {
+        delete source
+        delete target
+        return false
+    }
+    for (index = 0; index < size; index += 2)
+    {
+        high = hexNibble(source[index])
+        low = hexNibble(source[index + 1])
+        if (high < 0 || low < 0)
+        {
+            delete source
+            delete target
+            return false
+        }
+        target += charOf((high * 16) + low)
+    }
+    decoded = stringOf(target)
+    delete source
+    delete target
+    return true
+}
+
+string hexEncode(string value)
+{
+    const string digits = "0123456789ABCDEF"
+    Buffer source = create
+    Buffer target = create
+    source = value
+    int size = length(source)
+    int index = 0
+    int code = 0
+
+    for (index = 0; index < size; index++)
+    {
+        code = intOf(source[index])
+        target += digits[(code / 16):(code / 16)]
+        target += digits[(code % 16):(code % 16)]
+    }
+    string result = stringOf(target)
+    delete source
+    delete target
+    return result
+}
+
+bool openResponse()
+{
+    noError
+    gResponse = write(gResponsePath, CP_UTF8)
+    string message = lastError
+    if (!null message || null gResponse) return false
+    return true
+}
+
+void writeRaw(string value)
+{
+    gResponse << value "\n"
+}
+
+void writeRawInt(int value)
+{
+    gResponse << value "\n"
+}
+
+void writeField(string value)
+{
+    writeRaw(hexEncode(value))
+}
+
+void beginOk(int fieldCount)
+{
+    writeRaw(DXLC_PROTOCOL)
+    writeRaw("OK")
+    writeRawInt(fieldCount)
+}
+
+void finishResponse()
+{
+    if (!null gResponse)
+    {
+        flush(gResponse)
+        close(gResponse)
+        gResponse = null
+    }
+    oleSetResult(DXLC_COMPLETE)
+}
+
+void respondError(string code, string message)
+{
+    if (!null gResponse)
+    {
+        close(gResponse)
+        gResponse = null
+    }
+    if (!openResponse())
+    {
+        oleSetResult(DXLC_PROTOCOL ":RESPONSE_FILE_ERROR")
+        return
+    }
+    writeRaw(DXLC_PROTOCOL)
+    writeRaw("ERR")
+    writeRaw("2")
+    writeField(code)
+    writeField(message)
+    finishResponse()
+}
+
+bool requireArgs(int expected, string operation)
+{
+    if (gArgCount == expected) return true
+    respondError("INVALID_ARGUMENT_COUNT", operation " için geçersiz argüman sayısı.")
+    return false
+}
+
+bool requireMinArgs(int minimum, string operation)
+{
+    if (gArgCount >= minimum) return true
+    respondError("INVALID_ARGUMENT_COUNT", operation " için eksik argüman.")
+    return false
+}
+
+bool parseArgUnsigned(int index, int &value, string name)
+{
+    if (index < 0 || index >= gArgCount || !parseUnsigned(gArgs[index], value))
+    {
+        respondError("INVALID_ARGUMENT", name " negatif olmayan bir tamsayı olmalıdır.")
+        return false
+    }
+    return true
+}
+
+bool openModuleRead(string modulePath, Module &openedModule, bool &openedHere, string &message)
+{
+    ModName_ reference = module(modulePath)
+    openedHere = false
+    message = ""
+    if (null reference || !exists(reference))
+    {
+        message = "Modül bulunamadı veya okunamıyor: " modulePath
+        return false
+    }
+
+    if (open(reference))
+    {
+        Item moduleItem = item(modulePath)
+        if (null moduleItem)
+        {
+            message = "Açık modül için Item handle alınamadı: " modulePath
+            return false
+        }
+        openedModule = module(moduleItem)
+        if (null openedModule)
+        {
+            message = "Açık modül handle'ı alınamadı: " modulePath
+            return false
+        }
+        return true
+    }
+
+    noError
+    openedModule = read(modulePath, false, true)
+    message = lastError
+    if (!null message || null openedModule)
+    {
+        if (null message) message = "Modül okuma modunda açılamadı: " modulePath
+        return false
+    }
+    openedHere = true
+    return true
+}
+
+bool openModuleWrite(string modulePath, Module &openedModule, string &message)
+{
+    ModName_ reference = module(modulePath)
+    message = ""
+    if (null reference || !exists(reference))
+    {
+        message = "Modül bulunamadı veya okunamıyor: " modulePath
+        return false
+    }
+    if (open(reference))
+    {
+        message = "Yazma güvenliği nedeniyle zaten açık olan modül değiştirilemez: " modulePath
+        return false
+    }
+
+    noError
+    openedModule = edit(modulePath, false, true, true)
+    message = lastError
+    if (!null message || null openedModule)
+    {
+        if (null message) message = "Modül özel düzenleme modunda açılamadı: " modulePath
+        return false
+    }
+    return true
+}
+
+void closeIfOpenedHere(Module openedModule, bool openedHere)
+{
+    if (openedHere && !null openedModule) close(openedModule, false)
+}
+
+bool regularObject(Object candidate)
+{
+    if (null candidate) return false
+    if (isDeleted(candidate)) return false
+    if (table(candidate) || row(candidate) || cell(candidate)) return false
+    return true
+}
+
+bool validateAttribute(Module openedModule, string attributeName, string valueKind,
+                       string value,
+                       bool objectScope, string &message)
+{
+    AttrDef definition = find(openedModule, attributeName)
+    if (null definition)
+    {
+        message = "Öznitelik bulunamadı: " attributeName
+        return false
+    }
+    if (objectScope && !definition.object)
+    {
+        message = "Öznitelik nesne kapsamına sahip değil: " attributeName
+        return false
+    }
+    if (!objectScope && !definition.module)
+    {
+        message = "Öznitelik modül kapsamına sahip değil: " attributeName
+        return false
+    }
+    if (!definition.useraccess)
+    {
+        message = "Sistem tarafından yönetilen öznitelik yazılamaz: " attributeName
+        return false
+    }
+    if (!canWrite(openedModule, attributeName))
+    {
+        message = "Öznitelik için yazma yetkisi yok: " attributeName
+        return false
+    }
+    AttrType attributeType = definition.type
+    string baseType = stringOf(attributeType.type)
+    if (valueKind == "BOOLEAN")
+    {
+        if (attributeType.type != attrEnumeration || attributeType.size != 2 ||
+            (value != "0" && value != "1"))
+        {
+            message = "Boolean değer yalnız iki elemanlı enumeration özniteliğine yazılabilir: " attributeName
+            return false
+        }
+        return true
+    }
+    if (valueKind == "INTEGER" && baseType != "Integer")
+    {
+        message = "Python integer değeri Integer tabanlı öznitelik gerektirir: " attributeName
+        return false
+    }
+    if (valueKind == "REAL" && baseType != "Real")
+    {
+        message = "Python float değeri Real tabanlı öznitelik gerektirir: " attributeName
+        return false
+    }
+    if (valueKind == "DATE" && baseType != "Date")
+    {
+        message = "DoorsDate değeri Date tabanlı öznitelik gerektirir: " attributeName
+        return false
+    }
+    if (valueKind == "DATE")
+    {
+        int seconds = 0
+        if (!parseUnsigned(value, seconds))
+        {
+            message = "DoorsDate saniye değeri geçersiz: " attributeName
+            return false
+        }
+        return true
+    }
+    if (valueKind != "STRING" && valueKind != "INTEGER" &&
+        valueKind != "REAL" && valueKind != "DATE")
+    {
+        message = "Bilinmeyen öznitelik değer tipi: " valueKind
+        return false
+    }
+    if (!attributeValue(definition, value))
+    {
+        message = "Öznitelik değeri tanımlı tipe/range'e uymuyor: " attributeName
+        return false
+    }
+    return true
+}
+
+string assignObjectAttribute(Object targetObject, Module openedModule,
+                             string attributeName, string valueKind, string value)
+{
+    AttrDef definition = find(openedModule, attributeName)
+    AttrType attributeType = definition.type
+    string baseType = stringOf(attributeType.type)
+
+    noError
+    if (valueKind == "BOOLEAN")
+    {
+        bool boolValue = value == "1"
+        targetObject.attributeName = boolValue
+    }
+    else if (baseType == "Integer")
+    {
+        int integerValue = intOf(value)
+        targetObject.attributeName = integerValue
+    }
+    else if (baseType == "Real")
+    {
+        real realValue = realOf(value)
+        targetObject.attributeName = realValue
+    }
+    else if (baseType == "Date")
+    {
+        int seconds = intOf(value)
+        Date dateValue = dateOf(seconds)
+        targetObject.attributeName = dateValue
+    }
+    else
+    {
+        targetObject.attributeName = value
+    }
+    return lastError
+}
+
+string assignModuleAttribute(Module openedModule, string attributeName,
+                             string valueKind, string value)
+{
+    AttrDef definition = find(openedModule, attributeName)
+    AttrType attributeType = definition.type
+    string baseType = stringOf(attributeType.type)
+
+    noError
+    if (valueKind == "BOOLEAN")
+    {
+        bool boolValue = value == "1"
+        openedModule.attributeName = boolValue
+    }
+    else if (baseType == "Integer")
+    {
+        int integerValue = intOf(value)
+        openedModule.attributeName = integerValue
+    }
+    else if (baseType == "Real")
+    {
+        real realValue = realOf(value)
+        openedModule.attributeName = realValue
+    }
+    else if (baseType == "Date")
+    {
+        int seconds = intOf(value)
+        Date dateValue = dateOf(seconds)
+        openedModule.attributeName = dateValue
+    }
+    else
+    {
+        openedModule.attributeName = value
+    }
+    return lastError
+}
+
+void writeObjectCore(Object targetObject)
+{
+    int absoluteNumber = targetObject."Absolute Number"
+    writeField(absoluteNumber "")
+    writeField(identifier(targetObject))
+    writeField(number(targetObject))
+    writeField(level(targetObject) "")
+}
+
+void writeObjectAttribute(Object targetObject, string attributeName)
+{
+    if (!canRead(targetObject.attributeName))
+    {
+        writeField("0")
+        writeField("")
+        return
+    }
+    noError
+    string value = unicodeString(targetObject.attributeName)
+    string message = lastError
+    if (!null message)
+    {
+        writeField("0")
+        writeField("")
+        return
+    }
+    writeField("1")
+    writeField(value)
+}
+
+int countFolderItems(Folder parentFolder, bool recursive)
+{
+    int count = 0
+    Item child
+    for child in parentFolder do
+    {
+        count++
+        string childType = type(child)
+        if (recursive && (childType == "Folder" || childType == "Project"))
+        {
+            Folder nested = folder(child)
+            if (!null nested) count += countFolderItems(nested, true)
+        }
+    }
+    return count
+}
+
+void writeFolderItems(Folder parentFolder, bool recursive)
+{
+    Item child
+    for child in parentFolder do
+    {
+        writeField(name(child))
+        writeField(fullName(child))
+        string childType = type(child)
+        writeField(childType)
+        writeField(description(child))
+        writeField(uniqueID(child))
+        if (recursive && (childType == "Folder" || childType == "Project"))
+        {
+            Folder nested = folder(child)
+            if (!null nested) writeFolderItems(nested, true)
+        }
+    }
+}
+
+void respondModuleInfo(Module openedModule)
+{
+    beginOk(9)
+    writeField(name(openedModule))
+    writeField(fullName(openedModule))
+    writeField(type(openedModule))
+    writeField(description(openedModule))
+    writeField(uniqueID(openedModule))
+    writeField(version(openedModule))
+    writeField(boolText(baseline(openedModule)))
+    writeField(boolText(canRead(openedModule)))
+    writeField(boolText(canWrite(openedModule)))
+}
+
+void operationPing()
+{
+    if (!requireArgs(0, "PING")) return
+    beginOk(6)
+    writeField(DXLC_PROTOCOL)
+    writeField(getDatabaseName())
+    writeField(doorsname)
+    writeField(username())
+    writeField(hostname())
+    writeField(platform)
+    finishResponse()
+}
+
+void operationListItems()
+{
+    if (!requireArgs(2, "LIST_ITEMS")) return
+    Folder requested = folder(gArgs[0])
+    if (null requested)
+    {
+        respondError("FOLDER_NOT_FOUND", "Klasör/proje bulunamadı: " gArgs[0])
+        return
+    }
+    bool recursive = gArgs[1] == "1"
+    int count = countFolderItems(requested, recursive)
+    beginOk(1 + (count * 5))
+    writeField(count "")
+    writeFolderItems(requested, recursive)
+    finishResponse()
+}
+
+void operationGetModule()
+{
+    if (!requireArgs(1, "GET_MODULE")) return
+    Module openedModule = null
+    bool openedHere = false
+    string message = ""
+    if (!openModuleRead(gArgs[0], openedModule, openedHere, message))
+    {
+        respondError("MODULE_OPEN_FAILED", message)
+        return
+    }
+    respondModuleInfo(openedModule)
+    closeIfOpenedHere(openedModule, openedHere)
+    finishResponse()
+}
+
+bool attributeMatchesScope(AttrDef definition, string scope)
+{
+    if (scope == "all") return true
+    if (scope == "object") return definition.object
+    if (scope == "module") return definition.module
+    return false
+}
+
+void operationListAttributes()
+{
+    if (!requireArgs(2, "LIST_ATTRIBUTES")) return
+    string scope = gArgs[1]
+    if (scope != "all" && scope != "object" && scope != "module")
+    {
+        respondError("INVALID_ARGUMENT", "Öznitelik kapsamı geçersiz.")
+        return
+    }
+    Module openedModule = null
+    bool openedHere = false
+    string message = ""
+    if (!openModuleRead(gArgs[0], openedModule, openedHere, message))
+    {
+        respondError("MODULE_OPEN_FAILED", message)
+        return
+    }
+
+    int count = 0
+    AttrDef definition
+    for definition in openedModule do
+        if (attributeMatchesScope(definition, scope)) count++
+
+    beginOk(1 + (count * 8))
+    writeField(count "")
+    for definition in openedModule do
+    {
+        if (!attributeMatchesScope(definition, scope)) continue
+        AttrType attributeType = definition.type
+        writeField(definition.name)
+        writeField(definition.typeName)
+        writeField(stringOf(attributeType.type))
+        writeField(boolText(definition.object))
+        writeField(boolText(definition.module))
+        writeField(boolText(definition.multi))
+        writeField(boolText(definition.system))
+        writeField(boolText(definition.useraccess))
+    }
+    closeIfOpenedHere(openedModule, openedHere)
+    finishResponse()
+}
+
+bool validateRequestedObjectAttributes(Module openedModule, int startIndex,
+                                       int attributeCount, string &message)
+{
+    int index = 0
+    for (index = 0; index < attributeCount; index++)
+    {
+        string attributeName = gArgs[startIndex + index]
+        AttrDef definition = find(openedModule, attributeName)
+        if (null definition || !definition.object)
+        {
+            message = "Nesne özniteliği bulunamadı: " attributeName
+            return false
+        }
+    }
+    return true
+}
+
+void operationListObjects()
+{
+    if (!requireMinArgs(4, "LIST_OBJECTS")) return
+    int offset = 0
+    int limit = 0
+    int attributeCount = 0
+    if (!parseArgUnsigned(1, offset, "offset")) return
+    if (!parseArgUnsigned(2, limit, "limit")) return
+    if (!parseArgUnsigned(3, attributeCount, "attribute_count")) return
+    if (limit < 1 || limit > 1000 || attributeCount > 200 || gArgCount != 4 + attributeCount)
+    {
+        respondError("INVALID_ARGUMENT", "Sayfalama veya öznitelik sayısı geçersiz.")
+        return
+    }
+
+    Module openedModule = null
+    bool openedHere = false
+    string message = ""
+    if (!openModuleRead(gArgs[0], openedModule, openedHere, message))
+    {
+        respondError("MODULE_OPEN_FAILED", message)
+        return
+    }
+    if (!validateRequestedObjectAttributes(openedModule, 4, attributeCount, message))
+    {
+        closeIfOpenedHere(openedModule, openedHere)
+        respondError("ATTRIBUTE_NOT_FOUND", message)
+        return
+    }
+
+    int ordinal = 0
+    int selected = 0
+    bool hasMore = false
+    Object candidate
+    for candidate in entire(openedModule) do
+    {
+        if (!regularObject(candidate)) continue
+        if (ordinal >= offset)
+        {
+            if (selected < limit) selected++
+            else hasMore = true
+        }
+        ordinal++
+    }
+
+    beginOk(3 + (selected * (4 + (attributeCount * 2))))
+    writeField(selected "")
+    writeField((offset + selected) "")
+    writeField(boolText(hasMore))
+
+    ordinal = 0
+    int written = 0
+    int attributeIndex = 0
+    for candidate in entire(openedModule) do
+    {
+        if (!regularObject(candidate)) continue
+        if (ordinal >= offset && written < selected)
+        {
+            writeObjectCore(candidate)
+            for (attributeIndex = 0; attributeIndex < attributeCount; attributeIndex++)
+                writeObjectAttribute(candidate, gArgs[4 + attributeIndex])
+            written++
+        }
+        ordinal++
+    }
+    closeIfOpenedHere(openedModule, openedHere)
+    finishResponse()
+}
+
+void operationGetObject()
+{
+    if (!requireMinArgs(3, "GET_OBJECT")) return
+    int absoluteNumber = 0
+    int attributeCount = 0
+    if (!parseArgUnsigned(1, absoluteNumber, "absolute_number")) return
+    if (!parseArgUnsigned(2, attributeCount, "attribute_count")) return
+    if (absoluteNumber < 1 || attributeCount > 200 || gArgCount != 3 + attributeCount)
+    {
+        respondError("INVALID_ARGUMENT", "Nesne veya öznitelik sayısı geçersiz.")
+        return
+    }
+    Module openedModule = null
+    bool openedHere = false
+    string message = ""
+    if (!openModuleRead(gArgs[0], openedModule, openedHere, message))
+    {
+        respondError("MODULE_OPEN_FAILED", message)
+        return
+    }
+    if (!validateRequestedObjectAttributes(openedModule, 3, attributeCount, message))
+    {
+        closeIfOpenedHere(openedModule, openedHere)
+        respondError("ATTRIBUTE_NOT_FOUND", message)
+        return
+    }
+    Object targetObject = object(absoluteNumber, openedModule)
+    if (!regularObject(targetObject))
+    {
+        closeIfOpenedHere(openedModule, openedHere)
+        respondError("OBJECT_NOT_FOUND", "Nesne bulunamadı veya silinmiş.")
+        return
+    }
+    beginOk(4 + (attributeCount * 2))
+    writeObjectCore(targetObject)
+    int index = 0
+    for (index = 0; index < attributeCount; index++)
+        writeObjectAttribute(targetObject, gArgs[3 + index])
+    closeIfOpenedHere(openedModule, openedHere)
+    finishResponse()
+}
+
+void operationGetModuleAttributes()
+{
+    if (!requireMinArgs(2, "GET_MODULE_ATTRIBUTES")) return
+    int attributeCount = 0
+    if (!parseArgUnsigned(1, attributeCount, "attribute_count")) return
+    if (attributeCount < 1 || attributeCount > 200 || gArgCount != 2 + attributeCount)
+    {
+        respondError("INVALID_ARGUMENT", "Öznitelik sayısı geçersiz.")
+        return
+    }
+    Module openedModule = null
+    bool openedHere = false
+    string message = ""
+    if (!openModuleRead(gArgs[0], openedModule, openedHere, message))
+    {
+        respondError("MODULE_OPEN_FAILED", message)
+        return
+    }
+    int index = 0
+    for (index = 0; index < attributeCount; index++)
+    {
+        AttrDef definition = find(openedModule, gArgs[2 + index])
+        if (null definition || !definition.module)
+        {
+            closeIfOpenedHere(openedModule, openedHere)
+            respondError("ATTRIBUTE_NOT_FOUND", "Modül özniteliği bulunamadı: " gArgs[2 + index])
+            return
+        }
+    }
+    beginOk(attributeCount * 2)
+    for (index = 0; index < attributeCount; index++)
+    {
+        string attributeName = gArgs[2 + index]
+        if (!canRead(openedModule.attributeName))
+        {
+            writeField("0")
+            writeField("")
+        }
+        else
+        {
+            noError
+            string value = unicodeString(openedModule.attributeName)
+            message = lastError
+            if (!null message)
+            {
+                writeField("0")
+                writeField("")
+            }
+            else
+            {
+                writeField("1")
+                writeField(value)
+            }
+        }
+    }
+    closeIfOpenedHere(openedModule, openedHere)
+    finishResponse()
+}
+
+void operationCreateFolder()
+{
+    if (!requireArgs(2, "CREATE_FOLDER")) return
+    Folder createdFolder = null
+    string message = create(gArgs[0], (description gArgs[1]), createdFolder)
+    if (!null message || null createdFolder)
+    {
+        if (null message) message = "Klasör oluşturulamadı."
+        respondError("CREATE_FOLDER_FAILED", message)
+        return
+    }
+    beginOk(5)
+    writeField(name(createdFolder))
+    writeField(fullName(createdFolder))
+    writeField(type(createdFolder))
+    writeField(description(createdFolder))
+    writeField(uniqueID(createdFolder))
+    finishResponse()
+}
+
+void operationCreateFormalModule()
+{
+    if (!requireArgs(4, "CREATE_FORMAL_MODULE")) return
+    int firstAbsoluteNumber = 0
+    if (!parseArgUnsigned(3, firstAbsoluteNumber, "first_absolute_number")) return
+    if (firstAbsoluteNumber < 1)
+    {
+        respondError("INVALID_ARGUMENT", "İlk mutlak numara en az 1 olmalıdır.")
+        return
+    }
+    Module createdModule = null
+    string message = create(gArgs[0], (description gArgs[1]), (prefix gArgs[2]),
+                            firstAbsoluteNumber, createdModule)
+    if (!null message || null createdModule)
+    {
+        if (null message) message = "Formal modül oluşturulamadı."
+        respondError("CREATE_MODULE_FAILED", message)
+        return
+    }
+    save(createdModule)
+    respondModuleInfo(createdModule)
+    close(createdModule, false)
+    finishResponse()
+}
+
+bool validateAttributePairs(Module openedModule, int pairCountIndex,
+                            bool objectScope, string &message)
+{
+    int pairCount = 0
+    if (!parseUnsigned(gArgs[pairCountIndex], pairCount))
+    {
+        message = "Öznitelik çift sayısı geçersiz."
+        return false
+    }
+    if (pairCount < 1 || pairCount > 200 || gArgCount != pairCountIndex + 1 + (pairCount * 3))
+    {
+        message = "Öznitelik çiftleri eksik veya çok büyük."
+        return false
+    }
+    int index = 0
+    for (index = 0; index < pairCount; index++)
+    {
+        string attributeName = gArgs[pairCountIndex + 1 + (index * 3)]
+        string valueKind = gArgs[pairCountIndex + 2 + (index * 3)]
+        string value = gArgs[pairCountIndex + 3 + (index * 3)]
+        if (!validateAttribute(openedModule, attributeName, valueKind, value,
+                               objectScope, message))
+            return false
+    }
+    return true
+}
+
+string assignObjectPairs(Object targetObject, Module openedModule, int pairCountIndex)
+{
+    int pairCount = 0
+    parseUnsigned(gArgs[pairCountIndex], pairCount)
+    int index = 0
+    for (index = 0; index < pairCount; index++)
+    {
+        string attributeName = gArgs[pairCountIndex + 1 + (index * 3)]
+        string valueKind = gArgs[pairCountIndex + 2 + (index * 3)]
+        string value = gArgs[pairCountIndex + 3 + (index * 3)]
+        string message = assignObjectAttribute(targetObject, openedModule,
+                                               attributeName, valueKind, value)
+        if (!null message) return message
+    }
+    return ""
+}
+
+void operationCreateObject()
+{
+    if (!requireMinArgs(7, "CREATE_OBJECT")) return
+    int anchorNumber = 0
+    if (!parseArgUnsigned(2, anchorNumber, "anchor_absolute_number")) return
+    string position = gArgs[1]
+    if (position != "append" && position != "after" && position != "below")
+    {
+        respondError("INVALID_ARGUMENT", "Nesne konumu geçersiz.")
+        return
+    }
+    if (position != "append" && anchorNumber < 1)
+    {
+        respondError("INVALID_ARGUMENT", "Bu konum için anchor nesnesi gereklidir.")
+        return
+    }
+    Module openedModule = null
+    string message = ""
+    if (!openModuleWrite(gArgs[0], openedModule, message))
+    {
+        respondError("MODULE_EDIT_FAILED", message)
+        return
+    }
+    if (!validateAttributePairs(openedModule, 3, true, message))
+    {
+        close(openedModule, false)
+        respondError("INVALID_ATTRIBUTE", message)
+        return
+    }
+
+    Object createdObject = null
+    Object anchor = null
+    if (position == "append")
+    {
+        Object candidate
+        for candidate in entire(openedModule) do
+            if (regularObject(candidate)) anchor = candidate
+        if (null anchor) createdObject = create(openedModule)
+        else createdObject = create(after(anchor))
+    }
+    else
+    {
+        anchor = object(anchorNumber, openedModule)
+        if (!regularObject(anchor))
+        {
+            close(openedModule, false)
+            respondError("OBJECT_NOT_FOUND", "Anchor nesnesi bulunamadı.")
+            return
+        }
+        if (position == "after") createdObject = create(after(anchor))
+        else createdObject = create(last(below(anchor)))
+    }
+    if (null createdObject)
+    {
+        close(openedModule, false)
+        respondError("CREATE_OBJECT_FAILED", "Nesne oluşturulamadı.")
+        return
+    }
+    message = assignObjectPairs(createdObject, openedModule, 3)
+    if (!null message)
+    {
+        close(openedModule, false)
+        respondError("ATTRIBUTE_WRITE_FAILED", message)
+        return
+    }
+    save(openedModule)
+    beginOk(4)
+    writeObjectCore(createdObject)
+    close(openedModule, false)
+    finishResponse()
+}
+
+void operationUpdateObject()
+{
+    if (!requireMinArgs(6, "UPDATE_OBJECT")) return
+    int absoluteNumber = 0
+    if (!parseArgUnsigned(1, absoluteNumber, "absolute_number")) return
+    if (absoluteNumber < 1)
+    {
+        respondError("INVALID_ARGUMENT", "Nesne numarası en az 1 olmalıdır.")
+        return
+    }
+    Module openedModule = null
+    string message = ""
+    if (!openModuleWrite(gArgs[0], openedModule, message))
+    {
+        respondError("MODULE_EDIT_FAILED", message)
+        return
+    }
+    Object targetObject = object(absoluteNumber, openedModule)
+    if (!regularObject(targetObject))
+    {
+        close(openedModule, false)
+        respondError("OBJECT_NOT_FOUND", "Nesne bulunamadı veya silinmiş.")
+        return
+    }
+    if (!validateAttributePairs(openedModule, 2, true, message))
+    {
+        close(openedModule, false)
+        respondError("INVALID_ATTRIBUTE", message)
+        return
+    }
+    message = assignObjectPairs(targetObject, openedModule, 2)
+    if (!null message)
+    {
+        close(openedModule, false)
+        respondError("ATTRIBUTE_WRITE_FAILED", message)
+        return
+    }
+    save(openedModule)
+    beginOk(4)
+    writeObjectCore(targetObject)
+    close(openedModule, false)
+    finishResponse()
+}
+
+void operationUpdateModuleAttributes()
+{
+    if (!requireMinArgs(5, "UPDATE_MODULE_ATTRIBUTES")) return
+    Module openedModule = null
+    string message = ""
+    if (!openModuleWrite(gArgs[0], openedModule, message))
+    {
+        respondError("MODULE_EDIT_FAILED", message)
+        return
+    }
+    if (!validateAttributePairs(openedModule, 1, false, message))
+    {
+        close(openedModule, false)
+        respondError("INVALID_ATTRIBUTE", message)
+        return
+    }
+    int pairCount = 0
+    parseUnsigned(gArgs[1], pairCount)
+    int index = 0
+    for (index = 0; index < pairCount; index++)
+    {
+        string attributeName = gArgs[2 + (index * 3)]
+        string valueKind = gArgs[3 + (index * 3)]
+        string value = gArgs[4 + (index * 3)]
+        message = assignModuleAttribute(openedModule, attributeName, valueKind, value)
+        if (!null message)
+        {
+            close(openedModule, false)
+            respondError("ATTRIBUTE_WRITE_FAILED", message)
+            return
+        }
+    }
+    save(openedModule)
+    close(openedModule, false)
+    beginOk(0)
+    finishResponse()
+}
+
+void operationSoftDeleteObject()
+{
+    if (!requireArgs(3, "SOFT_DELETE_OBJECT")) return
+    int absoluteNumber = 0
+    if (!parseArgUnsigned(1, absoluteNumber, "absolute_number")) return
+    if (absoluteNumber < 1 || (gArgs[2] != "0" && gArgs[2] != "1"))
+    {
+        respondError("INVALID_ARGUMENT", "Silme parametreleri geçersiz.")
+        return
+    }
+    Module openedModule = null
+    string message = ""
+    if (!openModuleWrite(gArgs[0], openedModule, message))
+    {
+        respondError("MODULE_EDIT_FAILED", message)
+        return
+    }
+    Object targetObject = object(absoluteNumber, openedModule)
+    if (!regularObject(targetObject))
+    {
+        close(openedModule, false)
+        respondError("OBJECT_NOT_FOUND", "Nesne bulunamadı veya zaten silinmiş.")
+        return
+    }
+    noError
+    softDelete(targetObject, gArgs[2] == "1")
+    message = lastError
+    if (!null message)
+    {
+        close(openedModule, false)
+        respondError("SOFT_DELETE_FAILED", message)
+        return
+    }
+    save(openedModule)
+    close(openedModule, false)
+    beginOk(0)
+    finishResponse()
+}
+
+bool linkMatches(Link candidate, string linkModulePath,
+                 string targetModulePath, int targetNumber)
+{
+    Module linkModuleHandle = module(candidate)
+    ModName_ targetReference = target(candidate)
+    if (null linkModuleHandle || null targetReference) return false
+    return fullName(linkModuleHandle) == linkModulePath &&
+           fullName(targetReference) == targetModulePath &&
+           targetAbsNo(candidate) == targetNumber
+}
+
+void operationListOutgoingLinks()
+{
+    if (!requireArgs(2, "LIST_OUTGOING_LINKS")) return
+    int sourceFilter = 0
+    if (!parseArgUnsigned(1, sourceFilter, "source_absolute_number")) return
+    Module openedModule = null
+    bool openedHere = false
+    string message = ""
+    if (!openModuleRead(gArgs[0], openedModule, openedHere, message))
+    {
+        respondError("MODULE_OPEN_FAILED", message)
+        return
+    }
+    int count = 0
+    Object sourceObject
+    Link outgoing
+    for sourceObject in entire(openedModule) do
+    {
+        if (!regularObject(sourceObject)) continue
+        int sourceNumber = sourceObject."Absolute Number"
+        if (sourceFilter > 0 && sourceNumber != sourceFilter) continue
+        for outgoing in sourceObject -> "*" do count++
+    }
+    beginOk(1 + (count * 4))
+    writeField(count "")
+    for sourceObject in entire(openedModule) do
+    {
+        if (!regularObject(sourceObject)) continue
+        int sourceNumber = sourceObject."Absolute Number"
+        if (sourceFilter > 0 && sourceNumber != sourceFilter) continue
+        for outgoing in sourceObject -> "*" do
+        {
+            Module linkModuleHandle = module(outgoing)
+            ModName_ targetReference = target(outgoing)
+            writeField(sourceNumber "")
+            if (null linkModuleHandle) writeField("")
+            else writeField(fullName(linkModuleHandle))
+            if (null targetReference) writeField("")
+            else writeField(fullName(targetReference))
+            writeField(targetAbsNo(outgoing) "")
+        }
+    }
+    closeIfOpenedHere(openedModule, openedHere)
+    finishResponse()
+}
+
+void operationCreateLink()
+{
+    if (!requireArgs(5, "CREATE_LINK")) return
+    int sourceNumber = 0
+    int targetNumber = 0
+    if (!parseArgUnsigned(1, sourceNumber, "source_absolute_number")) return
+    if (!parseArgUnsigned(4, targetNumber, "target_absolute_number")) return
+    if (sourceNumber < 1 || targetNumber < 1 || length(gArgs[2]) == 0)
+    {
+        respondError("INVALID_ARGUMENT", "Link parametreleri geçersiz.")
+        return
+    }
+    Module sourceModule = null
+    string message = ""
+    if (!openModuleWrite(gArgs[0], sourceModule, message))
+    {
+        respondError("MODULE_EDIT_FAILED", message)
+        return
+    }
+    Object sourceObject = object(sourceNumber, sourceModule)
+    if (!regularObject(sourceObject))
+    {
+        close(sourceModule, false)
+        respondError("OBJECT_NOT_FOUND", "Kaynak nesne bulunamadı.")
+        return
+    }
+
+    Module targetModule = null
+    bool targetOpenedHere = false
+    if (gArgs[0] == gArgs[3])
+    {
+        targetModule = sourceModule
+    }
+    else if (!openModuleRead(gArgs[3], targetModule, targetOpenedHere, message))
+    {
+        close(sourceModule, false)
+        respondError("MODULE_OPEN_FAILED", message)
+        return
+    }
+    Object targetObject = object(targetNumber, targetModule)
+    if (!regularObject(targetObject))
+    {
+        closeIfOpenedHere(targetModule, targetOpenedHere)
+        close(sourceModule, false)
+        respondError("OBJECT_NOT_FOUND", "Hedef nesne bulunamadı.")
+        return
+    }
+
+    noError
+    sourceObject -> gArgs[2] -> targetObject
+    message = lastError
+    if (!null message)
+    {
+        closeIfOpenedHere(targetModule, targetOpenedHere)
+        close(sourceModule, false)
+        respondError("CREATE_LINK_FAILED", message)
+        return
+    }
+    save(sourceModule)
+    beginOk(4)
+    writeField(sourceNumber "")
+    ModName_ linkReference = module(gArgs[2])
+    if (null linkReference) writeField(gArgs[2])
+    else writeField(fullName(linkReference))
+    writeField(fullName(targetModule))
+    writeField(targetNumber "")
+    closeIfOpenedHere(targetModule, targetOpenedHere)
+    close(sourceModule, false)
+    finishResponse()
+}
+
+void operationDeleteLink()
+{
+    if (!requireArgs(5, "DELETE_LINK")) return
+    int sourceNumber = 0
+    int targetNumber = 0
+    if (!parseArgUnsigned(1, sourceNumber, "source_absolute_number")) return
+    if (!parseArgUnsigned(4, targetNumber, "target_absolute_number")) return
+    if (sourceNumber < 1 || targetNumber < 1)
+    {
+        respondError("INVALID_ARGUMENT", "Link parametreleri geçersiz.")
+        return
+    }
+    ModName_ linkReference = module(gArgs[2])
+    ModName_ targetReference = module(gArgs[3])
+    if (null linkReference || null targetReference)
+    {
+        respondError("MODULE_NOT_FOUND", "Link veya hedef modül bulunamadı.")
+        return
+    }
+    string linkPath = fullName(linkReference)
+    string targetPath = fullName(targetReference)
+
+    Module sourceModule = null
+    string message = ""
+    if (!openModuleWrite(gArgs[0], sourceModule, message))
+    {
+        respondError("MODULE_EDIT_FAILED", message)
+        return
+    }
+    Object sourceObject = object(sourceNumber, sourceModule)
+    if (!regularObject(sourceObject))
+    {
+        close(sourceModule, false)
+        respondError("OBJECT_NOT_FOUND", "Kaynak nesne bulunamadı.")
+        return
+    }
+    int matches = 0
+    Link outgoing
+    for outgoing in sourceObject -> "*" do
+        if (linkMatches(outgoing, linkPath, targetPath, targetNumber)) matches++
+    if (matches == 0)
+    {
+        close(sourceModule, false)
+        respondError("LINK_NOT_FOUND", "Eşleşen link bulunamadı.")
+        return
+    }
+    if (matches > 1)
+    {
+        close(sourceModule, false)
+        respondError("AMBIGUOUS_LINK", "Birden fazla eşleşen link var; silme yapılmadı.")
+        return
+    }
+    for outgoing in sourceObject -> "*" do
+        if (linkMatches(outgoing, linkPath, targetPath, targetNumber)) delete(outgoing)
+    flushDeletions()
+    save(sourceModule)
+    close(sourceModule, false)
+    beginOk(0)
+    finishResponse()
+}
+
+void dispatchOperation(string operation)
+{
+    if (operation == "PING") operationPing()
+    else if (operation == "LIST_ITEMS") operationListItems()
+    else if (operation == "GET_MODULE") operationGetModule()
+    else if (operation == "LIST_ATTRIBUTES") operationListAttributes()
+    else if (operation == "LIST_OBJECTS") operationListObjects()
+    else if (operation == "GET_OBJECT") operationGetObject()
+    else if (operation == "GET_MODULE_ATTRIBUTES") operationGetModuleAttributes()
+    else if (operation == "CREATE_FOLDER") operationCreateFolder()
+    else if (operation == "CREATE_FORMAL_MODULE") operationCreateFormalModule()
+    else if (operation == "CREATE_OBJECT") operationCreateObject()
+    else if (operation == "UPDATE_OBJECT") operationUpdateObject()
+    else if (operation == "UPDATE_MODULE_ATTRIBUTES") operationUpdateModuleAttributes()
+    else if (operation == "SOFT_DELETE_OBJECT") operationSoftDeleteObject()
+    else if (operation == "LIST_OUTGOING_LINKS") operationListOutgoingLinks()
+    else if (operation == "CREATE_LINK") operationCreateLink()
+    else if (operation == "DELETE_LINK") operationDeleteLink()
+    else respondError("UNKNOWN_OPERATION", "Desteklenmeyen işlem: " operation)
+}
+
+void main()
+{
+    string requestPath = oleGetResult()
+    if (null requestPath || length(requestPath) == 0)
+    {
+        oleSetResult(DXLC_PROTOCOL ":REQUEST_PATH_MISSING")
+        return
+    }
+
+    noError
+    Stream request = read(requestPath, CP_UTF8)
+    string openMessage = lastError
+    if (!null openMessage || null request)
+    {
+        oleSetResult(DXLC_PROTOCOL ":REQUEST_FILE_ERROR")
+        return
+    }
+
+    string encodedResponsePath = ""
+    string protocol = ""
+    string encodedOperation = ""
+    string countText = ""
+    request >> encodedResponsePath
+    request >> protocol
+    request >> encodedOperation
+    request >> countText
+
+    if (!hexDecode(encodedResponsePath, gResponsePath))
+    {
+        close(request)
+        oleSetResult(DXLC_PROTOCOL ":INVALID_RESPONSE_PATH")
+        return
+    }
+    if (!openResponse())
+    {
+        close(request)
+        oleSetResult(DXLC_PROTOCOL ":RESPONSE_FILE_ERROR")
+        return
+    }
+    if (protocol != DXLC_PROTOCOL)
+    {
+        close(request)
+        respondError("PROTOCOL_MISMATCH", "İstek protokol sürümü desteklenmiyor.")
+        return
+    }
+
+    string operation = ""
+    if (!hexDecode(encodedOperation, operation))
+    {
+        close(request)
+        respondError("INVALID_REQUEST", "İşlem adı hex/UTF-8 olarak çözülemedi.")
+        return
+    }
+    if (!parseUnsigned(countText, gArgCount) || gArgCount > DXLC_MAX_ARGS)
+    {
+        close(request)
+        respondError("INVALID_REQUEST", "Argüman sayısı geçersiz.")
+        return
+    }
+
+    int index = 0
+    string encodedArgument = ""
+    for (index = 0; index < gArgCount; index++)
+    {
+        request >> encodedArgument
+        if (end(request))
+        {
+            close(request)
+            respondError("INVALID_REQUEST", "İstek dosyası beklenenden erken bitti.")
+            return
+        }
+        if (!hexDecode(encodedArgument, gArgs[index]))
+        {
+            close(request)
+            respondError("INVALID_REQUEST", "Argüman hex/UTF-8 olarak çözülemedi.")
+            return
+        }
+    }
+    close(request)
+    dispatchOperation(operation)
+}
+
+main()

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from rest_framework import serializers
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -16,7 +18,7 @@ from .models import (
     TechnicalDocumentNotification,
     TechnicalDocumentStatusHistory,
 )
-from .services.document_extractor import SUPPORTED_EXTENSIONS
+from .services.document_extractor import IMAGE_EXTENSIONS, SUPPORTED_EXTENSIONS
 
 
 User = get_user_model()
@@ -139,7 +141,15 @@ class DocumentDetailSerializer(DocumentListSerializer):
 
 class DocumentUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
-    prompt = serializers.CharField(trim_whitespace=True, allow_blank=False, max_length=8000)
+    prompt = serializers.CharField(
+        trim_whitespace=True,
+        allow_blank=True,
+        required=False,
+        default="",
+        max_length=8000,
+    )
+    use_ocr = serializers.BooleanField(default=False)
+    use_ai = serializers.BooleanField(default=True)
 
     def validate_file(self, uploaded_file):
         suffix = ""
@@ -151,6 +161,17 @@ class DocumentUploadSerializer(serializers.Serializer):
             raise serializers.ValidationError(f"Desteklenmeyen dosya tipi. Desteklenenler: {supported}")
 
         return uploaded_file
+
+    def validate(self, attrs):
+        if attrs["use_ai"] and not attrs["prompt"]:
+            raise serializers.ValidationError({"prompt": ["AI ile işlemek için prompt zorunludur."]})
+
+        suffix = Path(attrs["file"].name).suffix.lower()
+        if suffix in IMAGE_EXTENSIONS and not attrs["use_ocr"]:
+            raise serializers.ValidationError(
+                {"use_ocr": ["Resim dosyalarından metin çıkarmak için OCR etkinleştirilmelidir."]}
+            )
+        return attrs
 
 
 class PanelResponsibleSerializer(serializers.ModelSerializer):
