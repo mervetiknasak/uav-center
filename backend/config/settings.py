@@ -57,7 +57,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": os.getenv("DATABASE_NAME", str(BASE_DIR / "db.sqlite3")),
     }
 }
 
@@ -91,6 +91,9 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = env_int("DATA_UPLOAD_MAX_MEMORY_SIZE", 25 * 1024 *
 FILE_UPLOAD_MAX_MEMORY_SIZE = env_int("FILE_UPLOAD_MAX_MEMORY_SIZE", 25 * 1024 * 1024)
 
 DOCUMENT_MAX_TEXT_LENGTH = env_int("DOCUMENT_MAX_TEXT_LENGTH", 120_000)
+RAG_CHUNK_SIZE = env_int("RAG_CHUNK_SIZE", 1400)
+RAG_CHUNK_OVERLAP = env_int("RAG_CHUNK_OVERLAP", 220)
+RAG_TOP_K = env_int("RAG_TOP_K", 6)
 OCR_MODEL_DIR = os.getenv("OCR_MODEL_DIR", str(BASE_DIR / "ocr_models"))
 OCR_ALLOW_MODEL_DOWNLOAD = env_bool("OCR_ALLOW_MODEL_DOWNLOAD", False)
 OCR_USE_GPU = env_bool("OCR_USE_GPU", False)
@@ -98,9 +101,15 @@ OCR_MAX_IMAGES = env_int("OCR_MAX_IMAGES", 50)
 OCR_MAX_PIXELS = env_int("OCR_MAX_PIXELS", 20_000_000)
 OCR_PDF_DPI = env_int("OCR_PDF_DPI", 200)
 OCR_PDF_MIN_TEXT_LENGTH = env_int("OCR_PDF_MIN_TEXT_LENGTH", 40)
+JOB_MAX_ATTEMPTS = env_int("JOB_MAX_ATTEMPTS", 3)
+JOB_RETRY_BASE_SECONDS = env_int("JOB_RETRY_BASE_SECONDS", 15)
+JOB_STALE_TIMEOUT = env_int("JOB_STALE_TIMEOUT", 7200)
 AI_PROVIDER = os.getenv("AI_PROVIDER", "local")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-QWEN_MODEL = os.getenv("QWEN_MODEL", os.getenv("OLLAMA_MODEL", "qwen2.5:14b"))
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", os.getenv("QWEN_MODEL", "gemma4:e4b"))
+QWEN_MODEL = OLLAMA_MODEL  # Backwards-compatible alias for existing deployments.
+OLLAMA_TIMEOUT = env_int("OLLAMA_TIMEOUT", 600)
+OLLAMA_PULL_TIMEOUT = env_int("OLLAMA_PULL_TIMEOUT", 3600)
 LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", "http://127.0.0.1:8001")
 LOCAL_LLM_API_KEY = os.getenv("LOCAL_LLM_API_KEY", "")
 WHISPER_CONNECTION = os.getenv("WHISPER_CONNECTION", "local")

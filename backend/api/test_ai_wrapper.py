@@ -22,16 +22,16 @@ class _FakeResponse:
 
 
 class AIWrapperTests(SimpleTestCase):
-    @override_settings(AI_PROVIDER="ollama", QWEN_MODEL="qwen2.5:14b")
+    @override_settings(AI_PROVIDER="ollama", OLLAMA_MODEL="gemma4:e4b")
     @patch("urllib.request.urlopen")
-    def test_ollama_generation_uses_qwen_model(self, urlopen):
+    def test_ollama_generation_uses_configured_model(self, urlopen):
         urlopen.return_value = _FakeResponse({"response": "hazir"})
 
         result = AIWrapper().generate("Merhaba")
         request = urlopen.call_args.args[0]
         payload = json.loads(request.data.decode("utf-8"))
 
-        self.assertEqual(payload["model"], "qwen2.5:14b")
+        self.assertEqual(payload["model"], "gemma4:e4b")
         self.assertEqual(result["provider"], "ollama")
         self.assertEqual(result["response"], "hazir")
 

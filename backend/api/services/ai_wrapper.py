@@ -17,7 +17,7 @@ class AIProviderError(RuntimeError):
 class AIWrapperConfig:
     provider: str
     ollama_base_url: str
-    qwen_model: str
+    text_model: str
     local_llm_base_url: str
     local_llm_api_key: str
     whisper_connection: str
@@ -29,7 +29,7 @@ class AIWrapperConfig:
         return cls(
             provider=getattr(settings, "AI_PROVIDER", "local").lower(),
             ollama_base_url=getattr(settings, "OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/"),
-            qwen_model=getattr(settings, "QWEN_MODEL", "qwen2.5:14b"),
+            text_model=getattr(settings, "OLLAMA_MODEL", getattr(settings, "QWEN_MODEL", "gemma4:e4b")),
             local_llm_base_url=getattr(settings, "LOCAL_LLM_BASE_URL", "http://127.0.0.1:8001").rstrip("/"),
             local_llm_api_key=getattr(settings, "LOCAL_LLM_API_KEY", ""),
             whisper_connection=getattr(settings, "WHISPER_CONNECTION", "local").lower(),
@@ -50,7 +50,7 @@ class AIWrapper:
             return self._generate_with_local_llm(prompt, system_prompt, model, temperature)
 
         raise AIProviderError(
-            "AI_PROVIDER qwen için 'ollama' veya 'local_llm' olmalı. "
+            "Metin üretimi için AI_PROVIDER 'ollama' veya 'local_llm' olmalı. "
             "Servissiz özet için mevcut local özetleyici kullanılabilir."
         )
 
@@ -65,7 +65,7 @@ class AIWrapper:
 
     def _generate_with_ollama(self, prompt, system_prompt, model, temperature):
         payload = {
-            "model": model or self.config.qwen_model,
+            "model": model or self.config.text_model,
             "prompt": prompt,
             "stream": False,
             "options": {"temperature": temperature},
@@ -88,7 +88,7 @@ class AIWrapper:
         messages.append({"role": "user", "content": prompt})
 
         payload = {
-            "model": model or self.config.qwen_model,
+            "model": model or self.config.text_model,
             "messages": messages,
             "temperature": temperature,
             "stream": False,

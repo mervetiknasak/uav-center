@@ -1,5 +1,8 @@
+import uuid
+
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 
 class Document(models.Model):
@@ -30,6 +33,167 @@ class Document(models.Model):
 
     def __str__(self):
         return self.original_name
+
+
+class AsyncJob(models.Model):
+    """A durable unit of background work owned by one application user."""
+
+    TYPE_DOCUMENT_PROCESSING = "document_processing"
+    TYPE_CHOICES = [
+        (TYPE_DOCUMENT_PROCESSING, "Belge işleme"),
+    ]
+
+    STATUS_QUEUED = "queued"
+    STATUS_RUNNING = "running"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = [
+        (STATUS_QUEUED, "Sırada"),
+        (STATUS_RUNNING, "Çalışıyor"),
+        (STATUS_COMPLETED, "Tamamlandı"),
+        (STATUS_FAILED, "Başarısız"),
+        (STATUS_CANCELLED, "İptal edildi"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="async_jobs",
+        on_delete=models.CASCADE,
+    )
+    job_type = models.CharField(max_length=48, choices=TYPE_CHOICES)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_QUEUED)
+    priority = models.SmallIntegerField(default=0)
+    progress = models.PositiveSmallIntegerField(default=0)
+    payload = models.JSONField(default=dict, blank=True)
+    result = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=3)
+    available_at = models.DateTimeField(default=timezone.now)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    locked_by = models.CharField(max_length=160, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    document = models.ForeignKey(
+        Document,
+        related_name="jobs",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "available_at", "-priority", "created_at"]),
+            models.Index(fields=["owner", "-created_at"]),
+            models.Index(fields=["owner", "status", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.job_type}:{self.id}"
+
+
+class DocumentChunk(models.Model):
+    """A stable, citable slice of extracted document text used by RAG."""
+
+    document = models.ForeignKey(Document, related_name="chunks", on_delete=models.CASCADE)
+    position = models.PositiveIntegerField()
+    content = models.TextField()
+    char_start = models.PositiveIntegerField()
+    char_end = models.PositiveIntegerField()
+    word_count = models.PositiveIntegerField(default=0)
+    content_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["document_id", "position"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["document", "position"],
+                name="unique_chunk_position_per_document",
+            )
+        ]
+        indexes = [models.Index(fields=["document", "position"])]
+
+    def __str__(self):
+        return f"{self.document_id}:{self.position}"
+
+
+class AnalysisControl(models.Model):
+    """A reusable document check created from the UI by an authenticated user."""
+
+    SEVERITY_INFO = "info"
+    SEVERITY_WARNING = "warning"
+    SEVERITY_CRITICAL = "critical"
+    SEVERITY_CHOICES = [
+        (SEVERITY_INFO, "Bilgi"),
+        (SEVERITY_WARNING, "Uyarı"),
+        (SEVERITY_CRITICAL, "Kritik"),
+    ]
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="analysis_controls",
+        on_delete=models.CASCADE,
+    )
+    name = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
+    instructions = models.TextField()
+    severity = models.CharField(
+        max_length=16,
+        choices=SEVERITY_CHOICES,
+        default=SEVERITY_WARNING,
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "name"],
+                name="unique_analysis_control_name_per_owner",
+            )
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class DocumentAnalysisRun(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "İşleniyor"),
+        (STATUS_COMPLETED, "Tamamlandı"),
+        (STATUS_FAILED, "Başarısız"),
+    ]
+
+    document = models.ForeignKey(Document, related_name="analysis_runs", on_delete=models.CASCADE)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="document_analysis_runs",
+        on_delete=models.SET_NULL,
+        null=True,
+    )
+    query = models.TextField(blank=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES)
+    controls = models.JSONField(default=list, blank=True)
+    result = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["document", "-created_at"])]
 
 
 class Project(models.Model):
@@ -107,6 +271,74 @@ class PersonGroup(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class FlightPermit(models.Model):
+    STATUS_DRAFT = "draft"
+    STATUS_APPROVED = "approved"
+    STATUS_SUSPENDED = "suspended"
+    STATUS_REVOKED = "revoked"
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Taslak"),
+        (STATUS_APPROVED, "Onaylandı"),
+        (STATUS_SUSPENDED, "Askıya Alındı"),
+        (STATUS_REVOKED, "İptal Edildi"),
+    ]
+
+    TYPE_DOMESTIC = "domestic"
+    TYPE_INTERNATIONAL = "international"
+    TYPE_TEST = "test"
+    TYPE_FERRY = "ferry"
+    TYPE_CHOICES = [
+        (TYPE_DOMESTIC, "Yurt İçi"),
+        (TYPE_INTERNATIONAL, "Uluslararası"),
+        (TYPE_TEST, "Test Uçuşu"),
+        (TYPE_FERRY, "İntikal Uçuşu"),
+    ]
+
+    aircraft_number = models.CharField(max_length=80)
+    permit_number = models.CharField(max_length=100, unique=True)
+    permit_type = models.CharField(max_length=24, choices=TYPE_CHOICES)
+    issuing_authority = models.CharField(max_length=160)
+    flight_region = models.CharField(max_length=200, blank=True)
+    valid_from = models.DateField()
+    valid_until = models.DateField()
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    notes = models.TextField(blank=True)
+    document = models.FileField(
+        upload_to="flight_permits/%Y/%m/",
+        max_length=500,
+        blank=True,
+    )
+    document_name = models.CharField(max_length=255, blank=True)
+    document_content_type = models.CharField(max_length=120, blank=True)
+    document_size = models.PositiveBigIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="created_flight_permits",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="updated_flight_permits",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["valid_until", "aircraft_number", "permit_number"]
+        indexes = [
+            models.Index(fields=["aircraft_number", "valid_until"]),
+            models.Index(fields=["status", "valid_until"]),
+        ]
+
+    def __str__(self):
+        return f"{self.aircraft_number} — {self.permit_number}"
 
 
 class CoverPage(models.Model):

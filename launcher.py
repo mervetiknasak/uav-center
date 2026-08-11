@@ -208,6 +208,11 @@ def start_backend(port: int, reload: bool) -> subprocess.Popen:
     return popen(command, BACKEND_DIR)
 
 
+def start_job_worker() -> subprocess.Popen:
+    python_path = venv_python()
+    return popen([str(python_path), "manage.py", "run_job_worker"], BACKEND_DIR)
+
+
 def start_frontend(host: str, port: int) -> subprocess.Popen:
     return popen([npm_bin(), "run", "dev", "--", "--host", host, "--port", str(port), "--strictPort"], FRONTEND_DIR)
 
@@ -220,6 +225,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--backend-port", type=int, default=8000, help="Django portu. Varsayılan: 8000")
     parser.add_argument("--frontend-host", default="127.0.0.1", help="Vite host'u. Varsayılan: 127.0.0.1")
     parser.add_argument("--frontend-port", type=int, default=5173, help="Vite portu. Varsayılan: 5173")
+    parser.add_argument("--job-workers", type=int, default=1, help="Arka plan job worker sayısı. Varsayılan: 1")
     reload_group = parser.add_mutually_exclusive_group()
     reload_group.add_argument(
         "--reload",
@@ -242,6 +248,8 @@ def main() -> int:
 
     if args.backend_only and args.frontend_only:
         raise SystemExit("--backend-only ve --frontend-only birlikte kullanılamaz.")
+    if args.job_workers < 1:
+        raise SystemExit("--job-workers en az 1 olmalıdır.")
 
     start_backend_service = not args.frontend_only
     start_frontend_service = not args.backend_only
@@ -260,6 +268,8 @@ def main() -> int:
 
     if start_backend_service:
         processes.append(("Backend", start_backend(args.backend_port, args.reload)))
+        for worker_index in range(args.job_workers):
+            processes.append((f"Job worker {worker_index + 1}", start_job_worker()))
     if start_frontend_service:
         processes.append(("Frontend", start_frontend(args.frontend_host, args.frontend_port)))
 

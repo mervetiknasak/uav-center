@@ -9,7 +9,7 @@ def process_document_text(text, filename, prompt):
     provider = getattr(settings, "AI_PROVIDER", "local")
     if provider in {"ollama", "local_llm", "local-http", "local_http"}:
         try:
-            return _process_with_qwen(text, filename, prompt)
+            return _process_with_model(text, filename, prompt)
         except AIProviderError as exc:
             fallback = _process_locally(text, filename, prompt)
             fallback["provider_error"] = str(exc)
@@ -42,9 +42,9 @@ def _process_locally(text, filename, prompt):
     }
 
 
-def _process_with_qwen(text, filename, prompt):
+def _process_with_model(text, filename, prompt):
     system_prompt = (
-        "Sen UAV Center içinde çalışan yerel bir belge analiz asistanısın. "
+        "Sen UAV Center içinde çalışan yerel Gemma belge analiz asistanısın. "
         "Yanıtlarını Türkçe, net ve uygulanabilir maddeler halinde ver."
     )
     full_prompt = (

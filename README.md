@@ -15,8 +15,14 @@ Python Django backend ve Vue 3 + Naive UI frontend ile lokal belge işleme uygul
 - Dosyaları lokal diskte `backend/media/` altında saklama
 - Belgeden metin çıkarma
 - Çıkarılan metni lokal AI işlem katmanına gönderme
+- Kaynak kimlikli, kalıcı belge parçaları üzerinde BM25 retrieval ve grounded RAG yanıtları
+- Kalıcı, yeniden denemeli asenkron job kuyruğu ve paralel worker desteği
+- Kullanıcı bazında izole edilen job listesi, ilerleme ve hata takibi
+- Sunucu kontrolleri ile kullanıcıların arayüzden ekleyebildiği tekrar kullanılabilir analiz kontrolleri
+- Kaynak atıfları ve kullanıcı bazlı analiz çalıştırma geçmişi
 - Varsayılan lokal özetleyici ile özet, anahtar kelime ve metrik üretme
-- İsteğe bağlı Ollama veya OpenAI uyumlu lokal bağlantı ile Qwen2.5 kullanma
+- İsteğe bağlı Ollama veya OpenAI uyumlu yerel model bağlantısı
+- Ollama üzerinde Gemma 4 E4B için akışlı, çok turlu ve multimodal AI Studio
 - Whisper için lokal Python modeli veya lokal HTTP transkripsiyon servisi wrapper'ı
 - Admin tarafından yönetilen proje, alt panel ve panel sorumlusu organizasyon yapısı
 - Aktif kullanıcılar için salt okunur organizasyon görünümü
@@ -48,6 +54,7 @@ python3 launcher.py --backend-only
 python3 launcher.py --frontend-only
 python3 launcher.py --backend-port 18000 --frontend-port 5174
 python3 launcher.py --no-reload
+python3 launcher.py --job-workers 4
 ```
 
 Launcher, Django kaynak dosyalarındaki değişiklikleri varsayılan olarak izler ve
@@ -72,17 +79,30 @@ http://localhost:8000/api/health/
 http://localhost:8000/api/documents/
 http://localhost:8000/api/documents/upload/
 http://localhost:8000/api/documents/<id>/
+http://localhost:8000/api/documents/<id>/rag/query/
+http://localhost:8000/api/documents/<id>/controls/run/
+http://localhost:8000/api/analysis-controls/
+http://localhost:8000/api/jobs/
 http://localhost:8000/api/organization/projects/
 http://localhost:8000/api/technical-documents/
 http://localhost:8000/api/word-to-jira/parse/
+http://localhost:8000/api/ai/ollama/status/
+http://localhost:8000/api/ai/ollama/chat/
 ```
 
 DRF yanıt formatı:
 
 - `GET /api/documents/`: belge listesi
-- `POST /api/documents/upload/`: `file`, `prompt`, `use_ocr` ve `use_ai` alanlarıyla işlenen belge objesi
+- `POST /api/documents/upload/`: `file`, `prompt`, `use_ocr` ve `use_ai` alanlarıyla belgeyi sıraya alır; `202 Accepted` ile job ve bekleyen belgeyi döndürür
 - `GET /api/documents/<id>/`: çıkarılan metin dahil belge objesi
 - `DELETE /api/documents/<id>/`: belge kaydını ve lokal dosyayı siler
+- `POST /api/documents/<id>/rag/query/`: `query` ve opsiyonel `top_k` ile kaynaklı RAG yanıtı üretir
+- `POST /api/documents/<id>/controls/run/`: `control_ids` ile sunucu ve kullanıcı kontrollerini çalıştırır
+- `GET|POST /api/analysis-controls/`: hazır kontrolleri listeler veya kullanıcıya özel kontrol oluşturur
+- `PATCH|DELETE /api/analysis-controls/<id>/`: yalnızca kontrol sahibinin kaydını günceller veya siler
+- `GET /api/jobs/`: oturum sahibinin son joblarını listeler; `status` ve `limit` parametrelerini destekler
+- `GET /api/jobs/<uuid>/`: yalnızca oturum sahibinin job detayını döndürür
+- `POST /api/jobs/<uuid>/cancel/`: sırada bekleyen ve oturum sahibine ait jobı iptal eder
 - `GET /api/organization/projects/`: projeleri alt panelleri ve sorumlularıyla listeler
 - Organizasyon API'sindeki `POST`, `PATCH` ve `DELETE` işlemleri yalnızca admin kullanıcılarına açıktır
 - `GET|POST /api/technical-documents/`: teknik doküman listesi ve admin oluşturma işlemi
@@ -110,6 +130,32 @@ curl -F "file=@ornek.pdf" \
   -F "prompt=Bu belgedeki riskleri ve aksiyonları listele." \
   http://localhost:8000/api/documents/upload/
 ```
+
+## Asenkron Job Kuyruğu
+
+Belge yükleme isteği OCR ve AI sonucunu beklemez. Dosya ve bekleyen belge kaydı
+oluşturulduktan sonra kalıcı bir job döner; `run_job_worker` süreci işi arka planda
+tamamlar. Launcher worker'ı otomatik başlatır. Worker'ı ayrıca çalıştırmak için:
+
+```bash
+cd backend
+python manage.py run_job_worker
+python manage.py run_job_worker --once
+```
+
+Aynı veritabanını kullanan birden fazla worker güvenli biçimde paralel çalışabilir.
+Yük altında launcher `--job-workers 4` gibi bir değerle başlatılabilir. Başarısız
+joblar üstel gecikmeyle yeniden denenir; yarım kalan worker jobları zaman aşımından
+sonra tekrar kuyruğa alınır. İlgili ortam ayarları:
+
+```env
+JOB_MAX_ATTEMPTS=3
+JOB_RETRY_BASE_SECONDS=15
+JOB_STALE_TIMEOUT=7200
+```
+
+Üretimde çok sayıda paralel worker için SQLite yerine satır düzeyinde eşzamanlı
+yazmayı destekleyen bir veritabanı kullanılması önerilir.
 
 ## Yerel OCR
 
@@ -162,13 +208,31 @@ Varsayılan mod dış servise bağlanmaz:
 
 `backend/.env` içinde `AI_PROVIDER=local`
 
-Qwen2.5:14b modelini Ollama ile kullanmak için:
+Gemma 4 E4B modelini Ollama ile kullanmak için:
 
-`backend/.env` içinde `AI_PROVIDER=ollama` ve `QWEN_MODEL=qwen2.5:14b`
+```bash
+ollama serve
+ollama pull gemma4:e4b
+```
 
-Ollama `http://127.0.0.1:11434` adresinde çalışmalıdır. Farklı adres için:
+`backend/.env` içinde:
 
-`backend/.env` içinde `OLLAMA_BASE_URL=http://127.0.0.1:11434`
+```env
+AI_PROVIDER=ollama
+OLLAMA_MODEL=gemma4:e4b
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_TIMEOUT=600
+OLLAMA_PULL_TIMEOUT=3600
+RAG_CHUNK_SIZE=1400
+RAG_CHUNK_OVERLAP=220
+RAG_TOP_K=6
+```
+
+Ollama varsayılan olarak `http://127.0.0.1:11434` adresinde çalışmalıdır;
+farklı bir servis adresi `OLLAMA_BASE_URL` ile verilebilir.
+
+Tam entegrasyon mimarisi, API sözleşmesi ve güvenlik notları için
+[`docs/gemma4_ollama_architecture.md`](docs/gemma4_ollama_architecture.md) dosyasına bakın.
 
 OpenAI uyumlu lokal bir Qwen servisine bağlanmak için:
 
@@ -180,6 +244,23 @@ LOCAL_LLM_API_KEY=
 ```
 
 Wrapper `POST /v1/chat/completions` endpoint'ini bekler.
+
+## RAG ve Doküman Kontrolleri
+
+Yükleme sırasında çıkarılan metin, çakışmalı ve sabit ofsetli parçalara ayrılır.
+Parçalar içerik özeti (SHA-256), karakter aralığı ve belge içindeki sırasıyla
+veritabanında saklanır. Sorgu sırasında Türkçe karakterleri destekleyen BM25
+sıralaması en ilgili parçaları seçer; model yalnızca bu parçalarla ve belge içi
+prompt injection talimatlarını uygulamaması istenerek çağrılır. Her kaynak
+`D<doküman>-C<parça>` biçiminde kararlı bir kimlik taşır. Model kullanılamazsa
+aynı kaynaklar yerel fallback yanıtında döndürülür.
+
+Hazır sunucu kontrolleri çözümlenmemiş ifadeleri, izlenebilirlik kimliklerini ve
+doğrulanabilir kabul kriterlerini inceler. Kullanıcılar Belge İşleme ekranından
+kendi kontrol adını, açıklamasını, talimatını ve önem seviyesini ekleyebilir;
+bu kayıtlar kullanıcı bazında izole edilir. Kontrol ve RAG çalıştırmaları sonuç,
+kaynak ve zaman bilgileriyle `DocumentAnalysisRun` altında denetlenebilir biçimde
+saklanır.
 
 Whisper transkripsiyon wrapper'ı için iki seçenek vardır:
 

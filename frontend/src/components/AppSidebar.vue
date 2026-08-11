@@ -28,8 +28,8 @@ const emit = defineEmits(["logout", "update:menu-key"]);
       :indent="18"
       :default-expanded-keys="
         user.is_staff
-          ? ['document-management', 'organization', 'tools', 'system', 'admin']
-          : ['document-management', 'organization', 'tools']
+          ? ['flight-operations', 'document-management', 'organization', 'tools', 'operations', 'system', 'admin']
+          : ['flight-operations', 'document-management', 'organization', 'tools', 'operations']
       "
       @update:value="emit('update:menu-key', $event)"
     />

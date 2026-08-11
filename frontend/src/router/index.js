@@ -14,6 +14,18 @@ const routes = [
     meta: { menuKey: "technical-documents" }
   },
   {
+    path: "/flight-permits",
+    name: "flight-permits",
+    component: () => import("../views/FlightPermitsView.vue"),
+    meta: { menuKey: "flight-permits" }
+  },
+  {
+    path: "/jobs",
+    name: "jobs",
+    component: () => import("../views/JobsView.vue"),
+    meta: { menuKey: "jobs" }
+  },
+  {
     path: "/organization",
     name: "organization-projects",
     component: () => import("../views/OrganizationView.vue"),
@@ -36,6 +48,12 @@ const routes = [
     name: "word-to-jira",
     component: () => import("../views/WordToJiraView.vue"),
     meta: { menuKey: "word-to-jira" }
+  },
+  {
+    path: "/tools/ai-studio",
+    name: "ai-studio",
+    component: () => import("../views/AIStudioView.vue"),
+    meta: { menuKey: "ai-studio" }
   },
   {
     path: "/system",
@@ -63,6 +81,11 @@ const routes = [
 
 export const menuSections = [
   {
+    label: "Uçuş Operasyonları",
+    key: "flight-operations",
+    children: [{ label: "Uçuş İzinleri", key: "flight-permits" }]
+  },
+  {
     label: "Doküman Yönetimi",
     key: "document-management",
     children: [{ label: "Teknik Dokümanlar", key: "technical-documents" }]
@@ -78,8 +101,14 @@ export const menuSections = [
     children: [
       { label: "Belge İşleme", key: "documents" },
       { label: "AI Sonuçları", key: "results" },
+      { label: "Gemma 4 Studio", key: "ai-studio" },
       { label: "Toplantı Tutanağı Okuyucu", key: "word-to-jira" }
     ]
+  },
+  {
+    label: "İşlemler",
+    key: "operations",
+    children: [{ label: "Joblarım", key: "jobs" }]
   },
   {
     label: "Sistem",

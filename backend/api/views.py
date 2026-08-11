@@ -1,6 +1,11 @@
+import json
+import logging
+from pathlib import Path
+
 from django.contrib.auth import get_user_model, login, logout
 from django.conf import settings
 from django.core.mail import EmailMessage
+from django.http import FileResponse, StreamingHttpResponse
 from django.db.models import Prefetch, Q
 from django.middleware.csrf import get_token
 from django.utils import timezone
@@ -14,7 +19,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import (
+    AnalysisControl,
+    AsyncJob,
     Document,
+    DocumentAnalysisRun,
+    FlightPermit,
     PanelResponsible,
     Person,
     PersonGroup,
@@ -26,10 +35,17 @@ from .models import (
 from .serializers import (
     AdminUserSerializer,
     AdminUserStatusSerializer,
+    AnalysisControlSerializer,
+    AsyncJobSerializer,
+    DocumentAnalysisRunSerializer,
+    DocumentControlRunSerializer,
     DocumentDetailSerializer,
     DocumentListSerializer,
     DocumentUploadSerializer,
+    DocumentRagQuerySerializer,
+    FlightPermitSerializer,
     LoginSerializer,
+    OllamaChatRequestSerializer,
     PanelResponsibleSerializer,
     PersonGroupSerializer,
     PersonSerializer,
@@ -40,13 +56,22 @@ from .serializers import (
     TechnicalDocumentSerializer,
     UserSerializer,
 )
-from .services.ai_processor import process_document_text
-from .services.document_extractor import UnsupportedDocumentError, extract_document
+# Kept as a public import for backwards-compatible integrations and test patches.
+from .services.ai_processor import process_document_text  # noqa: F401
 from .services.word_table_parser import WordTableParseError, parse_word_table
 from .services.word_to_jira import build_jira_draft, publish_jira_draft
 from .services.jira_connector import JiraConnectorError
+from .services.ai_wrapper import AIProviderError
+from .services.ollama_service import OllamaService
+from .services.rag_service import (
+    SYSTEM_CONTROLS,
+    answer_document_query,
+    run_document_controls,
+)
+from .services.job_queue import enqueue_document_processing
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class IsActiveAuthenticated(IsAuthenticated):
@@ -201,55 +226,238 @@ class DocumentUploadView(APIView):
             size=upload.size,
             prompt=prompt,
         )
+        job = enqueue_document_processing(
+            document=document,
+            owner=request.user,
+            use_ocr=use_ocr,
+            use_ai=use_ai,
+        )
+        return Response(
+            {
+                "job": AsyncJobSerializer(job).data,
+                "document": DocumentDetailSerializer(document).data,
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
 
+
+class AsyncJobListView(generics.ListAPIView):
+    permission_classes = [IsActiveAuthenticated]
+    serializer_class = AsyncJobSerializer
+
+    def get_queryset(self):
+        queryset = AsyncJob.objects.filter(owner=self.request.user).select_related("document")
+        status_value = self.request.query_params.get("status", "").strip()
+        if status_value in dict(AsyncJob.STATUS_CHOICES):
+            queryset = queryset.filter(status=status_value)
         try:
-            extraction = extract_document(document.file.path, use_ocr=use_ocr)
-            extracted_text = extraction["text"]
-            if use_ai:
-                ai_result = process_document_text(extracted_text, document.original_name, prompt)
-            else:
-                ai_result = {
-                    "provider": "disabled",
-                    "filename": document.original_name,
-                    "prompt": "",
-                    "response": "",
-                    "metrics": {
-                        "characters": len(extracted_text),
-                        "words": len(extracted_text.split()),
-                    },
-                }
-            ai_result["ai_enabled"] = use_ai
-            ai_result["ocr"] = extraction["ocr"]
-            document.extracted_text = extracted_text
-            document.ai_result = ai_result
-            document.status = Document.STATUS_PROCESSED
-            document.processed_at = timezone.now()
-            document.error_message = ""
-        except UnsupportedDocumentError as exc:
-            document.status = Document.STATUS_FAILED
-            document.error_message = str(exc)
-            document.processed_at = timezone.now()
+            limit = min(max(int(self.request.query_params.get("limit", 100)), 1), 200)
+        except (TypeError, ValueError):
+            limit = 100
+        return queryset[:limit]
+
+
+class AsyncJobDetailView(generics.RetrieveAPIView):
+    permission_classes = [IsActiveAuthenticated]
+    serializer_class = AsyncJobSerializer
+    lookup_url_kwarg = "job_id"
+
+    def get_queryset(self):
+        return AsyncJob.objects.filter(owner=self.request.user).select_related("document")
+
+
+class AsyncJobCancelView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def post(self, request, job_id):
+        job = generics.get_object_or_404(AsyncJob, pk=job_id, owner=request.user)
+        if job.status != AsyncJob.STATUS_QUEUED:
+            return Response(
+                {"detail": "Yalnızca sırada bekleyen joblar iptal edilebilir."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        now = timezone.now()
+        updated = AsyncJob.objects.filter(
+            pk=job.pk,
+            owner=request.user,
+            status=AsyncJob.STATUS_QUEUED,
+        ).update(
+            status=AsyncJob.STATUS_CANCELLED,
+            completed_at=now,
+            locked_at=None,
+            locked_by="",
+        )
+        if not updated:
+            return Response(
+                {"detail": "Job worker tarafından alınmış; artık iptal edilemez."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        job.refresh_from_db()
+        return Response(AsyncJobSerializer(job).data)
+
+
+class AnalysisControlListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsActiveAuthenticated]
+    serializer_class = AnalysisControlSerializer
+
+    def get_queryset(self):
+        return AnalysisControl.objects.filter(owner=self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        system_controls = [
+            {**control, "is_active": True, "instructions": ""}
+            for control in SYSTEM_CONTROLS.values()
+        ]
+        custom_controls = self.get_serializer(self.get_queryset(), many=True).data
+        return Response(system_controls + custom_controls)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+class AnalysisControlDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsActiveAuthenticated]
+    serializer_class = AnalysisControlSerializer
+    lookup_url_kwarg = "control_id"
+
+    def get_queryset(self):
+        return AnalysisControl.objects.filter(owner=self.request.user)
+
+
+class DocumentRagQueryView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def post(self, request, document_id):
+        document = generics.get_object_or_404(Document, pk=document_id)
+        serializer = DocumentRagQuerySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        query = serializer.validated_data["query"]
+        run = DocumentAnalysisRun.objects.create(
+            document=document,
+            created_by=request.user,
+            query=query,
+            status=DocumentAnalysisRun.STATUS_PENDING,
+        )
+        try:
+            result = answer_document_query(
+                document,
+                query,
+                top_k=serializer.validated_data["top_k"],
+            )
         except Exception as exc:
-            document.status = Document.STATUS_FAILED
-            document.error_message = f"Dosya işlenemedi: {exc}"
-            document.processed_at = timezone.now()
+            logger.exception("RAG query failed for document %s", document.pk)
+            run.status = DocumentAnalysisRun.STATUS_FAILED
+            run.error_message = str(exc)[:4000]
+            run.completed_at = timezone.now()
+            run.save(update_fields=["status", "error_message", "completed_at"])
+            return Response(
+                {"detail": "Doküman sorgusu tamamlanamadı.", "run_id": run.pk},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        run.result = result
+        run.status = DocumentAnalysisRun.STATUS_COMPLETED
+        run.completed_at = timezone.now()
+        run.save(update_fields=["result", "status", "completed_at"])
+        return Response(DocumentAnalysisRunSerializer(run).data)
 
-        document.save(
-            update_fields=[
-                "extracted_text",
-                "ai_result",
-                "status",
-                "processed_at",
-                "error_message",
-            ]
-        )
 
-        response_status = (
-            status.HTTP_201_CREATED
-            if document.status == Document.STATUS_PROCESSED
-            else status.HTTP_422_UNPROCESSABLE_ENTITY
+class DocumentControlRunView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def post(self, request, document_id):
+        document = generics.get_object_or_404(Document, pk=document_id)
+        serializer = DocumentControlRunSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        control_ids = serializer.validated_data["control_ids"]
+        run = DocumentAnalysisRun.objects.create(
+            document=document,
+            created_by=request.user,
+            status=DocumentAnalysisRun.STATUS_PENDING,
+            controls=control_ids,
         )
-        return Response(DocumentDetailSerializer(document).data, status=response_status)
+        try:
+            results = run_document_controls(document, request.user, control_ids)
+        except ValueError as exc:
+            run.status = DocumentAnalysisRun.STATUS_FAILED
+            run.error_message = str(exc)[:4000]
+            run.completed_at = timezone.now()
+            run.save(update_fields=["status", "error_message", "completed_at"])
+            return Response({"detail": str(exc), "run_id": run.pk}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            logger.exception("Document controls failed for document %s", document.pk)
+            run.status = DocumentAnalysisRun.STATUS_FAILED
+            run.error_message = str(exc)[:4000]
+            run.completed_at = timezone.now()
+            run.save(update_fields=["status", "error_message", "completed_at"])
+            return Response(
+                {"detail": "Doküman kontrolleri tamamlanamadı.", "run_id": run.pk},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        run.status = DocumentAnalysisRun.STATUS_COMPLETED
+        run.result = {"controls": results}
+        run.completed_at = timezone.now()
+        run.save(update_fields=["status", "result", "completed_at"])
+        return Response(DocumentAnalysisRunSerializer(run).data)
+
+
+class DocumentAnalysisRunListView(generics.ListAPIView):
+    permission_classes = [IsActiveAuthenticated]
+    serializer_class = DocumentAnalysisRunSerializer
+
+    def get_queryset(self):
+        document = generics.get_object_or_404(Document, pk=self.kwargs["document_id"])
+        return document.analysis_runs.filter(created_by=self.request.user)[:25]
+
+
+class OllamaStatusView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def get(self, request):
+        return Response(OllamaService().status())
+
+
+class OllamaPullView(APIView):
+    permission_classes = [IsActiveAdminUser]
+
+    def post(self, request):
+        try:
+            result = OllamaService().pull()
+        except AIProviderError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"model": settings.OLLAMA_MODEL, **result})
+
+
+class OllamaUnloadView(APIView):
+    permission_classes = [IsActiveAdminUser]
+
+    def post(self, request):
+        try:
+            OllamaService().unload()
+        except AIProviderError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({"status": "unloaded", "model": settings.OLLAMA_MODEL})
+
+
+class OllamaChatView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def post(self, request):
+        serializer = OllamaChatRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.to_ollama_payload()
+        service = OllamaService(model=payload["model"])
+
+        def stream():
+            try:
+                for chunk in service.chat_stream(payload):
+                    yield json.dumps(chunk, ensure_ascii=False) + "\n"
+            except AIProviderError as exc:
+                yield json.dumps({"error": str(exc)}, ensure_ascii=False) + "\n"
+
+        response = StreamingHttpResponse(stream(), content_type="application/x-ndjson")
+        response["Cache-Control"] = "no-cache, no-transform"
+        response["X-Accel-Buffering"] = "no"
+        return response
 
 
 class WordTableParseView(APIView):
@@ -430,6 +638,60 @@ class PersonDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = PersonSerializer
     queryset = Person.objects.prefetch_related("groups")
     lookup_url_kwarg = "person_id"
+
+
+class FlightPermitListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsActiveAuthenticated]
+    serializer_class = FlightPermitSerializer
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        queryset = FlightPermit.objects.select_related("created_by", "updated_by")
+        search = self.request.query_params.get("search", "").strip()
+        status_value = self.request.query_params.get("status", "").strip()
+        permit_type = self.request.query_params.get("permit_type", "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(aircraft_number__icontains=search)
+                | Q(permit_number__icontains=search)
+                | Q(issuing_authority__icontains=search)
+                | Q(flight_region__icontains=search)
+            )
+        if status_value:
+            queryset = queryset.filter(status=status_value)
+        if permit_type:
+            queryset = queryset.filter(permit_type=permit_type)
+        return queryset
+
+
+class FlightPermitDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsActiveAuthenticated]
+    serializer_class = FlightPermitSerializer
+    parser_classes = [MultiPartParser, FormParser]
+    queryset = FlightPermit.objects.select_related("created_by", "updated_by")
+    lookup_url_kwarg = "flight_permit_id"
+
+    def perform_destroy(self, instance):
+        if instance.document:
+            instance.document.delete(save=False)
+        instance.delete()
+
+
+class FlightPermitDocumentView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def get(self, request, flight_permit_id):
+        permit = generics.get_object_or_404(FlightPermit, pk=flight_permit_id)
+        if not permit.document:
+            return Response({"detail": "Bu uçuş iznine doküman eklenmemiş."}, status=404)
+        response = FileResponse(
+            permit.document.open("rb"),
+            as_attachment=False,
+            filename=permit.document_name or Path(permit.document.name).name,
+            content_type=permit.document_content_type or "application/octet-stream",
+        )
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
 
 
 def technical_document_queryset():

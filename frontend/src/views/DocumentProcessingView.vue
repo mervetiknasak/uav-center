@@ -8,12 +8,31 @@ const props = defineProps({
   useOcr: Boolean,
   useAi: { type: Boolean, default: true },
   uploadError: { type: String, default: "" },
+  uploadNotice: { type: String, default: "" },
   activeDocument: { type: Object, default: null },
-  deletingDocumentId: { type: Number, default: null }
+  deletingDocumentId: { type: Number, default: null },
+  controls: { type: Array, default: () => [] },
+  selectedControlIds: { type: Array, default: () => [] },
+  ragQuery: { type: String, default: "" },
+  ragResult: { type: Object, default: null },
+  controlResult: { type: Object, default: null },
+  analysisLoading: Boolean,
+  controlsLoading: Boolean,
+  analysisError: { type: String, default: "" }
 });
 
-const emit = defineEmits(["update:prompt", "update:use-ocr", "update:use-ai", "upload", "open", "delete"]);
+const emit = defineEmits([
+  "update:prompt", "update:use-ocr", "update:use-ai", "update:rag-query",
+  "update:selected-control-ids", "upload", "open", "delete", "ask-document",
+  "run-controls", "save-control", "delete-control"
+]);
 const copied = ref(false);
+const controlForm = ref({ database_id: null, name: "", description: "", instructions: "", severity: "warning", is_active: true });
+const severityOptions = [
+  { label: "Bilgi", value: "info" },
+  { label: "Uyarı", value: "warning" },
+  { label: "Kritik", value: "critical" }
+];
 const emailAddresses = computed(() => props.activeDocument?.ai_result?.ocr?.email_addresses || []);
 const documentStatus = computed(() => {
   if (!props.activeDocument) return "Henüz belge seçilmedi";
@@ -21,6 +40,7 @@ const documentStatus = computed(() => {
   if (props.activeDocument.status === "failed") return "Belge işlenemedi";
   return "Belge sırada";
 });
+const documentReady = computed(() => props.activeDocument?.status === "processed");
 
 function formatBytes(size) {
   if (!size) return "0 B";
@@ -46,6 +66,31 @@ async function copyEmailAddresses() {
   }
   copied.value = true;
   window.setTimeout(() => (copied.value = false), 1600);
+}
+
+function editControl(control) {
+  controlForm.value = {
+    database_id: control.database_id,
+    name: control.name,
+    description: control.description || "",
+    instructions: control.instructions || "",
+    severity: control.severity,
+    is_active: control.is_active
+  };
+}
+
+function resetControlForm() {
+  controlForm.value = { database_id: null, name: "", description: "", instructions: "", severity: "warning", is_active: true };
+}
+
+function submitControl() {
+  if (!controlForm.value.name.trim() || controlForm.value.instructions.trim().length < 10) return;
+  emit("save-control", { ...controlForm.value });
+  resetControlForm();
+}
+
+function outcomeType(outcome) {
+  return { passed: "success", failed: "error", review: "warning" }[outcome] || "default";
 }
 </script>
 
@@ -87,6 +132,7 @@ async function copyEmailAddresses() {
             @update:value="emit('update:prompt', $event)"
           />
           <n-alert v-if="uploadError" type="error" title="Yükleme hatası">{{ uploadError }}</n-alert>
+          <n-alert v-if="uploadNotice" type="info" title="İşlem sıraya alındı">{{ uploadNotice }}</n-alert>
         </n-space>
       </n-card>
       <n-card title="Son Belgeler" size="small">
@@ -102,14 +148,54 @@ async function copyEmailAddresses() {
           </n-list>
         </n-spin>
       </n-card>
+      <n-card title="Doküman Kontrolleri" size="small">
+        <n-spin :show="controlsLoading">
+          <n-space vertical :size="12">
+            <n-checkbox-group
+              :value="selectedControlIds"
+              @update:value="emit('update:selected-control-ids', $event)"
+            >
+              <n-space vertical>
+                <div v-for="control in controls" :key="control.id" class="control-row">
+                  <n-checkbox :value="control.id" :disabled="!control.is_active">
+                    {{ control.name }} · {{ control.kind === "system" ? "Sunucu" : "Kullanıcı" }}
+                  </n-checkbox>
+                  <n-space v-if="control.kind === 'custom'" :size="4">
+                    <n-button size="tiny" quaternary @click="editControl(control)">Düzenle</n-button>
+                    <n-button size="tiny" quaternary type="error" @click="emit('delete-control', control)">Sil</n-button>
+                  </n-space>
+                  <small>{{ control.description }}</small>
+                </div>
+              </n-space>
+            </n-checkbox-group>
+            <n-divider>Kullanıcı kontrolü ekle</n-divider>
+            <n-input v-model:value="controlForm.name" placeholder="Kontrol adı" maxlength="120" />
+            <n-input v-model:value="controlForm.description" placeholder="Kısa açıklama" type="textarea" :rows="2" />
+            <n-input
+              v-model:value="controlForm.instructions"
+              placeholder="Model neyi, hangi koşula göre kontrol etmeli?"
+              type="textarea"
+              :rows="3"
+            />
+            <n-select v-model:value="controlForm.severity" :options="severityOptions" />
+            <n-space justify="end">
+              <n-button v-if="controlForm.database_id" @click="resetControlForm">Vazgeç</n-button>
+              <n-button type="primary" :disabled="!controlForm.name.trim() || controlForm.instructions.trim().length < 10" @click="submitControl">
+                {{ controlForm.database_id ? "Kontrolü güncelle" : "Kontrol ekle" }}
+              </n-button>
+            </n-space>
+          </n-space>
+        </n-spin>
+      </n-card>
     </section>
 
     <section id="ai-results" class="result-panel">
       <n-card title="AI İşleme Sonucu" size="small">
         <n-empty v-if="!activeDocument" description="Bir belge yükleyin veya listeden seçin" />
         <n-space v-else vertical :size="16">
-          <n-alert :type="activeDocument.status === 'processed' ? 'success' : 'error'" :title="documentStatus">
+          <n-alert :type="activeDocument.status === 'processed' ? 'success' : activeDocument.status === 'failed' ? 'error' : 'info'" :title="documentStatus">
             <span v-if="activeDocument.status === 'failed'">{{ activeDocument.error_message }}</span>
+            <span v-else-if="activeDocument.status === 'pending'">{{ activeDocument.original_name }} arka planda işlenmek üzere sıraya alındı.</span>
             <span v-else>{{ activeDocument.original_name }} içeriği yerelde çıkarıldı{{ activeDocument.ai_result?.ai_enabled ? " ve AI ile işlendi" : "" }}.</span>
           </n-alert>
           <n-descriptions :column="2" bordered size="small">
@@ -153,6 +239,43 @@ async function copyEmailAddresses() {
             </n-space>
           </n-card>
           <n-collapse><n-collapse-item title="Çıkarılan metin" name="text"><pre class="extracted-text">{{ activeDocument.extracted_text }}</pre></n-collapse-item></n-collapse>
+          <n-divider>Kaynaklı RAG analizi</n-divider>
+          <n-input
+            :value="ragQuery"
+            type="textarea"
+            :rows="3"
+            placeholder="Bu doküman hakkında bir soru sorun"
+            @update:value="emit('update:rag-query', $event)"
+            @keydown.ctrl.enter="emit('ask-document')"
+          />
+          <n-space justify="end">
+            <n-button type="primary" :loading="analysisLoading" :disabled="!documentReady || !ragQuery.trim()" @click="emit('ask-document')">
+              Kaynaklarla yanıtla
+            </n-button>
+            <n-button :loading="analysisLoading" :disabled="!documentReady" @click="emit('run-controls')">Seçili kontrolleri çalıştır</n-button>
+          </n-space>
+          <n-alert v-if="analysisError" type="error" title="Analiz hatası">{{ analysisError }}</n-alert>
+          <n-card v-if="ragResult" title="RAG yanıtı" embedded size="small">
+            <p class="summary-text">{{ ragResult.answer }}</p>
+            <n-collapse v-if="ragResult.sources?.length">
+              <n-collapse-item :title="`Kaynaklar (${ragResult.sources.length})`" name="rag-sources">
+                <n-list>
+                  <n-list-item v-for="source in ragResult.sources" :key="source.id">
+                    <n-thing :title="`${source.id} · ${source.document_name}`" :description="source.text" />
+                  </n-list-item>
+                </n-list>
+              </n-collapse-item>
+            </n-collapse>
+          </n-card>
+          <n-card v-if="controlResult?.controls" title="Kontrol sonuçları" embedded size="small">
+            <n-list>
+              <n-list-item v-for="result in controlResult.controls" :key="result.id">
+                <n-thing :title="result.name" :description="result.summary">
+                  <template #header-extra><n-tag :type="outcomeType(result.outcome)">{{ result.outcome }}</n-tag></template>
+                </n-thing>
+              </n-list-item>
+            </n-list>
+          </n-card>
         </n-space>
       </n-card>
     </section>

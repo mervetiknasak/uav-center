@@ -7,7 +7,9 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
+from .models import AsyncJob, Document
 from .services.document_extractor import extract_document
+from .services.job_queue import claim_next_job, execute_job
 from .services.ocr_processor import OCRProcessingError, extract_email_addresses, get_reader, read_image
 
 
@@ -184,8 +186,8 @@ class DocumentUploadOCRApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("prompt", response.json())
 
-    @patch("api.views.process_document_text")
-    @patch("api.views.extract_document")
+    @patch("api.services.job_queue.answer_document_query")
+    @patch("api.services.job_queue.extract_document")
     def test_ocr_only_upload_skips_ai_and_returns_metadata(self, mocked_extract, mocked_ai):
         mocked_extract.return_value = {
             "text": "pilot@example.com",
@@ -210,16 +212,20 @@ class DocumentUploadOCRApiTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 201)
-        self.assertFalse(response.json()["ai_result"]["ai_enabled"])
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()["job"]["status"], AsyncJob.STATUS_QUEUED)
+        execute_job(claim_next_job("ocr-test-worker"))
+        document = Document.objects.get(pk=response.json()["document"]["id"])
+        self.assertFalse(document.ai_result["ai_enabled"])
         self.assertEqual(
-            response.json()["ai_result"]["ocr"]["email_addresses"],
+            document.ai_result["ocr"]["email_addresses"],
             ["pilot@example.com"],
         )
         mocked_ai.assert_not_called()
 
-    @patch("api.views.extract_document")
-    def test_existing_upload_defaults_remain_ai_on_and_ocr_off(self, mocked_extract):
+    @patch("api.services.job_queue.answer_document_query")
+    @patch("api.services.job_queue.extract_document")
+    def test_existing_upload_defaults_remain_ai_on_and_ocr_off(self, mocked_extract, mocked_answer):
         mocked_extract.return_value = {
             "text": "mevcut belge metni",
             "ocr": {
@@ -232,6 +238,7 @@ class DocumentUploadOCRApiTests(TestCase):
                 "warnings": [],
             },
         }
+        mocked_answer.return_value = {"answer": "Özet", "provider": "local", "sources": []}
 
         response = self.client.post(
             reverse("document-upload"),
@@ -241,7 +248,9 @@ class DocumentUploadOCRApiTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 202)
+        execute_job(claim_next_job("ocr-test-worker"))
         mocked_extract.assert_called_once()
         self.assertEqual(mocked_extract.call_args.kwargs, {"use_ocr": False})
-        self.assertTrue(response.json()["ai_result"]["ai_enabled"])
+        document = Document.objects.get(pk=response.json()["document"]["id"])
+        self.assertTrue(document.ai_result["ai_enabled"])
