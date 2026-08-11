@@ -1,7 +1,17 @@
+import logging
 from pathlib import Path
 
 from django.conf import settings
 
+from ..common.redaction import safe_exception_message
+from .document_limits import (
+    IMAGE_EXTENSIONS,
+    OFFICE_EXTENSIONS,
+    SUPPORTED_EXTENSIONS,
+    preflight_document,
+    validate_image_dimensions,
+    validate_pdf_page_count,
+)
 from .ocr_processor import (
     OCRProcessingError,
     empty_ocr_metadata,
@@ -10,11 +20,7 @@ from .ocr_processor import (
     read_image,
 )
 
-
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
-SUPPORTED_EXTENSIONS = {
-    ".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".csv", ".md", *IMAGE_EXTENSIONS
-}
+logger = logging.getLogger(__name__)
 
 
 class UnsupportedDocumentError(ValueError):
@@ -31,12 +37,19 @@ def extract_document(file_path, use_ocr=False):
 
     if extension not in SUPPORTED_EXTENSIONS:
         supported = ", ".join(sorted(SUPPORTED_EXTENSIONS))
-        raise UnsupportedDocumentError(f"Desteklenmeyen dosya tipi: {extension}. Desteklenenler: {supported}")
+        raise UnsupportedDocumentError(
+            f"Desteklenmeyen dosya tipi: {extension}. Desteklenenler: {supported}"
+        )
+
+    if extension in OFFICE_EXTENSIONS or extension in IMAGE_EXTENSIONS:
+        preflight_document(path, extension)
 
     metadata = empty_ocr_metadata(enabled=use_ocr)
     if extension in IMAGE_EXTENSIONS:
         if not use_ocr:
-            raise UnsupportedDocumentError("Resim dosyalarından metin çıkarmak için OCR etkinleştirilmelidir.")
+            raise UnsupportedDocumentError(
+                "Resim dosyalarından metin çıkarmak için OCR etkinleştirilmelidir."
+            )
         text = _extract_image(path, metadata)
         metadata["email_addresses"] = extract_email_addresses(text)
         return {"text": _limit_text(_normalize_text(text)), "ocr": metadata}
@@ -66,6 +79,7 @@ def _extract_pdf(path, metadata=None):
     from pypdf import PdfReader
 
     reader = PdfReader(str(path))
+    validate_pdf_page_count(len(reader.pages))
     pages = []
     page_texts = []
     for index, page in enumerate(reader.pages, start=1):
@@ -96,7 +110,9 @@ def _append_pdf_ocr(path, page_texts, pages, metadata):
         dpi = getattr(settings, "OCR_PDF_DPI", 200)
         for page_index in page_indexes:
             if not _has_ocr_capacity(metadata):
-                metadata["warnings"].append("OCR öğe sınırına ulaşıldı; kalan PDF sayfaları atlandı.")
+                metadata["warnings"].append(
+                    "OCR öğe sınırına ulaşıldı; kalan PDF sayfaları atlandı."
+                )
                 break
             label = f"PDF Sayfa {page_index + 1}"
             try:
@@ -110,7 +126,12 @@ def _append_pdf_ocr(path, page_texts, pages, metadata):
                         f"{pages[page_index]}\n\n{ocr_block}" if pages[page_index] else ocr_block
                     )
             except Exception as exc:
-                metadata["warnings"].append(str(exc))
+                logger.warning(
+                    "PDF page OCR failed: %s",
+                    safe_exception_message(exc),
+                    extra={"event": "pdf_page_ocr_failed"},
+                )
+                metadata["warnings"].append("Bir PDF sayfası OCR ile işlenemedi.")
     finally:
         pdf.close()
 
@@ -123,18 +144,31 @@ def _extract_image(path, metadata):
             blocks = []
             for frame_index, frame in enumerate(ImageSequence.Iterator(image), start=1):
                 if not _has_ocr_capacity(metadata):
-                    raise OCRProcessingError("OCR öğe sınırına ulaşıldı; resmin tüm kareleri işlenemedi.")
+                    raise OCRProcessingError(
+                        "OCR öğe sınırına ulaşıldı; resmin tüm kareleri işlenemedi."
+                    )
                 label = f"Resim {frame_index}"
+                width, height = frame.size
+                validate_image_dimensions(width, height, source_label=label)
                 text = read_image(frame.copy(), label)
                 metadata["processed_images"] += 1
                 if text:
-                    marker = f"[OCR - Kare {frame_index}]" if getattr(image, "n_frames", 1) > 1 else "[OCR - Resim]"
+                    marker = (
+                        f"[OCR - Kare {frame_index}]"
+                        if getattr(image, "n_frames", 1) > 1
+                        else "[OCR - Resim]"
+                    )
                     blocks.append(f"{marker}\n{text}")
             return "\n\n".join(blocks)
     except OCRProcessingError:
         raise
     except Exception as exc:
-        raise OCRProcessingError(f"Resim OCR ile okunamadı: {exc}") from exc
+        logger.warning(
+            "Image OCR failed: %s",
+            safe_exception_message(exc),
+            extra={"event": "image_ocr_failed"},
+        )
+        raise OCRProcessingError("Resim OCR ile okunamadı.") from exc
 
 
 def _extract_embedded_images(path, extension, metadata):
@@ -147,7 +181,9 @@ def _extract_embedded_images(path, extension, metadata):
     try:
         for label, content in iterators[extension](path):
             if not _has_ocr_capacity(metadata):
-                metadata["warnings"].append("OCR öğe sınırına ulaşıldı; kalan gömülü görseller atlandı.")
+                metadata["warnings"].append(
+                    "OCR öğe sınırına ulaşıldı; kalan gömülü görseller atlandı."
+                )
                 break
             try:
                 image = open_image_bytes(content)
@@ -156,9 +192,19 @@ def _extract_embedded_images(path, extension, metadata):
                 if text:
                     blocks.append(f"[OCR - {label}]\n{text}")
             except Exception as exc:
-                metadata["warnings"].append(str(exc))
+                logger.warning(
+                    "Embedded image OCR failed: %s",
+                    safe_exception_message(exc),
+                    extra={"event": "embedded_image_ocr_failed"},
+                )
+                metadata["warnings"].append("Bir gömülü görsel OCR ile işlenemedi.")
     except Exception as exc:
-        metadata["warnings"].append(f"Gömülü görseller okunamadı: {exc}")
+        logger.warning(
+            "Embedded images could not be read: %s",
+            safe_exception_message(exc),
+            extra={"event": "embedded_images_read_failed"},
+        )
+        metadata["warnings"].append("Gömülü görseller okunamadı.")
     return "\n\n".join(blocks)
 
 

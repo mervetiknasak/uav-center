@@ -6,6 +6,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from .serializers import OllamaChatRequestSerializer
+from .services.ai_wrapper import AIProviderError
 from .services.ollama_service import OllamaService
 
 
@@ -87,6 +88,7 @@ class OllamaApiTests(TestCase):
     def test_authenticated_user_can_read_status(self, service_status):
         service_status.return_value = {
             "connected": True,
+            "base_url": "http://10.0.0.8:11434",
             "configured_model": "gemma4:e4b",
             "installed": True,
         }
@@ -96,6 +98,25 @@ class OllamaApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["installed"])
+        self.assertNotIn("base_url", response.json())
+
+    @patch.object(OllamaService, "status")
+    def test_status_hides_raw_error_and_exposes_base_url_only_to_staff(self, service_status):
+        service_status.return_value = {
+            "connected": False,
+            "base_url": "http://10.0.0.8:11434",
+            "error": "token=secret /private/model.bin",
+            "installed": False,
+        }
+        self.client.force_login(self.user)
+        user_response = self.client.get(reverse("ollama-status"))
+        self.client.force_login(self.admin)
+        staff_response = self.client.get(reverse("ollama-status"))
+
+        self.assertNotIn("base_url", user_response.json())
+        self.assertEqual(user_response.json()["error"], "Ollama servisine ulaşılamadı.")
+        self.assertEqual(staff_response.json()["base_url"], "http://10.0.0.8:11434")
+        self.assertEqual(staff_response.json()["error"], "Ollama servisine ulaşılamadı.")
 
     @patch.object(OllamaService, "pull")
     def test_only_admin_can_pull_model(self, pull):
@@ -108,6 +129,19 @@ class OllamaApiTests(TestCase):
         self.assertEqual(denied.status_code, 403)
         self.assertEqual(allowed.status_code, 200)
         self.assertEqual(allowed.json()["model"], "gemma4:e4b")
+
+    @patch.object(OllamaService, "pull")
+    def test_pull_failure_does_not_echo_provider_detail(self, pull):
+        pull.side_effect = AIProviderError(
+            "token=secret http://10.0.0.8:11434/api /private/model.bin"
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(reverse("ollama-pull"))
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.json()["detail"], "Ollama servisine ulaşılamadı.")
+        self.assertNotIn("10.0.0.8", response.content.decode())
 
     @patch.object(OllamaService, "chat_stream")
     def test_chat_endpoint_streams_ndjson(self, chat_stream):
@@ -129,3 +163,20 @@ class OllamaApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/x-ndjson")
         self.assertEqual(json.loads(chunks[0])["message"]["content"], "Merhaba")
+
+    @patch.object(OllamaService, "chat_stream")
+    def test_chat_stream_failure_emits_only_safe_public_error(self, chat_stream):
+        chat_stream.side_effect = AIProviderError(
+            "token=secret http://10.0.0.8:11434/api /private/model.bin"
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("ollama-chat"),
+            data={"messages": [{"role": "user", "content": "Selam"}]},
+            content_type="application/json",
+        )
+        payload = json.loads(b"".join(response.streaming_content).decode("utf-8"))
+
+        self.assertEqual(payload["error"], "Ollama servisine ulaşılamadı.")
+        self.assertNotIn("10.0.0.8", str(payload))

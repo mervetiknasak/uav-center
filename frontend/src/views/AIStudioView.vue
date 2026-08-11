@@ -81,7 +81,10 @@ function duration(stats) {
       <div class="page-heading">
         <p>Yerel AI</p>
         <h1>Gemma 4 Studio</h1>
-        <span>Metin, görsel, düşünme, yapılandırılmış çıktı ve araç çağrılarını tek alanda test edin.</span>
+        <span
+          >Metin, görsel, düşünme, yapılandırılmış çıktı ve araç çağrılarını tek alanda test
+          edin.</span
+        >
       </div>
       <n-space align="center">
         <n-tag :type="connectionType" round>{{ connectionLabel }}</n-tag>
@@ -96,11 +99,17 @@ function duration(stats) {
       <aside class="ai-control-panel">
         <n-card title="Model durumu" size="small">
           <n-descriptions :column="1" bordered size="small">
-            <n-descriptions-item label="Model">{{ status?.configured_model || "gemma4:e4b" }}</n-descriptions-item>
+            <n-descriptions-item label="Model">{{
+              status?.configured_model || "gemma4:e4b"
+            }}</n-descriptions-item>
             <n-descriptions-item label="Ollama">{{ status?.version || "—" }}</n-descriptions-item>
             <n-descriptions-item label="Adres">{{ status?.base_url || "—" }}</n-descriptions-item>
-            <n-descriptions-item label="Kurulum">{{ status?.installed ? "Kurulu" : "Eksik" }}</n-descriptions-item>
-            <n-descriptions-item label="Bellek">{{ status?.loaded ? "Yüklü" : "Boşta" }}</n-descriptions-item>
+            <n-descriptions-item label="Kurulum">{{
+              status?.installed ? "Kurulu" : "Eksik"
+            }}</n-descriptions-item>
+            <n-descriptions-item label="Bellek">{{
+              status?.loaded ? "Yüklü" : "Boşta"
+            }}</n-descriptions-item>
           </n-descriptions>
           <n-space class="ai-model-actions">
             <n-button
@@ -135,7 +144,12 @@ function duration(stats) {
             </n-form-item>
             <div class="ai-form-grid">
               <n-form-item label="Temperature">
-                <n-input-number v-model:value="settings.temperature" :min="0" :max="2" :step="0.05" />
+                <n-input-number
+                  v-model:value="settings.temperature"
+                  :min="0"
+                  :max="2"
+                  :step="0.05"
+                />
               </n-form-item>
               <n-form-item label="Top P">
                 <n-input-number v-model:value="settings.topP" :min="0" :max="1" :step="0.05" />
@@ -187,7 +201,10 @@ function duration(stats) {
                   :autosize="{ minRows: 4, maxRows: 10 }"
                   @update:value="emit('update:tools-text', $event)"
                 />
-                <small>Modelin araç çağrısı üretmesini sınar; uygulama çağrıyı otomatik çalıştırmaz.</small>
+                <small
+                  >Modelin araç çağrısı üretmesini sınar; uygulama çağrıyı otomatik
+                  çalıştırmaz.</small
+                >
               </n-collapse-item>
             </n-collapse>
           </n-form>
@@ -200,7 +217,9 @@ function duration(stats) {
             <strong>Test oturumu</strong>
             <span>{{ messages.length ? `${messages.length} mesaj` : "Yeni konuşma" }}</span>
           </div>
-          <n-button text :disabled="!messages.length" @click="emit('clear')">Konuşmayı Temizle</n-button>
+          <n-button text :disabled="!messages.length" @click="emit('clear')"
+            >Konuşmayı Temizle</n-button
+          >
         </div>
 
         <div class="ai-message-list">
@@ -209,9 +228,36 @@ function duration(stats) {
             <h2>Gemma 4 E4B hazır</h2>
             <p>Bir teknik soru sorun, görsel yükleyin veya yapılandırılmış çıktı deneyin.</p>
             <div class="ai-prompt-chips">
-              <button @click="emit('update:input', 'Bir İHA uçuş kontrol sistemi için emniyet gereksinimlerini listele.')">Gereksinim üret</button>
-              <button @click="emit('update:input', 'Bu Python fonksiyonunu daha güvenli ve hızlı hale getirmek için nasıl incelemeliyim?')">Kod analizi</button>
-              <button @click="emit('update:input', 'Karmaşık bir teknik dokümanı yönetici özeti biçiminde nasıl yapılandırmalıyım?')">Doküman özeti</button>
+              <button
+                @click="
+                  emit(
+                    'update:input',
+                    'Bir İHA uçuş kontrol sistemi için emniyet gereksinimlerini listele.'
+                  )
+                "
+              >
+                Gereksinim üret
+              </button>
+              <button
+                @click="
+                  emit(
+                    'update:input',
+                    'Bu Python fonksiyonunu daha güvenli ve hızlı hale getirmek için nasıl incelemeliyim?'
+                  )
+                "
+              >
+                Kod analizi
+              </button>
+              <button
+                @click="
+                  emit(
+                    'update:input',
+                    'Karmaşık bir teknik dokümanı yönetici özeti biçiminde nasıl yapılandırmalıyım?'
+                  )
+                "
+              >
+                Doküman özeti
+              </button>
             </div>
           </div>
 
@@ -223,9 +269,13 @@ function duration(stats) {
           >
             <div class="ai-message-avatar">{{ message.role === "user" ? "Siz" : "G4" }}</div>
             <div class="ai-message-body">
-              <div class="ai-message-label">{{ message.role === "user" ? "Kullanıcı" : "Gemma 4" }}</div>
+              <div class="ai-message-label">
+                {{ message.role === "user" ? "Kullanıcı" : "Gemma 4" }}
+              </div>
               <div v-if="message.imageNames?.length" class="ai-message-images">
-                <n-tag v-for="name in message.imageNames" :key="name" size="small">{{ name }}</n-tag>
+                <n-tag v-for="name in message.imageNames" :key="name" size="small">{{
+                  name
+                }}</n-tag>
               </div>
               <n-collapse v-if="message.thinking" class="ai-thinking">
                 <n-collapse-item title="Düşünme izi" name="thinking">
@@ -271,7 +321,13 @@ function duration(stats) {
           <div class="ai-composer-actions">
             <label class="ai-file-button">
               Görsel Ekle
-              <input type="file" accept="image/*" multiple :disabled="generating" @change="onFiles" />
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                :disabled="generating"
+                @change="onFiles"
+              />
             </label>
             <span>⌘/Ctrl + Enter ile gönder</span>
             <n-button v-if="generating" type="error" @click="emit('stop')">Durdur</n-button>

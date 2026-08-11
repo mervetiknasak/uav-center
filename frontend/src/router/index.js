@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 
-export const DEFAULT_ROUTE_NAME = "technical-documents";
+import { DEFAULT_ROUTE_NAME } from "../app/navigation/menu";
 
 const routes = [
   {
@@ -10,120 +10,72 @@ const routes = [
   {
     path: "/technical-documents",
     name: "technical-documents",
-    component: () => import("../views/TechnicalDocumentsView.vue"),
+    component: () => import("../features/technical-documents/pages/TechnicalDocumentsPage.vue"),
     meta: { menuKey: "technical-documents" }
   },
   {
     path: "/flight-permits",
     name: "flight-permits",
-    component: () => import("../views/FlightPermitsView.vue"),
+    component: () => import("../features/flight-permits/pages/FlightPermitsPage.vue"),
     meta: { menuKey: "flight-permits" }
   },
   {
     path: "/jobs",
     name: "jobs",
-    component: () => import("../views/JobsView.vue"),
+    component: () => import("../features/jobs/pages/JobsPage.vue"),
     meta: { menuKey: "jobs" }
   },
   {
     path: "/organization",
     name: "organization-projects",
-    component: () => import("../views/OrganizationView.vue"),
+    component: () => import("../features/organization/pages/OrganizationPage.vue"),
     meta: { menuKey: "organization-projects" }
   },
   {
     path: "/tools/document-processing",
     name: "documents",
-    component: () => import("../views/DocumentProcessingView.vue"),
+    component: () => import("../features/document-processing/pages/DocumentProcessingPage.vue"),
     meta: { menuKey: "documents", anchor: "#document-tools" }
   },
   {
     path: "/tools/ai-results",
     name: "results",
-    component: () => import("../views/DocumentProcessingView.vue"),
+    component: () => import("../features/document-processing/pages/DocumentProcessingPage.vue"),
     meta: { menuKey: "results", anchor: "#ai-results" }
   },
   {
     path: "/tools/word-to-jira",
     name: "word-to-jira",
-    component: () => import("../views/WordToJiraView.vue"),
+    component: () => import("../features/word-to-jira/pages/WordToJiraPage.vue"),
     meta: { menuKey: "word-to-jira" }
   },
   {
     path: "/tools/ai-studio",
     name: "ai-studio",
-    component: () => import("../views/AIStudioView.vue"),
+    component: () => import("../features/ai-studio/pages/AIStudioPage.vue"),
     meta: { menuKey: "ai-studio" }
   },
   {
     path: "/system",
     name: "system-dashboard",
-    component: () => import("../views/SystemView.vue"),
+    component: () => import("../features/system-dashboard/pages/SystemDashboardPage.vue"),
     meta: { menuKey: "system-dashboard", requiresAdmin: true }
   },
   {
     path: "/admin/organization",
     name: "organization-admin",
-    component: () => import("../views/OrganizationView.vue"),
+    component: () => import("../features/organization/pages/OrganizationPage.vue"),
     meta: { menuKey: "organization-admin", requiresAdmin: true }
   },
   {
     path: "/admin/users",
     name: "users",
-    component: () => import("../views/AdminMembershipView.vue"),
+    component: () => import("../features/admin-users/pages/AdminUsersPage.vue"),
     meta: { menuKey: "users", requiresAdmin: true }
   },
   {
     path: "/:pathMatch(.*)*",
     redirect: { name: DEFAULT_ROUTE_NAME }
-  }
-];
-
-export const menuSections = [
-  {
-    label: "Uçuş Operasyonları",
-    key: "flight-operations",
-    children: [{ label: "Uçuş İzinleri", key: "flight-permits" }]
-  },
-  {
-    label: "Doküman Yönetimi",
-    key: "document-management",
-    children: [{ label: "Teknik Dokümanlar", key: "technical-documents" }]
-  },
-  {
-    label: "Organizasyon",
-    key: "organization",
-    children: [{ label: "Projeler ve Paneller", key: "organization-projects" }]
-  },
-  {
-    label: "Araçlar",
-    key: "tools",
-    children: [
-      { label: "Belge İşleme", key: "documents" },
-      { label: "AI Sonuçları", key: "results" },
-      { label: "Gemma 4 Studio", key: "ai-studio" },
-      { label: "Toplantı Tutanağı Okuyucu", key: "word-to-jira" }
-    ]
-  },
-  {
-    label: "İşlemler",
-    key: "operations",
-    children: [{ label: "Joblarım", key: "jobs" }]
-  },
-  {
-    label: "Sistem",
-    key: "system",
-    requiresAdmin: true,
-    children: [{ label: "Kontrol Paneli", key: "system-dashboard" }]
-  },
-  {
-    label: "Admin",
-    key: "admin",
-    requiresAdmin: true,
-    children: [
-      { label: "Organizasyon Yönetimi", key: "organization-admin" },
-      { label: "Üyeler", key: "users" }
-    ]
   }
 ];
 

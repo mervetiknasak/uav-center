@@ -67,10 +67,7 @@ function countUsers(predicate) {
     <div class="system-grid">
       <n-card title="Backend Durumu" size="small">
         <n-space vertical :size="16">
-          <n-alert
-            :type="error ? 'error' : health ? 'success' : 'info'"
-            :title="apiStatus"
-          >
+          <n-alert :type="error ? 'error' : health ? 'success' : 'info'" :title="apiStatus">
             <span v-if="error">Hata: {{ error }}</span>
             <span v-else-if="health">
               {{ health.service }} servisi {{ health.timestamp }} zamanında yanıt verdi.
@@ -88,7 +85,9 @@ function countUsers(predicate) {
         <n-descriptions :column="1" bordered size="small">
           <n-descriptions-item label="Kullanıcı">{{ currentUser.username }}</n-descriptions-item>
           <n-descriptions-item label="Rol">Admin</n-descriptions-item>
-          <n-descriptions-item label="API">{{ apiBaseUrl || "Aynı origin / proxy" }}</n-descriptions-item>
+          <n-descriptions-item label="API">{{
+            apiBaseUrl || "Aynı origin / proxy"
+          }}</n-descriptions-item>
         </n-descriptions>
       </n-card>
 
@@ -96,8 +95,12 @@ function countUsers(predicate) {
         <n-space vertical :size="16">
           <n-descriptions :column="2" bordered size="small">
             <n-descriptions-item label="Toplam">{{ documents.length }}</n-descriptions-item>
-            <n-descriptions-item label="İşlendi">{{ countDocuments("processed") }}</n-descriptions-item>
-            <n-descriptions-item label="Pending">{{ countDocuments("pending") }}</n-descriptions-item>
+            <n-descriptions-item label="İşlendi">{{
+              countDocuments("processed")
+            }}</n-descriptions-item>
+            <n-descriptions-item label="Pending">{{
+              countDocuments("pending")
+            }}</n-descriptions-item>
             <n-descriptions-item label="Hatalı">{{ countDocuments("failed") }}</n-descriptions-item>
           </n-descriptions>
 
@@ -142,9 +145,7 @@ function countUsers(predicate) {
 
       <n-card title="Hızlı Kontroller" size="small">
         <n-space>
-          <n-button secondary :loading="loading" @click="emit('check-backend')">
-            Sağlık
-          </n-button>
+          <n-button secondary :loading="loading" @click="emit('check-backend')"> Sağlık </n-button>
           <n-button secondary :loading="documentsLoading" @click="emit('refresh-documents')">
             Belgeler
           </n-button>

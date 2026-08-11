@@ -1,12 +1,14 @@
 import json
 import mimetypes
-import uuid
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
 from django.conf import settings
+
+from ..common.network import validated_http_url
 
 
 class AIProviderError(RuntimeError):
@@ -17,24 +19,53 @@ class AIProviderError(RuntimeError):
 class AIWrapperConfig:
     provider: str
     ollama_base_url: str
+    ollama_timeout: int
     text_model: str
     local_llm_base_url: str
     local_llm_api_key: str
+    local_llm_timeout: int
     whisper_connection: str
     whisper_model: str
     whisper_base_url: str
+    whisper_timeout: int
 
     @classmethod
     def from_settings(cls):
+        provider = getattr(settings, "AI_PROVIDER", "local").lower()
+        text_model = (
+            getattr(settings, "LOCAL_LLM_MODEL", "qwen2.5:14b")
+            if provider in {"local_llm", "local-http", "local_http"}
+            else getattr(settings, "OLLAMA_MODEL", "gemma4:e4b")
+        )
+        allow_remote = getattr(settings, "AI_ALLOW_REMOTE_SERVICES", False)
+        is_production = getattr(settings, "IS_PRODUCTION", False)
         return cls(
-            provider=getattr(settings, "AI_PROVIDER", "local").lower(),
-            ollama_base_url=getattr(settings, "OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/"),
-            text_model=getattr(settings, "OLLAMA_MODEL", getattr(settings, "QWEN_MODEL", "gemma4:e4b")),
-            local_llm_base_url=getattr(settings, "LOCAL_LLM_BASE_URL", "http://127.0.0.1:8001").rstrip("/"),
+            provider=provider,
+            ollama_base_url=validated_http_url(
+                getattr(settings, "OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+                setting_name="OLLAMA_BASE_URL",
+                require_local=not allow_remote,
+                require_https_for_remote=is_production,
+            ).rstrip("/"),
+            ollama_timeout=getattr(settings, "OLLAMA_TIMEOUT", 600),
+            text_model=text_model,
+            local_llm_base_url=validated_http_url(
+                getattr(settings, "LOCAL_LLM_BASE_URL", "http://127.0.0.1:8001"),
+                setting_name="LOCAL_LLM_BASE_URL",
+                require_local=not allow_remote,
+                require_https_for_remote=is_production,
+            ).rstrip("/"),
             local_llm_api_key=getattr(settings, "LOCAL_LLM_API_KEY", ""),
+            local_llm_timeout=getattr(settings, "LOCAL_LLM_TIMEOUT", 180),
             whisper_connection=getattr(settings, "WHISPER_CONNECTION", "local").lower(),
             whisper_model=getattr(settings, "WHISPER_MODEL", "base"),
-            whisper_base_url=getattr(settings, "WHISPER_BASE_URL", "http://127.0.0.1:8002").rstrip("/"),
+            whisper_base_url=validated_http_url(
+                getattr(settings, "WHISPER_BASE_URL", "http://127.0.0.1:8002"),
+                setting_name="WHISPER_BASE_URL",
+                require_local=not allow_remote,
+                require_https_for_remote=is_production,
+            ).rstrip("/"),
+            whisper_timeout=getattr(settings, "WHISPER_TIMEOUT", 180),
         )
 
 
@@ -73,7 +104,11 @@ class AIWrapper:
         if system_prompt:
             payload["system"] = system_prompt
 
-        data = _post_json(f"{self.config.ollama_base_url}/api/generate", payload, timeout=180)
+        data = _post_json(
+            f"{self.config.ollama_base_url}/api/generate",
+            payload,
+            timeout=self.config.ollama_timeout,
+        )
         return {
             "provider": "ollama",
             "model": payload["model"],
@@ -101,7 +136,7 @@ class AIWrapper:
             f"{self.config.local_llm_base_url}/v1/chat/completions",
             payload,
             headers=headers,
-            timeout=180,
+            timeout=self.config.local_llm_timeout,
         )
         response = ""
         choices = data.get("choices") or []
@@ -140,7 +175,12 @@ class AIWrapper:
         if language:
             fields["language"] = language
 
-        data = _post_multipart(url, {"file": Path(audio_path)}, fields, timeout=180)
+        data = _post_multipart(
+            url,
+            {"file": Path(audio_path)},
+            fields,
+            timeout=self.config.whisper_timeout,
+        )
         return {
             "provider": "http_whisper",
             "model": self.config.whisper_model,
@@ -151,9 +191,10 @@ class AIWrapper:
 
 
 def _post_json(url, payload, headers=None, timeout=120):
+    url = validated_http_url(url)
     request_headers = {"Content-Type": "application/json"}
     request_headers.update(headers or {})
-    request = urllib.request.Request(
+    request = urllib.request.Request(  # noqa: S310 - URL is validated immediately above.
         url,
         data=json.dumps(payload).encode("utf-8"),
         headers=request_headers,
@@ -161,37 +202,38 @@ def _post_json(url, payload, headers=None, timeout=120):
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             return json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise AIProviderError(f"AI bağlantısı başarısız: {exc}") from exc
 
 
 def _post_multipart(url, files, fields=None, timeout=120):
+    url = validated_http_url(url)
     boundary = f"----uav-center-{uuid.uuid4().hex}"
     body = bytearray()
 
     for name, value in (fields or {}).items():
-        body.extend(f"--{boundary}\r\n".encode("utf-8"))
-        body.extend(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("utf-8"))
+        body.extend(f"--{boundary}\r\n".encode())
+        body.extend(f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode())
         body.extend(str(value).encode("utf-8"))
         body.extend(b"\r\n")
 
     for name, path in files.items():
         filename = path.name
         content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-        body.extend(f"--{boundary}\r\n".encode("utf-8"))
+        body.extend(f"--{boundary}\r\n".encode())
         body.extend(
             (
                 f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'
                 f"Content-Type: {content_type}\r\n\r\n"
-            ).encode("utf-8")
+            ).encode()
         )
         body.extend(path.read_bytes())
         body.extend(b"\r\n")
 
-    body.extend(f"--{boundary}--\r\n".encode("utf-8"))
-    request = urllib.request.Request(
+    body.extend(f"--{boundary}--\r\n".encode())
+    request = urllib.request.Request(  # noqa: S310 - URL is validated immediately above.
         url,
         data=bytes(body),
         headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
@@ -199,7 +241,7 @@ def _post_multipart(url, files, fields=None, timeout=120):
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             return json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise AIProviderError(f"Whisper bağlantısı başarısız: {exc}") from exc

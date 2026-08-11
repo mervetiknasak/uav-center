@@ -1,5 +1,11 @@
+import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from ..common.redaction import safe_exception_message
+from .document_limits import DocumentPreflightError, validate_office_archive
+
+logger = logging.getLogger(__name__)
 
 
 class WordTableParseError(ValueError):
@@ -26,14 +32,13 @@ FIELD_COORDINATES = {
     "date_time": (0, 5, 2),
     "location": (0, 6, 2),
     "agenda": (0, 8, 0),
-    "discussions_decisions": (0, 10, 0)
+    "discussions_decisions": (0, 10, 0),
 }
 
 
 def _extract_mapped_data(cells):
     coordinates = {
-        (cell.table_index, cell.row_index, cell.column_index): cell.text
-        for cell in cells
+        (cell.table_index, cell.row_index, cell.column_index): cell.text for cell in cells
     }
     fields = {
         field_name: coordinates.get(field_coordinates, "")
@@ -57,10 +62,7 @@ def _extract_mapped_data(cells):
             for index, cell in enumerate(cells)
             if action_start is not None
             and index > action_start
-            and any(
-                heading in cell.text.casefold()
-                for heading in ("attachments", "ekler")
-            )
+            and any(heading in cell.text.casefold() for heading in ("attachments", "ekler"))
         ),
         None,
     )
@@ -102,9 +104,17 @@ def parse_word_table(file_path):
         raise WordTableParseError("Yalnızca .docx uzantılı Word dosyaları destekleniyor.")
 
     try:
+        validate_office_archive(path, ".docx")
         document = Document(str(path))
+    except DocumentPreflightError as exc:
+        raise WordTableParseError(str(exc)) from exc
     except Exception as exc:
-        raise WordTableParseError(f"Word dosyası açılamadı: {exc}") from exc
+        logger.warning(
+            "Word document open failed: %s",
+            safe_exception_message(exc),
+            extra={"event": "word_document_open_failed"},
+        )
+        raise WordTableParseError("Word dosyası açılamadı.") from exc
 
     if not document.tables:
         raise WordTableParseError("Word dosyasında tablo bulunamadı.")
@@ -119,11 +129,7 @@ def parse_word_table(file_path):
                     continue
                 seen_cells.add(cell._tc)
 
-                text = "\n".join(
-                    line.strip()
-                    for line in cell.text.splitlines()
-                    if line.strip()
-                )
+                text = "\n".join(line.strip() for line in cell.text.splitlines() if line.strip())
                 parsed_cell = WordTableCell(
                     index=global_index,
                     table_index=table_index,
@@ -132,12 +138,6 @@ def parse_word_table(file_path):
                     text=text,
                 )
                 cells.append(parsed_cell)
-                print(
-                    "[WORD_CELL] "
-                    f"index={global_index} table={table_index} "
-                    f"row={row_index} column={column_index} text={text!r}",
-                    flush=True,
-                )
                 global_index += 1
 
     return {

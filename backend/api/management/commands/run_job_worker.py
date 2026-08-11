@@ -5,6 +5,7 @@ import time
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
+from api.common.redaction import safe_exception_message
 from api.services.job_queue import (
     claim_next_job,
     execute_job,
@@ -17,7 +18,9 @@ class Command(BaseCommand):
     help = "Kalıcı asenkron job kuyruğundaki işleri çalıştırır."
 
     def add_arguments(self, parser):
-        parser.add_argument("--once", action="store_true", help="En fazla bir job çalıştırıp çıkar.")
+        parser.add_argument(
+            "--once", action="store_true", help="En fazla bir job çalıştırıp çıkar."
+        )
         parser.add_argument("--poll-interval", type=float, default=1.0)
         parser.add_argument("--worker-id", default="")
 
@@ -45,7 +48,7 @@ class Command(BaseCommand):
                 execute_job(job)
             except Exception as exc:  # Worker must remain alive after an individual job failure.
                 state = fail_or_retry_job(job, exc)
-                self.stderr.write(f"Job {job.id} {state}: {exc}")
+                self.stderr.write(f"Job {job.id} {state}: {safe_exception_message(exc)}")
             else:
                 self.stdout.write(self.style.SUCCESS(f"Job tamamlandı: {job.id}"))
 

@@ -34,10 +34,18 @@ const emit = defineEmits(["submit", "switch-mode"]);
 
       <n-form class="auth-form" @submit.prevent="emit('submit')">
         <n-form-item label="Kullanıcı adı">
-          <n-input v-model:value="credentials.username" autocomplete="username" placeholder="kullanici_adi" />
+          <n-input
+            v-model:value="credentials.username"
+            autocomplete="username"
+            placeholder="kullanici_adi"
+          />
         </n-form-item>
         <n-form-item v-if="mode === 'register'" label="E-posta">
-          <n-input v-model:value="credentials.email" autocomplete="email" placeholder="operator@example.com" />
+          <n-input
+            v-model:value="credentials.email"
+            autocomplete="email"
+            placeholder="operator@example.com"
+          />
         </n-form-item>
         <n-form-item label="Şifre">
           <n-input
@@ -68,7 +76,13 @@ const emit = defineEmits(["submit", "switch-mode"]);
         <n-alert v-if="registerMessage" type="success" title="Üyelik isteği alındı">
           {{ registerMessage }}
         </n-alert>
-        <n-button attr-type="submit" type="primary" block :loading="loading" :disabled="submitDisabled">
+        <n-button
+          attr-type="submit"
+          type="primary"
+          block
+          :loading="loading"
+          :disabled="submitDisabled"
+        >
           {{ buttonLabel }}
         </n-button>
       </n-form>

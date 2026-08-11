@@ -7,12 +7,22 @@ from django.db import close_old_connections
 from django.db.models import F
 from django.utils import timezone
 
-from ..models import AsyncJob, Document
+from ..common.redaction import DEFAULT_SAFE_ERROR_MAX_LENGTH, safe_exception_message
+from ..documents.models import Document
+from ..jobs.models import AsyncJob
 from .document_extractor import extract_document
 from .rag_service import answer_document_query, index_document
 
+MAX_JOB_ERROR_LENGTH = DEFAULT_SAFE_ERROR_MAX_LENGTH
+
 
 def enqueue_document_processing(*, document, owner, use_ocr, use_ai):
+    if document.owner_id is None:
+        Document.objects.filter(pk=document.pk, owner__isnull=True).update(owner=owner)
+        document.refresh_from_db(fields=["owner"])
+    if document.owner_id != owner.pk:
+        raise ValueError("Belge sahibi ile job sahibi aynı olmalıdır.")
+
     return AsyncJob.objects.create(
         owner=owner,
         job_type=AsyncJob.TYPE_DOCUMENT_PROCESSING,
@@ -30,11 +40,15 @@ def claim_next_job(worker_id):
     """Atomically claim one ready job; safe for multiple worker processes."""
     close_old_connections()
     now = timezone.now()
-    candidate_ids = AsyncJob.objects.filter(
-        status=AsyncJob.STATUS_QUEUED,
-        available_at__lte=now,
-        attempts__lt=F("max_attempts"),
-    ).order_by("-priority", "created_at").values_list("pk", flat=True)[:20]
+    candidate_ids = (
+        AsyncJob.objects.filter(
+            status=AsyncJob.STATUS_QUEUED,
+            available_at__lte=now,
+            attempts__lt=F("max_attempts"),
+        )
+        .order_by("-priority", "created_at")
+        .values_list("pk", flat=True)[:20]
+    )
 
     for job_id in candidate_ids:
         updated = AsyncJob.objects.filter(
@@ -139,7 +153,7 @@ def complete_job(job, result):
 
 
 def fail_or_retry_job(job, exc):
-    message = str(exc) or exc.__class__.__name__
+    message = safe_exception_message(exc, max_length=MAX_JOB_ERROR_LENGTH)
     now = timezone.now()
     if job.attempts < job.max_attempts:
         base_seconds = getattr(settings, "JOB_RETRY_BASE_SECONDS", 15)
@@ -164,7 +178,7 @@ def fail_or_retry_job(job, exc):
     if job.document_id:
         Document.objects.filter(pk=job.document_id).update(
             status=Document.STATUS_FAILED,
-            error_message=f"Dosya işlenemedi: {message}",
+            error_message=f"Dosya işlenemedi: {message}"[:MAX_JOB_ERROR_LENGTH],
             processed_at=now,
         )
     return AsyncJob.STATUS_FAILED

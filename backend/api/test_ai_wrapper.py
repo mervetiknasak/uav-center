@@ -22,7 +22,11 @@ class _FakeResponse:
 
 
 class AIWrapperTests(SimpleTestCase):
-    @override_settings(AI_PROVIDER="ollama", OLLAMA_MODEL="gemma4:e4b")
+    @override_settings(
+        AI_PROVIDER="ollama",
+        OLLAMA_MODEL="gemma4:e4b",
+        OLLAMA_TIMEOUT=321,
+    )
     @patch("urllib.request.urlopen")
     def test_ollama_generation_uses_configured_model(self, urlopen):
         urlopen.return_value = _FakeResponse({"response": "hazir"})
@@ -34,6 +38,7 @@ class AIWrapperTests(SimpleTestCase):
         self.assertEqual(payload["model"], "gemma4:e4b")
         self.assertEqual(result["provider"], "ollama")
         self.assertEqual(result["response"], "hazir")
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 321)
 
     @override_settings(AI_PROVIDER="local")
     def test_local_provider_keeps_builtin_summary(self):
@@ -45,3 +50,21 @@ class AIWrapperTests(SimpleTestCase):
 
         self.assertEqual(result["provider"], "local")
         self.assertIn("metrics", result)
+
+    @override_settings(
+        AI_PROVIDER="local_llm",
+        LOCAL_LLM_MODEL="qwen-corporate:14b",
+        LOCAL_LLM_TIMEOUT=123,
+        OLLAMA_MODEL="gemma4:e4b",
+    )
+    @patch("urllib.request.urlopen")
+    def test_local_llm_uses_its_own_configured_model(self, urlopen):
+        urlopen.return_value = _FakeResponse({"choices": [{"message": {"content": "hazir"}}]})
+
+        result = AIWrapper().generate("Merhaba")
+        request = urlopen.call_args.args[0]
+        payload = json.loads(request.data.decode("utf-8"))
+
+        self.assertEqual(payload["model"], "qwen-corporate:14b")
+        self.assertEqual(result["provider"], "local_llm")
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 123)

@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
+from .document_limits import DocumentPreflightError, validate_image_dimensions
 
 OCR_LANGUAGES = ("tr", "en")
 EMAIL_PATTERN = re.compile(
@@ -72,17 +73,18 @@ def get_reader():
             "Model indirmeye izin vermek için OCR_ALLOW_MODEL_DOWNLOAD=true kullanın veya "
             f"EasyOCR modellerini {model_directory} dizinine önceden yerleştirin."
         )
-        raise OCRProcessingError(f"EasyOCR modeli yüklenemedi. {download_hint} Ayrıntı: {exc}") from exc
+        raise OCRProcessingError(
+            f"EasyOCR modeli yüklenemedi. {download_hint} Ayrıntı: {exc}"
+        ) from exc
 
 
 def read_image(image, source_label):
     """Return normalized OCR text for a Pillow image after resource checks."""
-    width, height = image.size
-    max_pixels = getattr(settings, "OCR_MAX_PIXELS", 20_000_000)
-    if width * height > max_pixels:
-        raise OCRProcessingError(
-            f"{source_label} atlandı: {width * height:,} piksel, izin verilen sınır {max_pixels:,}."
-        )
+    try:
+        width, height = image.size
+        validate_image_dimensions(width, height, source_label=source_label)
+    except DocumentPreflightError as exc:
+        raise OCRProcessingError(str(exc)) from exc
 
     try:
         import numpy as np
@@ -101,7 +103,16 @@ def open_image_bytes(content):
     from PIL import Image
 
     image = Image.open(BytesIO(content))
-    image.load()
+    try:
+        width, height = image.size
+        validate_image_dimensions(width, height)
+        image.load()
+    except DocumentPreflightError as exc:
+        image.close()
+        raise OCRProcessingError(str(exc)) from exc
+    except Exception:
+        image.close()
+        raise
     return image
 
 

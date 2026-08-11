@@ -4,9 +4,6 @@ from pathlib import Path
 from django.utils import timezone
 from docxtpl import DocxTemplate
 
-from ..models import FlightPermit
-
-
 TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "templates" / "flight_permit_template.docx"
 
 
@@ -15,20 +12,15 @@ def _format_date(value):
 
 
 def _validity_status_display(permit):
-    today = timezone.localdate()
-    if permit.status == FlightPermit.STATUS_SUSPENDED:
-        return "ASKIYA ALINDI / SUSPENDED"
-    if permit.status == FlightPermit.STATUS_REVOKED:
-        return "İPTAL EDİLDİ / REVOKED"
-    if permit.status == FlightPermit.STATUS_DRAFT:
-        return "TASLAK / DRAFT"
-    if permit.valid_from > today:
-        return "YAKLAŞAN / UPCOMING"
-    if permit.valid_until < today:
-        return "SÜRESİ DOLDU / EXPIRED"
-    if (permit.valid_until - today).days <= 30:
-        return "SÜRESİ YAKLAŞIYOR / EXPIRING"
-    return "GEÇERLİ / VALID"
+    return {
+        "draft": "TASLAK / DRAFT",
+        "upcoming": "YAKLAŞAN / UPCOMING",
+        "active": "GEÇERLİ / VALID",
+        "expiring": "SÜRESİ YAKLAŞIYOR / EXPIRING",
+        "expired": "SÜRESİ DOLDU / EXPIRED",
+        "suspended": "ASKIYA ALINDI / SUSPENDED",
+        "revoked": "İPTAL EDİLDİ / REVOKED",
+    }[permit.validity_status()]
 
 
 def build_flight_permit_document(permit):

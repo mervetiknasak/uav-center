@@ -10,7 +10,12 @@ from django.urls import reverse
 from .models import AsyncJob, Document
 from .services.document_extractor import extract_document
 from .services.job_queue import claim_next_job, execute_job
-from .services.ocr_processor import OCRProcessingError, extract_email_addresses, get_reader, read_image
+from .services.ocr_processor import (
+    OCRProcessingError,
+    extract_email_addresses,
+    get_reader,
+    read_image,
+)
 
 
 def png_bytes():
@@ -34,9 +39,12 @@ class EmailExtractionTests(SimpleTestCase):
         )
 
     def test_missing_local_models_raise_setup_error_without_importing_engine(self):
-        with TemporaryDirectory() as model_directory, override_settings(
-            OCR_MODEL_DIR=model_directory,
-            OCR_ALLOW_MODEL_DOWNLOAD=False,
+        with (
+            TemporaryDirectory() as model_directory,
+            override_settings(
+                OCR_MODEL_DIR=model_directory,
+                OCR_ALLOW_MODEL_DOWNLOAD=False,
+            ),
         ):
             get_reader.cache_clear()
             with self.assertRaisesMessage(OCRProcessingError, "model dosyaları bulunamadı"):
@@ -127,7 +135,9 @@ class DocumentOCRTests(SimpleTestCase):
         mocked_read.return_value = "scan@example.com"
         pdf = fitz.open()
         text_page = pdf.new_page()
-        text_page.insert_text((72, 72), "Bu sayfada OCR gerektirmeyecek kadar uzun yerel metin bulunuyor.")
+        text_page.insert_text(
+            (72, 72), "Bu sayfada OCR gerektirmeyecek kadar uzun yerel metin bulunuyor."
+        )
         pdf.new_page()
         with NamedTemporaryFile(suffix=".pdf") as pdf_file:
             pdf.save(pdf_file.name)
@@ -185,6 +195,25 @@ class DocumentUploadOCRApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("prompt", response.json())
+
+    @override_settings(DOCUMENT_MAX_UPLOAD_SIZE=4)
+    def test_upload_rejects_file_above_configured_total_size_limit(self):
+        response = self.client.post(
+            reverse("document-upload"),
+            data={
+                "file": SimpleUploadedFile(
+                    "oversized.txt",
+                    b"12345",
+                    content_type="text/plain",
+                ),
+                "prompt": "",
+                "use_ai": "false",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("file", response.json())
+        self.assertEqual(Document.objects.count(), 0)
 
     @patch("api.services.job_queue.answer_document_query")
     @patch("api.services.job_queue.extract_document")

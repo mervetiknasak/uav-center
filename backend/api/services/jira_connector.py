@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from django.conf import settings
+
+from ..common.network import InvalidServiceUrl, validated_http_url
 
 
 class JiraConnectorError(RuntimeError):
@@ -41,7 +44,7 @@ class JiraConfig:
     timeout: int = 30
 
     @classmethod
-    def from_settings(cls) -> "JiraConfig":
+    def from_settings(cls) -> JiraConfig:
         return cls(
             server=getattr(settings, "JIRA_SERVER", ""),
             email=getattr(settings, "JIRA_EMAIL", ""),
@@ -56,6 +59,10 @@ class JiraConfig:
     def validate(self) -> None:
         if not self.server:
             raise JiraConnectorError("JIRA_SERVER tanımlanmalıdır.")
+        try:
+            validated_http_url(self.server, setting_name="JIRA_SERVER")
+        except InvalidServiceUrl as exc:
+            raise JiraConnectorError(str(exc)) from exc
         if not (
             (self.email and self.api_token)
             or (self.username and self.password)
@@ -91,6 +98,12 @@ class JiraConnector:
         if self._client is None:
             self._client = self._build_client()
         return self._client
+
+    @property
+    def server_url(self) -> str:
+        """Expose only the URL needed by narrow publishing use-cases."""
+
+        return self.config.server
 
     def _build_client(self) -> Any:
         try:
@@ -558,9 +571,7 @@ class JiraConnector:
             self.client.add_remote_link,
             issue_key,
             destination,
-            **_without_none(
-                {"globalId": global_id, "relationship": relationship}
-            ),
+            **_without_none({"globalId": global_id, "relationship": relationship}),
         )
 
     # Watchers and votes
@@ -750,7 +761,7 @@ def _response_json(response: Any) -> Any | None:
             return json_method()
         except (TypeError, ValueError, json.JSONDecodeError):
             pass
-        except Exception:
+        except Exception:  # noqa: S110 - preserve the original Jira exception.
             # Error parsing must never hide the original Jira exception.
             pass
     text = getattr(response, "text", None)
@@ -815,7 +826,7 @@ def _humanize_response_text(text: str) -> str:
             humanized = parser.message()
             if humanized:
                 return humanized
-        except Exception:
+        except Exception:  # noqa: S110 - malformed provider HTML falls back to plain text.
             pass
         stripped = re.sub(r"<[^>]+>", " ", stripped)
     return _clean_detail(stripped)

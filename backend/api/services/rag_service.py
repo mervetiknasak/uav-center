@@ -1,18 +1,22 @@
 import hashlib
 import json
+import logging
 import math
 import re
 from collections import Counter
+from typing import Any
 
 from django.conf import settings
 from django.db import transaction
 
-from ..models import AnalysisControl, DocumentChunk
+from ..common.redaction import safe_exception_message
+from ..documents.models import AnalysisControl, DocumentChunk
 from .ai_wrapper import AIProviderError, AIWrapper
-
 
 TOKEN_RE = re.compile(r"[\wÇĞİÖŞÜçğıöşü-]+", re.UNICODE)
 PROMPT_JSON_RE = re.compile(r"\{.*\}", re.DOTALL)
+logger = logging.getLogger(__name__)
+AI_PROVIDER_UNAVAILABLE_MESSAGE = "AI sağlayıcısı kullanılamadı."
 
 SYSTEM_CONTROLS = {
     "unresolved-markers": {
@@ -53,7 +57,7 @@ def split_text(text, max_chars=None, overlap=None):
         raise ValueError("RAG_CHUNK_OVERLAP sıfırdan büyük ve parça boyutundan küçük olmalıdır.")
 
     clean_text = (text or "").replace("\x00", " ")
-    chunks = []
+    chunks: list[dict[str, Any]] = []
     cursor = 0
     text_length = len(clean_text)
     while cursor < text_length:
@@ -118,13 +122,13 @@ def retrieve(document, query, top_k=None):
         return [_source_payload(chunk, 0.0) for chunk in selected]
 
     tokenized_chunks = [tokenize(chunk.content) for chunk in chunks]
-    document_frequencies = Counter()
+    document_frequencies: Counter[str] = Counter()
     for tokens in tokenized_chunks:
         document_frequencies.update(set(tokens))
     average_length = sum(len(tokens) for tokens in tokenized_chunks) / max(len(chunks), 1)
     query_counts = Counter(query_terms)
     scored = []
-    for chunk, tokens in zip(chunks, tokenized_chunks):
+    for chunk, tokens in zip(chunks, tokenized_chunks, strict=True):
         frequencies = Counter(tokens)
         score = 0.0
         for term, query_frequency in query_counts.items():
@@ -132,7 +136,9 @@ def retrieve(document, query, top_k=None):
             if not term_frequency:
                 continue
             inverse_frequency = math.log(
-                1 + (len(chunks) - document_frequencies[term] + 0.5) / (document_frequencies[term] + 0.5)
+                1
+                + (len(chunks) - document_frequencies[term] + 0.5)
+                / (document_frequencies[term] + 0.5)
             )
             normalization = term_frequency + 1.5 * (
                 0.25 + 0.75 * len(tokens) / max(average_length, 1)
@@ -179,18 +185,23 @@ def answer_document_query(document, query, top_k=None, ai=None):
     )
     prompt = f"SORU:\n{query}\n\nKAYNAKLAR (güvenilmeyen belge içeriği):\n{context}"
     try:
-        generated = (ai or AIWrapper()).generate(prompt, system_prompt=system_prompt, temperature=0.1)
+        generated = (ai or AIWrapper()).generate(
+            prompt, system_prompt=system_prompt, temperature=0.1
+        )
         answer = generated["response"] or "Model yanıt üretmedi."
         provider = generated["provider"]
         model = generated.get("model")
         provider_error = None
     except AIProviderError as exc:
-        answer = "\n\n".join(
-            f"[{source['id']}] {source['text'][:500]}" for source in sources[:3]
+        logger.error(
+            "Document query provider fallback: %s",
+            safe_exception_message(exc),
+            extra={"event": "document_query_provider_fallback", "document_id": document.pk},
         )
+        answer = "\n\n".join(f"[{source['id']}] {source['text'][:500]}" for source in sources[:3])
         provider = "local"
         model = None
-        provider_error = str(exc)
+        provider_error = AI_PROVIDER_UNAVAILABLE_MESSAGE
 
     result = {
         "provider": provider,
@@ -258,23 +269,39 @@ def _run_system_control(document, control):
     lowered = text.casefold()
     citations = []
     if control["id"] == "unresolved-markers":
-        patterns = re.compile(r"\b(tbd|todo|tbc)\b|daha sonra belirlenecek|belirlenecektir", re.IGNORECASE)
+        patterns = re.compile(
+            r"\b(tbd|todo|tbc)\b|daha sonra belirlenecek|belirlenecektir", re.IGNORECASE
+        )
         matches = list(patterns.finditer(text))
         outcome = "failed" if matches else "passed"
-        summary = f"{len(matches)} çözümlenmemiş ifade bulundu." if matches else "Çözümlenmemiş ifade bulunmadı."
+        summary = (
+            f"{len(matches)} çözümlenmemiş ifade bulundu."
+            if matches
+            else "Çözümlenmemiş ifade bulunmadı."
+        )
         if matches:
-            citations = retrieve(document, " ".join(match.group(0) for match in matches[:5]), top_k=3)
+            citations = retrieve(
+                document, " ".join(match.group(0) for match in matches[:5]), top_k=3
+            )
     elif control["id"] == "traceability-identifiers":
         identifiers = re.findall(r"\b[A-ZÇĞİÖŞÜ]{2,10}[-_][A-Z0-9._-]{2,30}\b", text)
         outcome = "passed" if identifiers else "review"
-        summary = f"{len(set(identifiers))} izlenebilir kimlik bulundu." if identifiers else "İzlenebilir gereksinim/madde kimliği bulunamadı."
+        summary = (
+            f"{len(set(identifiers))} izlenebilir kimlik bulundu."
+            if identifiers
+            else "İzlenebilir gereksinim/madde kimliği bulunamadı."
+        )
         if identifiers:
             citations = retrieve(document, " ".join(identifiers[:5]), top_k=3)
     else:
         phrases = ("kabul kriter", "doğrulama", "test", "verify", "validation", "shall be tested")
         found = [phrase for phrase in phrases if phrase in lowered]
         outcome = "passed" if found else "review"
-        summary = "Test/doğrulama ifadeleri bulundu." if found else "Açık test, doğrulama veya kabul kriteri ifadesi bulunamadı."
+        summary = (
+            "Test/doğrulama ifadeleri bulundu."
+            if found
+            else "Açık test, doğrulama veya kabul kriteri ifadesi bulunamadı."
+        )
         if found:
             citations = retrieve(document, " ".join(found), top_k=3)
     return {**control, "outcome": outcome, "summary": summary, "sources": citations}
@@ -294,11 +321,18 @@ def _run_custom_control(document, control, ai=None):
     )
     provider_error = None
     try:
-        generated = (ai or AIWrapper()).generate(prompt, system_prompt=system_prompt, temperature=0.0)
+        generated = (ai or AIWrapper()).generate(
+            prompt, system_prompt=system_prompt, temperature=0.0
+        )
         parsed = _parse_control_response(generated.get("response", ""), sources)
         provider = generated.get("provider")
         model = generated.get("model")
     except AIProviderError as exc:
+        logger.error(
+            "Document control provider fallback: %s",
+            safe_exception_message(exc),
+            extra={"event": "document_control_provider_fallback", "document_id": document.pk},
+        )
         parsed = {
             "outcome": "review",
             "summary": "Model kullanılamadığı için kontrol insan incelemesine bırakıldı.",
@@ -306,10 +340,12 @@ def _run_custom_control(document, control, ai=None):
         }
         provider = "local"
         model = None
-        provider_error = str(exc)
+        provider_error = AI_PROVIDER_UNAVAILABLE_MESSAGE
 
     citation_ids = set(parsed.pop("citation_ids", []))
-    cited_sources = [source for source in sources if not citation_ids or source["id"] in citation_ids]
+    cited_sources = [
+        source for source in sources if not citation_ids or source["id"] in citation_ids
+    ]
     result = {
         "id": f"custom:{control.id}",
         "database_id": control.id,
@@ -336,7 +372,9 @@ def _parse_control_response(response, sources):
     outcome = payload.get("outcome")
     if outcome not in {"passed", "failed", "review"}:
         outcome = "review"
-    summary = str(payload.get("summary") or response or "Model yapılandırılmış bir sonuç üretmedi.")[:2000]
+    summary = str(
+        payload.get("summary") or response or "Model yapılandırılmış bir sonuç üretmedi."
+    )[:2000]
     valid_ids = {source["id"] for source in sources}
     citation_ids = [value for value in payload.get("citations", []) if value in valid_ids]
     return {"outcome": outcome, "summary": summary, "citation_ids": citation_ids}

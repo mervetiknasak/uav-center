@@ -1,5 +1,8 @@
 import os
 
+TRUE_VALUES = {"1", "true", "yes", "on"}
+FALSE_VALUES = {"0", "false", "no", "off"}
+
 
 def load_env_file(path):
     if not path.exists():
@@ -20,14 +23,24 @@ def env_bool(name, default=False):
     value = os.getenv(name)
     if value is None:
         return default
-    return value.lower() in {"1", "true", "yes", "on"}
+    normalized = value.strip().lower()
+    if normalized in TRUE_VALUES:
+        return True
+    if normalized in FALSE_VALUES:
+        return False
+    raise ValueError(
+        f"{name} geçerli bir boolean olmalı: {', '.join(sorted(TRUE_VALUES | FALSE_VALUES))}"
+    )
 
 
 def env_int(name, default):
     value = os.getenv(name)
     if value is None:
         return default
-    return int(value)
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} geçerli bir tam sayı olmalı.") from exc
 
 
 def env_list(name, default=None):
@@ -35,3 +48,11 @@ def env_list(name, default=None):
     if value is None:
         return default or []
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def env_choice(name, *, choices, default):
+    value = os.getenv(name, default).strip().lower()
+    if value not in choices:
+        allowed = ", ".join(sorted(choices))
+        raise ValueError(f"{name} şu değerlerden biri olmalı: {allowed}")
+    return value

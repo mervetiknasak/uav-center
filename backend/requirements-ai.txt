@@ -1,0 +1,4 @@
+-r requirements-base.txt
+
+openai-whisper>=20250625
+easyocr>=1.7.2,<2.0

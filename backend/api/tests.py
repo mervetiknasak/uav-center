@@ -1,9 +1,13 @@
+from datetime import timedelta
+from io import BytesIO
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
-from django.core.files.uploadedfile import SimpleUploadedFile
-from io import BytesIO
+from django.utils import timezone
 
 from .models import (
     CoverPage,
@@ -16,6 +20,7 @@ from .models import (
     TechnicalDocumentNotification,
     TechnicalDocumentStatusHistory,
 )
+from .services.word_table_parser import WordTableParseError
 
 
 class AuthApiTests(TestCase):
@@ -194,6 +199,52 @@ class WordTableParseApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    @override_settings(DOCUMENT_MAX_UPLOAD_SIZE=4)
+    @patch("api.meeting_minutes.views.parse_word_table")
+    def test_parse_rejects_oversized_docx_before_temporary_write(self, parse_word_table):
+        response = self.client.post(
+            reverse("word-table-parse"),
+            data={"file": self.word_file()},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("file", response.json())
+        parse_word_table.assert_not_called()
+
+    @patch("api.meeting_minutes.views.parse_word_table")
+    def test_parse_rejects_invalid_ooxml_before_temporary_write(self, parse_word_table):
+        response = self.client.post(
+            reverse("word-table-parse"),
+            data={
+                "file": SimpleUploadedFile(
+                    "invalid.docx",
+                    b"not an OOXML archive",
+                    content_type=(
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    ),
+                )
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("file", response.json())
+        parse_word_table.assert_not_called()
+
+    @patch("api.meeting_minutes.views.parse_word_table")
+    def test_parse_error_does_not_echo_temporary_path(self, parse_word_table):
+        parse_word_table.side_effect = WordTableParseError(
+            "invalid /private/tmp/upload-secret.docx pilot@example.com"
+        )
+
+        response = self.client.post(
+            reverse("word-table-parse"),
+            data={"file": self.word_file()},
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["detail"], "Word dosyası işlenemedi.")
+        self.assertNotIn("/private/tmp", response.content.decode())
+
     def test_parse_keeps_all_distinct_cells(self):
         from docx import Document
 
@@ -281,6 +332,7 @@ class WordTableParseApiTests(TestCase):
         )
         self.assertTrue(extracted["action_item_list_found"])
         self.assertTrue(extracted["attachments_found"])
+
 
 class OrganizationApiTests(TestCase):
     def setUp(self):
@@ -545,9 +597,70 @@ class TechnicalDocumentApiTests(TestCase):
         self.assertEqual(history.to_status, "approved")
         self.assertEqual(history.changed_by, self.admin)
 
+    def test_status_transition_requires_a_non_blank_audit_note(self):
+        document = self.create_document()
+        self.client.force_login(self.admin)
+
+        response = self.client.patch(
+            reverse(
+                "technical-document-detail",
+                kwargs={"technical_document_id": document.id},
+            ),
+            data={"status": "approved", "status_note": "   "},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("status_note", response.json())
+        document.refresh_from_db()
+        self.assertEqual(document.status, TechnicalDocument.STATUS_IN_REVIEW)
+        self.assertFalse(document.status_history.exists())
+
+    def test_project_change_requires_cover_page_reassignment_or_clear(self):
+        cover_page = CoverPage.objects.create(
+            project=self.project,
+            number="KP-OLD",
+            issue="01",
+        )
+        document = self.create_document(cover_page=cover_page)
+        self.client.force_login(self.admin)
+        detail_url = reverse(
+            "technical-document-detail",
+            kwargs={"technical_document_id": document.id},
+        )
+
+        rejected = self.client.patch(
+            detail_url,
+            data={
+                "project": self.other_project.id,
+                "panels": [self.other_panel.id],
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(rejected.status_code, 400)
+        self.assertIn("cover_page", rejected.json())
+        document.refresh_from_db()
+        self.assertEqual(document.project, self.project)
+        self.assertEqual(document.cover_page, cover_page)
+
+        accepted = self.client.patch(
+            detail_url,
+            data={
+                "project": self.other_project.id,
+                "panels": [self.other_panel.id],
+                "cover_page": None,
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(accepted.status_code, 200)
+        document.refresh_from_db()
+        self.assertEqual(document.project, self.other_project)
+        self.assertIsNone(document.cover_page)
+
     def test_notification_sends_to_panel_responsibles_and_records_audit(self):
         document = self.create_document()
-        self.client.force_login(self.user)
+        self.client.force_login(self.admin)
 
         response = self.client.post(
             reverse(
@@ -556,6 +669,7 @@ class TechnicalDocumentApiTests(TestCase):
             ),
             data={"message": "Dokümanın incelemesi için bilginize."},
             content_type="application/json",
+            HTTP_IDEMPOTENCY_KEY="notification-api-0001",
         )
 
         self.assertEqual(response.status_code, 200)
@@ -563,6 +677,132 @@ class TechnicalDocumentApiTests(TestCase):
         self.assertEqual(mail.outbox[0].bcc, ["ada@example.com"])
         notification = TechnicalDocumentNotification.objects.get(document=document)
         self.assertEqual(notification.status, "sent")
+        self.assertEqual(notification.idempotency_key, "notification-api-0001")
         self.assertEqual(notification.recipient_count, 1)
         document.refresh_from_db()
         self.assertEqual(document.last_notification_recipient_count, 1)
+
+        retry_response = self.client.post(
+            reverse(
+                "technical-document-notify",
+                kwargs={"technical_document_id": document.id},
+            ),
+            data={"message": "Dokümanın incelemesi için bilginize."},
+            content_type="application/json",
+            HTTP_IDEMPOTENCY_KEY="notification-api-0001",
+        )
+        self.assertEqual(retry_response.status_code, 200)
+        self.assertIn("daha önce gönderildi", retry_response.json()["message"])
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(TechnicalDocumentNotification.objects.filter(document=document).count(), 1)
+
+    def test_notification_requires_a_valid_idempotency_key(self):
+        document = self.create_document()
+        self.client.force_login(self.admin)
+
+        missing = self.client.post(
+            reverse(
+                "technical-document-notify",
+                kwargs={"technical_document_id": document.id},
+            ),
+            data={"message": "Eksik anahtar."},
+            content_type="application/json",
+        )
+        invalid = self.client.post(
+            reverse(
+                "technical-document-notify",
+                kwargs={"technical_document_id": document.id},
+            ),
+            data={"message": "Geçersiz anahtar."},
+            content_type="application/json",
+            HTTP_IDEMPOTENCY_KEY="short",
+        )
+
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(invalid.status_code, 400)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertFalse(TechnicalDocumentNotification.objects.filter(document=document).exists())
+
+    @override_settings(TECHNICAL_NOTIFICATION_PENDING_TIMEOUT=60)
+    def test_stale_pending_notification_returns_unknown_without_resending(self):
+        document = self.create_document()
+        notification = TechnicalDocumentNotification.objects.create(
+            document=document,
+            subject="Konu",
+            message="İçerik",
+            recipients=["ada@example.com"],
+            recipient_count=1,
+            status=TechnicalDocumentNotification.STATUS_PENDING,
+            sent_by=self.admin,
+            idempotency_key="notification-api-stale",
+        )
+        TechnicalDocumentNotification.objects.filter(pk=notification.pk).update(
+            created_at=timezone.now() - timedelta(minutes=2)
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse(
+                "technical-document-notify",
+                kwargs={"technical_document_id": document.id},
+            ),
+            data={"subject": "Konu", "message": "İçerik"},
+            content_type="application/json",
+            HTTP_IDEMPOTENCY_KEY="notification-api-stale",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["notification"]["status"], "unknown")
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_regular_user_cannot_send_technical_document_notification(self):
+        document = self.create_document()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse(
+                "technical-document-notify",
+                kwargs={"technical_document_id": document.id},
+            ),
+            data={"message": "Yetkisiz bildirim."},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertFalse(TechnicalDocumentNotification.objects.filter(document=document).exists())
+
+    def test_notification_audit_details_are_visible_only_to_staff(self):
+        document = self.create_document()
+        TechnicalDocumentNotification.objects.create(
+            document=document,
+            subject="Gizli konu",
+            message="Gizli bildirim gövdesi",
+            recipients=["ada@example.com"],
+            recipient_count=1,
+            status=TechnicalDocumentNotification.STATUS_FAILED,
+            error_message="SMTP iç hata ayrıntısı",
+            sent_by=self.admin,
+        )
+        detail_url = reverse(
+            "technical-document-detail",
+            kwargs={"technical_document_id": document.id},
+        )
+
+        self.client.force_login(self.user)
+        reader_payload = self.client.get(detail_url).json()
+        reader_audit = reader_payload["notifications"][0]
+        self.assertEqual(reader_payload["notification_recipients"], [])
+        for sensitive_field in ("subject", "message", "recipients", "error_message"):
+            self.assertNotIn(sensitive_field, reader_audit)
+
+        self.client.force_login(self.admin)
+        staff_payload = self.client.get(detail_url).json()
+        staff_audit = staff_payload["notifications"][0]
+        self.assertEqual(staff_audit["message"], "Gizli bildirim gövdesi")
+        self.assertEqual(staff_audit["recipients"], ["ada@example.com"])
+        self.assertEqual(staff_audit["error_message"], "SMTP iç hata ayrıntısı")
+        self.assertEqual(
+            staff_payload["notification_recipients"][0]["email"],
+            "ada@example.com",
+        )

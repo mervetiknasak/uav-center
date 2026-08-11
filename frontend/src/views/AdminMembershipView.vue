@@ -45,10 +45,7 @@ const emit = defineEmits(["refresh", "update-status"]);
           <n-list v-else hoverable>
             <n-list-item v-for="user in users" :key="user.id">
               <div class="user-row">
-                <n-thing
-                  :title="user.username"
-                  :description="user.email || 'E-posta yok'"
-                />
+                <n-thing :title="user.username" :description="user.email || 'E-posta yok'" />
                 <div class="user-actions">
                   <n-tag :type="user.is_active ? 'success' : 'warning'">
                     {{ user.is_active ? "Aktif" : "Pending" }}

@@ -7,7 +7,8 @@ const props = defineProps({
   publishing: Boolean,
   error: { type: String, default: "" },
   result: { type: Object, default: null },
-  publishResult: { type: Object, default: null }
+  publishResult: { type: Object, default: null },
+  canPublish: { type: Boolean, default: false }
 });
 
 const emit = defineEmits(["parse", "publish"]);
@@ -17,9 +18,7 @@ const draft = ref(null);
 watch(
   () => props.result,
   (result) => {
-    draft.value = result?.jira_draft
-      ? JSON.parse(JSON.stringify(result.jira_draft))
-      : null;
+    draft.value = result?.jira_draft ? JSON.parse(JSON.stringify(result.jira_draft)) : null;
   },
   { immediate: true }
 );
@@ -47,6 +46,7 @@ function setAllMeetingFields(enabled) {
 }
 
 function publish() {
+  if (!props.canPublish) return;
   emit("publish", JSON.parse(JSON.stringify(draft.value)));
 }
 </script>
@@ -60,22 +60,25 @@ function publish() {
     </div>
 
     <n-card title="Toplantı Tutanağı Yükle" size="small">
-      <n-upload directory-dnd :max="1" accept=".docx" :custom-request="parseFile" :disabled="loading">
+      <n-upload
+        directory-dnd
+        :max="1"
+        accept=".docx"
+        :custom-request="parseFile"
+        :disabled="loading"
+      >
         <n-upload-dragger>
           <div class="upload-title">Toplantı tutanağını buraya bırakın</div>
-          <div class="upload-subtitle">{{ selectedFileName || "Desteklenen dosya biçimi: .docx" }}</div>
+          <div class="upload-subtitle">
+            {{ selectedFileName || "Desteklenen dosya biçimi: .docx" }}
+          </div>
         </n-upload-dragger>
       </n-upload>
       <n-alert v-if="error" type="error" title="İşlem başarısız">{{ error }}</n-alert>
     </n-card>
 
     <template v-if="draft">
-      <n-alert
-        v-for="warning in draft.warnings"
-        :key="warning"
-        type="warning"
-        :show-icon="true"
-      >
+      <n-alert v-for="warning in draft.warnings" :key="warning" type="warning" :show-icon="true">
         {{ warning }}
       </n-alert>
 
@@ -133,7 +136,10 @@ function publish() {
         </n-card>
       </n-card>
 
-      <n-card :title="`Sub-task Taslakları (${enabledSubtasks}/${draft.subtasks.length})`" size="small">
+      <n-card
+        :title="`Sub-task Taslakları (${enabledSubtasks}/${draft.subtasks.length})`"
+        size="small"
+      >
         <n-empty v-if="!draft.subtasks.length" description="Aksiyon maddesi bulunamadı" />
         <n-collapse v-else>
           <n-collapse-item
@@ -159,7 +165,9 @@ function publish() {
               </n-button>
             </template>
             <n-form :disabled="!item.enabled">
-              <n-form-item label="Özet" required><n-input v-model:value="item.summary" /></n-form-item>
+              <n-form-item label="Özet" required
+                ><n-input v-model:value="item.summary"
+              /></n-form-item>
               <n-form-item label="Açıklama">
                 <n-input v-model:value="item.description" type="textarea" />
               </n-form-item>
@@ -179,7 +187,7 @@ function publish() {
         </n-collapse>
       </n-card>
 
-      <n-space justify="end">
+      <n-space v-if="canPublish" justify="end">
         <n-button
           type="primary"
           :loading="publishing"
@@ -190,16 +198,25 @@ function publish() {
         </n-button>
       </n-space>
 
+      <n-alert v-else type="info" title="Jira yayınlama yetkisi">
+        Taslağı inceleyebilirsiniz. Jira'da Task ve Sub-task oluşturma yalnızca admin
+        kullanıcılarına açıktır.
+      </n-alert>
+
       <n-alert
         v-if="publishResult"
         :type="['created', 'existing'].includes(publishResult.status) ? 'success' : 'warning'"
         title="Jira aktarım sonucu"
       >
         <div v-if="publishResult.message">{{ publishResult.message }}</div>
-        <a :href="publishResult.task.url" target="_blank">{{ publishResult.task.key }}</a>
+        <a :href="publishResult.task.url" target="_blank" rel="noopener noreferrer">
+          {{ publishResult.task.key }}
+        </a>
         <ul v-if="publishResult.subtasks?.length">
           <li v-for="item in publishResult.subtasks" :key="item.client_id">
-            <a v-if="item.url" :href="item.url" target="_blank">{{ item.key }}</a>
+            <a v-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer">
+              {{ item.key }}
+            </a>
             <span v-else>{{ item.error }}</span>
           </li>
         </ul>

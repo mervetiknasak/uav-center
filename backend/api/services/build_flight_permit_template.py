@@ -11,7 +11,6 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
-
 INK = "0F172A"
 MUTED = "64748B"
 ACCENT = "0F766E"
@@ -199,8 +198,11 @@ def build_template(output_path):
     set_table_geometry(footer_table, [7200, 2160])
     set_repeat_table_header(footer_table.rows[0])
     footer_table.rows[0].cells[0].paragraphs[0].paragraph_format.space_after = Pt(0)
-    footer_note = footer_table.rows[0].cells[0].paragraphs[0].add_run(
-        "Bu belge UAV Center uçuş izni kaydından elektronik olarak oluşturulmuştur."
+    footer_note = (
+        footer_table.rows[0]
+        .cells[0]
+        .paragraphs[0]
+        .add_run("Bu belge UAV Center uçuş izni kaydından elektronik olarak oluşturulmuştur.")
     )
     set_run_font(footer_note, size=8, color=MUTED)
     add_page_number(footer_table.rows[0].cells[1].paragraphs[0])

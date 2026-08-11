@@ -3,15 +3,29 @@ import tempfile
 from datetime import timedelta
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
-from docx import Document
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.utils import timezone
+from docx import Document
+from pypdf import PdfWriter
 from rest_framework.test import APITestCase
 
+from .flight_permits.services.lifecycle import (
+    create_flight_permit,
+    update_flight_permit,
+)
 from .models import FlightPermit
+
+
+def valid_pdf_bytes() -> bytes:
+    output = BytesIO()
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.write(output)
+    return output.getvalue()
 
 
 class FlightPermitApiTests(APITestCase):
@@ -50,7 +64,7 @@ class FlightPermitApiTests(APITestCase):
     def test_create_list_update_and_open_document(self):
         upload = SimpleUploadedFile(
             "ucus-izni.pdf",
-            b"%PDF-1.4 test permit",
+            valid_pdf_bytes(),
             content_type="application/pdf",
         )
         response = self.client.post(
@@ -80,11 +94,12 @@ class FlightPermitApiTests(APITestCase):
         self.assertEqual(document_response.status_code, 200)
         self.assertEqual(document_response["Content-Type"], "application/pdf")
 
-        update_response = self.client.patch(
-            f"/api/flight-permits/{permit.id}/",
-            {"flight_region": "Konya Test Sahası", "remove_document": "true"},
-            format="multipart",
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            update_response = self.client.patch(
+                f"/api/flight-permits/{permit.id}/",
+                {"flight_region": "Konya Test Sahası", "remove_document": "true"},
+                format="multipart",
+            )
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.data["flight_region"], "Konya Test Sahası")
         self.assertEqual(update_response.data["document_url"], "")
@@ -102,9 +117,7 @@ class FlightPermitApiTests(APITestCase):
         )
         permit_id = create_response.data["id"]
 
-        response = self.client.get(
-            f"/api/flight-permits/{permit_id}/generated-document/"
-        )
+        response = self.client.get(f"/api/flight-permits/{permit_id}/generated-document/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -112,7 +125,9 @@ class FlightPermitApiTests(APITestCase):
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
         self.assertIn("attachment", response["Content-Disposition"])
-        self.assertIn("Ucus_Izni_TC-UAV-104_SHGM-UI-2026-0042.docx", response["Content-Disposition"])
+        self.assertIn(
+            "Ucus_Izni_TC-UAV-104_SHGM-UI-2026-0042.docx", response["Content-Disposition"]
+        )
 
         generated = Document(BytesIO(b"".join(response.streaming_content)))
         text_parts = [paragraph.text for paragraph in generated.paragraphs]
@@ -150,8 +165,60 @@ class FlightPermitApiTests(APITestCase):
         self.assertEqual(invalid_document.status_code, 400)
         self.assertIn("document", invalid_document.data)
 
+        for index, filename in enumerate(("izin.doc", "liste.xls"), start=4):
+            with self.subTest(filename=filename):
+                legacy_document = self.client.post(
+                    "/api/flight-permits/",
+                    {
+                        **self.permit_payload(permit_number=f"SHGM-UI-2026-004{index}"),
+                        "document": SimpleUploadedFile(filename, b"legacy binary"),
+                    },
+                    format="multipart",
+                )
+                self.assertEqual(legacy_document.status_code, 400)
+                self.assertIn("document", legacy_document.data)
+
+    def test_rejects_content_that_does_not_match_the_permitted_extension(self):
+        response = self.client.post(
+            "/api/flight-permits/",
+            {
+                **self.permit_payload(),
+                "document": SimpleUploadedFile(
+                    "izin.pdf",
+                    b"<script>alert('xss')</script>",
+                    content_type="text/html",
+                ),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("document", response.data)
+        self.assertFalse(FlightPermit.objects.exists())
+
+    def test_server_mime_policy_ignores_spoofed_client_content_type(self):
+        response = self.client.post(
+            "/api/flight-permits/",
+            {
+                **self.permit_payload(),
+                "document": SimpleUploadedFile(
+                    "izin.pdf",
+                    valid_pdf_bytes(),
+                    content_type="text/html",
+                ),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["document_content_type"], "application/pdf")
+        document_response = self.client.get(f"/api/flight-permits/{response.data['id']}/document/")
+        self.assertEqual(document_response.status_code, 200)
+        self.assertEqual(document_response["Content-Type"], "application/pdf")
+        self.assertEqual(document_response["X-Content-Type-Options"], "nosniff")
+
     def test_deleting_permit_deletes_stored_document(self):
-        upload = SimpleUploadedFile("izin.pdf", b"%PDF-1.4")
+        upload = SimpleUploadedFile("izin.pdf", valid_pdf_bytes())
         create_response = self.client.post(
             "/api/flight-permits/",
             {**self.permit_payload(), "document": upload},
@@ -160,8 +227,85 @@ class FlightPermitApiTests(APITestCase):
         permit = FlightPermit.objects.get(pk=create_response.data["id"])
         stored_document = Path(permit.document.path)
 
-        delete_response = self.client.delete(f"/api/flight-permits/{permit.id}/")
+        with self.captureOnCommitCallbacks(execute=True):
+            delete_response = self.client.delete(f"/api/flight-permits/{permit.id}/")
 
         self.assertEqual(delete_response.status_code, 204)
         self.assertFalse(FlightPermit.objects.filter(pk=permit.id).exists())
         self.assertFalse(stored_document.exists())
+
+    def test_create_failure_rolls_back_record_and_compensates_stored_document(self):
+        original_save = FlightPermit.save
+
+        def save_then_fail(instance, *args, **kwargs):
+            original_save(instance, *args, **kwargs)
+            raise RuntimeError("database commit failed")
+
+        today = timezone.localdate()
+        with (
+            patch.object(FlightPermit, "save", new=save_then_fail),
+            self.assertRaisesMessage(RuntimeError, "database commit failed"),
+        ):
+            create_flight_permit(
+                validated_data={
+                    "aircraft_number": "TC-UAV-FAIL",
+                    "permit_number": "SHGM-FAIL-1",
+                    "permit_type": FlightPermit.TYPE_TEST,
+                    "issuing_authority": "SHGM",
+                    "valid_from": today,
+                    "valid_until": today + timedelta(days=60),
+                    "status": FlightPermit.STATUS_APPROVED,
+                    "document": SimpleUploadedFile(
+                        "rollback.pdf",
+                        b"%PDF-1.4 rollback",
+                        content_type="application/pdf",
+                    ),
+                },
+                actor=self.user,
+            )
+
+        self.assertFalse(FlightPermit.objects.exists())
+        self.assertEqual(list(Path(self.media_root).rglob("rollback.pdf")), [])
+
+    def test_update_failure_keeps_old_file_and_compensates_replacement(self):
+        create_response = self.client.post(
+            "/api/flight-permits/",
+            {
+                **self.permit_payload(),
+                "document": SimpleUploadedFile(
+                    "original.pdf",
+                    valid_pdf_bytes(),
+                    content_type="application/pdf",
+                ),
+            },
+            format="multipart",
+        )
+        permit = FlightPermit.objects.get(pk=create_response.data["id"])
+        original_name = permit.document.name
+        original_path = Path(permit.document.path)
+        original_save = FlightPermit.save
+
+        def save_then_fail(instance, *args, **kwargs):
+            original_save(instance, *args, **kwargs)
+            raise RuntimeError("database update failed")
+
+        with (
+            patch.object(FlightPermit, "save", new=save_then_fail),
+            self.assertRaisesMessage(RuntimeError, "database update failed"),
+        ):
+            update_flight_permit(
+                permit=permit,
+                validated_data={
+                    "document": SimpleUploadedFile(
+                        "replacement.pdf",
+                        b"%PDF-1.4 replacement",
+                        content_type="application/pdf",
+                    )
+                },
+                actor=self.user,
+            )
+
+        persisted = FlightPermit.objects.get(pk=permit.pk)
+        self.assertEqual(persisted.document.name, original_name)
+        self.assertTrue(original_path.exists())
+        self.assertEqual(list(Path(self.media_root).rglob("replacement.pdf")), [])

@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
-from typing import Any
+from collections.abc import Mapping, Sequence
+from typing import Any, Protocol
 
 from django.conf import settings
 
-from ..models import PanelResponsible
-from .jira_connector import JiraConnector, JiraConnectorError
-
+from ..common.redaction import safe_exception_message
+from ..organization.models import PanelResponsible
+from .jira_connector import JiraConnectorError
 
 MEETING_FIELDS = (
     ("project", "Proje"),
@@ -22,6 +24,35 @@ MEETING_FIELDS = (
     ("agenda", "Gündem"),
     ("discussions_decisions", "Görüşmeler ve kararlar"),
 )
+logger = logging.getLogger(__name__)
+
+
+class JiraDraftPublisher(Protocol):
+    """Narrow Jira surface required to publish one meeting-minute draft."""
+
+    @property
+    def server_url(self) -> str: ...
+
+    def search_issues(
+        self,
+        jql: str,
+        *,
+        max_results: int | bool = 50,
+        fields: str | Sequence[str] = "*all",
+    ) -> Sequence[Any]: ...
+
+    def create_issue(
+        self,
+        *,
+        project_key: str,
+        summary: str,
+        issue_type: str,
+        description: str | None = None,
+        assignee_username: str | None = None,
+        labels: Sequence[str] | None = None,
+        parent_key: str | None = None,
+        custom_fields: Mapping[str, Any] | None = None,
+    ) -> Any: ...
 
 
 def _slug(value: str) -> str:
@@ -34,12 +65,10 @@ def build_jira_draft(extracted: dict[str, Any]) -> dict[str, Any]:
     by_name = {person.name.casefold().strip(): person.username for person in people}
     subject = (extracted.get("subject") or "").strip()
     mom_no = (extracted.get("mom_no") or "").strip()
-    fingerprint_source = "|".join(
-        str(extracted.get(key) or "") for key, _label in MEETING_FIELDS
+    fingerprint_source = "|".join(str(extracted.get(key) or "") for key, _label in MEETING_FIELDS)
+    fingerprint = (
+        _slug(mom_no) or hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()[:16]
     )
-    fingerprint = _slug(mom_no) or hashlib.sha256(
-        fingerprint_source.encode("utf-8")
-    ).hexdigest()[:16]
     duplicate_label = f"meeting-minutes-{fingerprint}"
 
     meeting_fields = [
@@ -102,15 +131,17 @@ def _issue_result(issue: Any, server: str) -> dict[str, str]:
     return {"key": key, "url": f"{server.rstrip('/')}/browse/{key}"}
 
 
-def publish_jira_draft(payload: dict[str, Any]) -> dict[str, Any]:
+def publish_jira_draft(
+    payload: dict[str, Any],
+    *,
+    jira: JiraDraftPublisher,
+) -> dict[str, Any]:
     task = payload["task"]
     project_key = task["project_key"].strip()
     labels = [str(label).strip() for label in task.get("labels", []) if str(label).strip()]
     duplicate_label = next(
         (label for label in labels if label.startswith("meeting-minutes-")), None
     )
-    jira = JiraConnector()
-
     existing_parent = None
     if duplicate_label:
         existing = jira.search_issues(
@@ -128,7 +159,7 @@ def publish_jira_draft(payload: dict[str, Any]) -> dict[str, Any]:
         description=_description(task.get("meeting_fields", [])),
         labels=labels,
     )
-    parent = _issue_result(parent_issue, jira.config.server)
+    parent = _issue_result(parent_issue, jira.server_url)
     results = []
     for item in payload.get("subtasks", []):
         if not item.get("enabled", True):
@@ -146,7 +177,7 @@ def publish_jira_draft(payload: dict[str, Any]) -> dict[str, Any]:
                         {
                             "client_id": item.get("client_id"),
                             "status": "skipped",
-                            **_issue_result(existing_subtasks[0], jira.config.server),
+                            **_issue_result(existing_subtasks[0], jira.server_url),
                         }
                     )
                     continue
@@ -167,23 +198,26 @@ def publish_jira_draft(payload: dict[str, Any]) -> dict[str, Any]:
                 {
                     "client_id": item.get("client_id"),
                     "status": "created",
-                    **_issue_result(issue, jira.config.server),
+                    **_issue_result(issue, jira.server_url),
                 }
             )
         except (JiraConnectorError, KeyError, ValueError) as exc:
+            logger.error(
+                "Jira subtask publish failed: %s",
+                safe_exception_message(exc),
+                extra={"event": "jira_subtask_publish_failed"},
+            )
             results.append(
                 {
                     "client_id": item.get("client_id"),
                     "status": "error",
-                    "error": str(exc),
+                    "error": "Alt görev Jira'ya aktarılamadı.",
                 }
             )
     return {
         "status": "existing" if existing_parent else "created",
         "message": (
-            "Mevcut Task kullanıldı; eksik Sub-task'lar işlendi."
-            if existing_parent
-            else ""
+            "Mevcut Task kullanıldı; eksik Sub-task'lar işlendi." if existing_parent else ""
         ),
         "task": parent,
         "subtasks": results,

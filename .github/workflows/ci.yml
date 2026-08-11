@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      APP_ENV: test
+      LOG_LEVEL: WARNING
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements-base.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r backend/requirements-base.txt -r backend/requirements-dev.txt
+
+      - name: Check installed dependency consistency
+        run: python -m pip check
+
+      - name: Lint Python
+        run: python -m ruff check launcher.py backend/config backend/api
+
+      - name: Check Python formatting
+        run: python -m ruff format --check launcher.py backend/config backend/api
+
+      - name: Check Python types
+        run: python -m mypy
+
+      - name: Run Django system and migration checks
+        working-directory: backend
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+
+      - name: Run backend tests
+        working-directory: backend
+        run: python manage.py test api config --noinput
+
+      - name: Check production security settings
+        working-directory: backend
+        env:
+          APP_ENV: production
+          DJANGO_ALLOWED_HOSTS: uav.example.test
+          DJANGO_DEBUG: "false"
+          DJANGO_SECRET_KEY: ci-only-A7f9!ci-only-A7f9!ci-only-A7f9!ci-only-A7f9!
+          EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+          JIRA_VERIFY_SSL: "true"
+          LOG_FORMAT: json
+          OCR_ALLOW_MODEL_DOWNLOAD: "false"
+          DJANGO_SECURE_HSTS_PRELOAD: "true"
+        run: python manage.py check --deploy --fail-level WARNING
+
+  frontend:
+    name: Frontend quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run frontend quality checks
+        run: npm run check

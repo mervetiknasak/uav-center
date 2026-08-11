@@ -3,6 +3,12 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Operating system and Office temporary files
+.DS_Store
+**/.DS_Store
+~$*
+*.tmp
+
 # C extensions
 *.so
 

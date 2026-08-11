@@ -1,0 +1,72 @@
+.word-jira-view {
+  display: grid;
+  gap: 18px;
+}
+
+.word-jira-view .page-heading span {
+  display: block;
+  margin-top: 8px;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.word-cell-table-wrap {
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.word-action-items {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.word-multiline-text {
+  white-space: pre-line;
+}
+
+.word-index-table {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.meeting-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.meeting-field-row {
+  display: grid;
+  grid-template-columns: minmax(210px, 260px) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.meeting-field-label {
+  display: flex;
+  align-items: flex-start;
+  min-height: 34px;
+  padding: 7px 12px;
+  background: #f8fafc;
+  border: 1px solid #d8dee9;
+  border-right: 0;
+  border-radius: 4px 0 0 4px;
+}
+
+.meeting-field-label .n-checkbox {
+  width: 100%;
+}
+
+.meeting-field-value {
+  min-width: 0;
+}
+
+.meeting-field-value .n-input {
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+}
+
+.meeting-field-row-disabled .meeting-field-label {
+  color: #94a3b8;
+  background: #f1f5f9;
+}

@@ -3,10 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24.19.0 <25"
+  },
+  "packageManager": "npm@11.17.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint src vite.config.js eslint.config.js prettier.config.js vitest.config.js --max-warnings=0",
+    "lint:fix": "npm run lint -- --fix",
+    "format": "prettier --write \"src/**/*.{js,vue,css}\" index.html vite.config.js eslint.config.js prettier.config.js vitest.config.js",
+    "format:check": "prettier --check index.html vite.config.js eslint.config.js prettier.config.js vitest.config.js",
+    "format:check:all": "prettier --check \"src/**/*.{js,vue,css}\" index.html vite.config.js eslint.config.js prettier.config.js vitest.config.js",
+    "test": "vitest",
+    "test:unit": "vitest run --passWithNoTests",
+    "check": "npm run lint && npm run format:check:all && npm run test:unit && npm run build"
   },
   "dependencies": {
     "@lucide/vue": "^1.22.0",
@@ -15,5 +27,14 @@
     "vite": "^6.2.0",
     "vue": "^3.5.13",
     "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.8.1",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-vue": "10.10.0",
+    "globals": "17.9.0",
+    "prettier": "3.9.6",
+    "vitest": "4.1.10"
   }
 }

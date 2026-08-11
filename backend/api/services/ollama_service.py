@@ -1,17 +1,27 @@
 import json
+import logging
 import urllib.error
 import urllib.request
 
 from django.conf import settings
 
+from ..common.network import validated_http_url
+from ..common.redaction import safe_exception_message
 from .ai_wrapper import AIProviderError
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaService:
     """Small, dependency-free gateway for the local Ollama HTTP API."""
 
     def __init__(self, base_url=None, model=None, timeout=None):
-        self.base_url = (base_url or settings.OLLAMA_BASE_URL).rstrip("/")
+        self.base_url = validated_http_url(
+            base_url or settings.OLLAMA_BASE_URL,
+            setting_name="OLLAMA_BASE_URL",
+            require_local=not getattr(settings, "AI_ALLOW_REMOTE_SERVICES", False),
+            require_https_for_remote=getattr(settings, "IS_PRODUCTION", False),
+        ).rstrip("/")
         self.model = model or settings.OLLAMA_MODEL
         self.timeout = timeout or settings.OLLAMA_TIMEOUT
 
@@ -21,13 +31,18 @@ class OllamaService:
             tags = self._json_request("GET", "/api/tags", timeout=10)
             running = self._json_request("GET", "/api/ps", timeout=10)
         except AIProviderError as exc:
+            logger.error(
+                "Ollama status probe failed: %s",
+                safe_exception_message(exc),
+                extra={"event": "ollama_status_failed"},
+            )
             return {
                 "connected": False,
                 "base_url": self.base_url,
                 "configured_model": self.model,
                 "installed": False,
                 "loaded": False,
-                "error": str(exc),
+                "error": "Ollama servisine ulaşılamadı.",
                 "models": [],
                 "running_models": [],
             }
@@ -69,7 +84,7 @@ class OllamaService:
     def chat_stream(self, payload):
         request = self._request("POST", "/api/chat", payload, timeout=self.timeout)
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310
                 for raw_line in response:
                     line = raw_line.decode("utf-8").strip()
                     if not line:
@@ -87,7 +102,10 @@ class OllamaService:
     def _json_request(self, method, path, payload=None, timeout=None):
         request = self._request(method, path, payload, timeout=timeout)
         try:
-            with urllib.request.urlopen(request, timeout=timeout or self.timeout) as response:
+            with urllib.request.urlopen(  # noqa: S310
+                request,
+                timeout=timeout or self.timeout,
+            ) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             detail = self._http_error_detail(exc)
@@ -99,7 +117,7 @@ class OllamaService:
         del timeout  # Kept in the signature to make call sites self-documenting.
         data = None if payload is None else json.dumps(payload).encode("utf-8")
         headers = {"Content-Type": "application/json"} if data is not None else {}
-        return urllib.request.Request(
+        return urllib.request.Request(  # noqa: S310 - base URL is validated in __init__.
             f"{self.base_url}{path}", data=data, headers=headers, method=method
         )
 

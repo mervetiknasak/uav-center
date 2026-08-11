@@ -19,14 +19,6 @@ export function useWordToJira(apiFetch) {
     try {
       const data = await apiFetch("/api/word-to-jira/parse/", { method: "POST", body: formData });
       parseResult.value = data;
-      console.group(`[Word → Jira] ${data.file_name}`);
-      data.cells.forEach((cell) => {
-        console.log(
-          `index=${cell.index} table=${cell.table_index} row=${cell.row_index} column=${cell.column_index}`,
-          cell.text
-        );
-      });
-      console.groupEnd();
       onFinish?.();
     } catch (err) {
       error.value = errorMessage(err, "Word dosyası okunamadı");

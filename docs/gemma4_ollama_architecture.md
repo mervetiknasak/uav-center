@@ -15,7 +15,7 @@ Django REST API (/api/ai/ollama/*)
   ├─ istek boyutu ve alan doğrulama
   ├─ OllamaChatRequestSerializer
   └─ StreamingHttpResponse
-            │ yalnızca localhost
+            │ varsayılan: loopback/private
             ▼
 OllamaService (urllib tabanlı gateway)
   ├─ /api/version, /api/tags, /api/ps
@@ -27,9 +27,10 @@ gemma4:e4b (Q4_K_M, 128K context, text + image)
 ```
 
 Tarayıcı Ollama'ya doğrudan bağlanmaz. Kimlik doğrulama, CSRF koruması, istek
-doğrulama ve model yönetimi yetkileri Django sınırında uygulanır. Bu tasarım,
-Ollama'nın yalnızca `127.0.0.1:11434` üzerinde kalmasını ve uygulamanın ileride
-başka bir yerel model sağlayıcısına geçirilebilmesini sağlar.
+doğrulama ve model yönetimi yetkileri Django sınırında uygulanır. Varsayılan
+`AI_ALLOW_REMOTE_SERVICES=false` politikası Ollama'yı loopback/private hostta
+tutar ve uygulamanın ileride başka bir yerel model sağlayıcısına geçirilebilmesini
+sağlar.
 
 ## Kurulum
 
@@ -44,6 +45,7 @@ ollama pull gemma4:e4b
 
 ```env
 AI_PROVIDER=ollama
+AI_ALLOW_REMOTE_SERVICES=false
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=gemma4:e4b
 OLLAMA_TIMEOUT=600
@@ -73,6 +75,9 @@ ayarını destekler.
   sınırlandırılmıştır; aktif kullanıcılar modeli kullanabilir.
 - Görseller için toplam istek sınırı ve üç görsel sınırı uygulanır. Görsel base64
   verisi sunucuda saklanmaz.
+- Uzak Ollama ancak `AI_ALLOW_REMOTE_SERVICES=true` açık onayıyla kullanılabilir.
+  Production uzak URL'si HTTPS olmalı; prompt, geçmiş ve base64 görsellerin host
+  dışına çıktığı veri sınıflandırması/tedarikçi incelemesiyle onaylanmalıdır.
 - Araç çağrıları test arayüzünde görünür fakat otomatik çalıştırılmaz. Gerçek araç
   yürütme eklenecekse fonksiyonlar sunucu tarafında açık allow-list, bağımsız
   yetkilendirme ve zaman aşımı ile uygulanmalıdır.

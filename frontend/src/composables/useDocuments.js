@@ -87,9 +87,13 @@ export function useDocuments(apiFetch) {
     try {
       const firstLoad = controls.value.length === 0;
       controls.value = await apiFetch("/api/analysis-controls/");
-      const available = new Set(controls.value.filter((item) => item.is_active).map((item) => item.id));
+      const available = new Set(
+        controls.value.filter((item) => item.is_active).map((item) => item.id)
+      );
       selectedControlIds.value = firstLoad
-        ? controls.value.filter((item) => item.kind === "system" && item.is_active).map((item) => item.id)
+        ? controls.value
+            .filter((item) => item.kind === "system" && item.is_active)
+            .map((item) => item.id)
         : selectedControlIds.value.filter((id) => available.has(id));
     } finally {
       controlsLoading.value = false;

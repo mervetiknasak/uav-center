@@ -1,0 +1,65 @@
+@media (max-width: 760px) {
+  .app-shell {
+    display: block;
+  }
+
+  .toolbox-sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    padding: 18px 14px;
+    border-right: 0;
+    border-bottom: 1px solid #dbe3ea;
+  }
+
+  .workspace {
+    padding: 20px;
+  }
+
+  .system-grid,
+  .document-layout,
+  .ai-studio-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-studio-header {
+    display: grid;
+  }
+
+  .ai-message-list {
+    max-height: 70vh;
+    padding: 16px;
+  }
+
+  .ai-composer-actions > span {
+    display: none;
+  }
+
+  .user-row {
+    display: grid;
+    gap: 10px;
+  }
+
+  .jobs-heading,
+  .job-row {
+    display: grid;
+  }
+
+  .organization-heading,
+  .responsible-row {
+    display: grid;
+    align-items: start;
+  }
+
+  .responsible-dynamic-item {
+    align-items: flex-start;
+  }
+
+  .responsible-actions {
+    margin-left: 8px;
+  }
+
+  .user-actions {
+    justify-content: flex-start;
+  }
+}

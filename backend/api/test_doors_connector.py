@@ -138,9 +138,7 @@ class OleAutomationTransportTests(TestCase):
 
 class DoorsConnectorTests(TestCase):
     def test_ping_maps_verified_server_fields(self):
-        transport = FakeTransport(
-            {"PING": ["DXLC/1", "UAV", "Ada", "ada", "doors-host", "WIN32"]}
-        )
+        transport = FakeTransport({"PING": ["DXLC/1", "UAV", "Ada", "ada", "doors-host", "WIN32"]})
 
         info = DoorsConnector(transport=transport).check_connection()
 
@@ -214,10 +212,7 @@ class DoorsConnectorTests(TestCase):
 class DxlBridgeStaticSafetyTests(TestCase):
     def setUp(self):
         self.bridge = (
-            Path(__file__).parent
-            / "services"
-            / "dxl"
-            / "doors_connector_bridge.dxl"
+            Path(__file__).parent / "services" / "dxl" / "doors_connector_bridge.dxl"
         ).read_text(encoding="utf-8")
 
     def test_bridge_has_no_dynamic_code_execution_or_os_command(self):

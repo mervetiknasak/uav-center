@@ -12,8 +12,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional
-
 
 ROOT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = ROOT_DIR / "backend"
@@ -40,7 +38,7 @@ def python_version_text(version: tuple[int, int]) -> str:
     return ".".join(str(part) for part in version)
 
 
-def command_python_version(command: list[str]) -> Optional[tuple[int, int]]:
+def command_python_version(command: list[str]) -> tuple[int, int] | None:
     try:
         output = subprocess.check_output(
             [*command, "-c", "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')"],
@@ -76,7 +74,9 @@ def find_backend_python() -> list[str]:
             return candidate
 
     required = python_version_text(REQUIRED_PYTHON)
-    raise SystemExit(f"Python {required} bulunamadı. Backend sanal ortamı için Python {required} kurulu ve PATH içinde olmalı.")
+    raise SystemExit(
+        f"Python {required} bulunamadı. Backend sanal ortamı için Python {required} kurulu ve PATH içinde olmalı."
+    )
 
 
 def run_step(label: str, command: list[str], cwd: Path) -> None:
@@ -116,10 +116,16 @@ def ensure_backend(skip_install: bool) -> None:
     if not python_path.exists():
         if skip_install:
             raise SystemExit("Backend sanal ortamı eksik: backend/.venv")
-        run_step("Backend sanal ortamı oluşturuluyor", [*find_backend_python(), "-m", "venv", str(VENV_DIR)], ROOT_DIR)
+        run_step(
+            "Backend sanal ortamı oluşturuluyor",
+            [*find_backend_python(), "-m", "venv", str(VENV_DIR)],
+            ROOT_DIR,
+        )
     elif command_python_version([str(python_path)]) != REQUIRED_PYTHON:
         required = python_version_text(REQUIRED_PYTHON)
-        raise SystemExit(f"Backend sanal ortamı Python {required} olmalı. Lütfen backend/.venv'i Python {required} ile yeniden oluşturun.")
+        raise SystemExit(
+            f"Backend sanal ortamı Python {required} olmalı. Lütfen backend/.venv'i Python {required} ile yeniden oluşturun."
+        )
 
     if not skip_install:
         run_step(
@@ -128,8 +134,14 @@ def ensure_backend(skip_install: bool) -> None:
             BACKEND_DIR,
         )
 
-    run_step("Backend paket tutarlılığı kontrol ediliyor", [str(python_path), "-m", "pip", "check"], BACKEND_DIR)
-    run_step("Django migration'ları uygulanıyor", [str(python_path), "manage.py", "migrate"], BACKEND_DIR)
+    run_step(
+        "Backend paket tutarlılığı kontrol ediliyor",
+        [str(python_path), "-m", "pip", "check"],
+        BACKEND_DIR,
+    )
+    run_step(
+        "Django migration'ları uygulanıyor", [str(python_path), "manage.py", "migrate"], BACKEND_DIR
+    )
 
 
 def frontend_dependencies_current() -> bool:
@@ -159,12 +171,20 @@ def ensure_frontend(skip_install: bool) -> None:
         print("\n==> Frontend bağımlılıkları güncel görünüyor")
         return
 
-    install_command = [npm_bin(), "ci"] if (FRONTEND_DIR / "package-lock.json").exists() else [npm_bin(), "install"]
+    install_command = (
+        [npm_bin(), "ci"]
+        if (FRONTEND_DIR / "package-lock.json").exists()
+        else [npm_bin(), "install"]
+    )
     run_step("Frontend bağımlılıkları kuruluyor", install_command, FRONTEND_DIR)
 
 
 def popen(command: list[str], cwd: Path) -> subprocess.Popen:
-    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if is_windows() else 0
+    creationflags = (
+        subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
+        if is_windows()
+        else 0
+    )
     return subprocess.Popen(command, cwd=cwd, creationflags=creationflags, env=child_env())
 
 
@@ -173,7 +193,7 @@ def stop_process(process: subprocess.Popen) -> None:
         return
 
     if is_windows():
-        process.send_signal(signal.CTRL_BREAK_EVENT)
+        process.send_signal(signal.CTRL_BREAK_EVENT)  # type: ignore[attr-defined]
     else:
         process.terminate()
 
@@ -214,18 +234,35 @@ def start_job_worker() -> subprocess.Popen:
 
 
 def start_frontend(host: str, port: int) -> subprocess.Popen:
-    return popen([npm_bin(), "run", "dev", "--", "--host", host, "--port", str(port), "--strictPort"], FRONTEND_DIR)
+    return popen(
+        [npm_bin(), "run", "dev", "--", "--host", host, "--port", str(port), "--strictPort"],
+        FRONTEND_DIR,
+    )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="UAV Center geliştirme ortamını başlatır.")
-    parser.add_argument("--skip-install", action="store_true", help="Bağımlılık kurulum adımlarını atla.")
-    parser.add_argument("--backend-only", action="store_true", help="Sadece Django backend'i başlat.")
-    parser.add_argument("--frontend-only", action="store_true", help="Sadece Vite frontend'i başlat.")
-    parser.add_argument("--backend-port", type=int, default=8000, help="Django portu. Varsayılan: 8000")
-    parser.add_argument("--frontend-host", default="127.0.0.1", help="Vite host'u. Varsayılan: 127.0.0.1")
-    parser.add_argument("--frontend-port", type=int, default=5173, help="Vite portu. Varsayılan: 5173")
-    parser.add_argument("--job-workers", type=int, default=1, help="Arka plan job worker sayısı. Varsayılan: 1")
+    parser.add_argument(
+        "--skip-install", action="store_true", help="Bağımlılık kurulum adımlarını atla."
+    )
+    parser.add_argument(
+        "--backend-only", action="store_true", help="Sadece Django backend'i başlat."
+    )
+    parser.add_argument(
+        "--frontend-only", action="store_true", help="Sadece Vite frontend'i başlat."
+    )
+    parser.add_argument(
+        "--backend-port", type=int, default=8000, help="Django portu. Varsayılan: 8000"
+    )
+    parser.add_argument(
+        "--frontend-host", default="127.0.0.1", help="Vite host'u. Varsayılan: 127.0.0.1"
+    )
+    parser.add_argument(
+        "--frontend-port", type=int, default=5173, help="Vite portu. Varsayılan: 5173"
+    )
+    parser.add_argument(
+        "--job-workers", type=int, default=1, help="Arka plan job worker sayısı. Varsayılan: 1"
+    )
     reload_group = parser.add_mutually_exclusive_group()
     reload_group.add_argument(
         "--reload",

@@ -1,0 +1,41 @@
+.jobs-view {
+  display: grid;
+  gap: 18px;
+}
+
+.jobs-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 0;
+}
+
+.jobs-heading span,
+.job-main > span,
+.job-main small {
+  color: #64748b;
+}
+
+.job-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+}
+
+.job-main {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+}
+
+.job-main .n-progress {
+  max-width: 520px;
+}
+
+.job-actions {
+  flex: 0 0 auto;
+}

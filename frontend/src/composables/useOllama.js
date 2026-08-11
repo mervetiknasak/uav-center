@@ -1,5 +1,11 @@
 import { ref } from "vue";
 
+import {
+  selectValidImageFiles,
+  validateImageDataUrl
+} from "../features/ai-studio/model/imageValidation";
+import { consumeNdjson, reduceOllamaMessage } from "../features/ai-studio/model/ndjson";
+
 const DEFAULT_SYSTEM_PROMPT =
   "Sen UAV Center içinde çalışan, Türkçe yanıt veren kıdemli bir mühendislik asistanısın. Yanıtların doğru, açık ve uygulanabilir olsun.";
 
@@ -28,14 +34,19 @@ export function useOllama({ apiFetch, ensureCsrfToken, API_BASE_URL }) {
     keepAlive: "5m"
   });
   let abortController = null;
+  const lifecycleController = new AbortController();
+  let disposed = false;
 
   async function loadStatus() {
+    if (disposed) return;
     loadingStatus.value = true;
     error.value = "";
     try {
-      status.value = await apiFetch("/api/ai/ollama/status/");
+      status.value = await apiFetch("/api/ai/ollama/status/", {
+        signal: lifecycleController.signal
+      });
     } catch (requestError) {
-      error.value = requestError.message;
+      if (requestError.name !== "AbortError") error.value = requestError.message;
     } finally {
       loadingStatus.value = false;
     }
@@ -46,12 +57,17 @@ export function useOllama({ apiFetch, ensureCsrfToken, API_BASE_URL }) {
     error.value = "";
     notice.value = "Model indiriliyor. Bu işlem bağlantınıza göre uzun sürebilir.";
     try {
-      const result = await apiFetch("/api/ai/ollama/pull/", { method: "POST" });
+      const result = await apiFetch("/api/ai/ollama/pull/", {
+        method: "POST",
+        signal: lifecycleController.signal
+      });
       notice.value = `${result.model} kurulumu tamamlandı.`;
       await loadStatus();
     } catch (requestError) {
-      error.value = requestError.message;
-      notice.value = "";
+      if (requestError.name !== "AbortError") {
+        error.value = requestError.message;
+        notice.value = "";
+      }
     } finally {
       installing.value = false;
     }
@@ -61,11 +77,14 @@ export function useOllama({ apiFetch, ensureCsrfToken, API_BASE_URL }) {
     unloading.value = true;
     error.value = "";
     try {
-      await apiFetch("/api/ai/ollama/unload/", { method: "POST" });
+      await apiFetch("/api/ai/ollama/unload/", {
+        method: "POST",
+        signal: lifecycleController.signal
+      });
       notice.value = "Model çalışma belleğinden çıkarıldı.";
       await loadStatus();
     } catch (requestError) {
-      error.value = requestError.message;
+      if (requestError.name !== "AbortError") error.value = requestError.message;
     } finally {
       unloading.value = false;
     }
@@ -73,17 +92,17 @@ export function useOllama({ apiFetch, ensureCsrfToken, API_BASE_URL }) {
 
   async function addImages(fileList) {
     error.value = "";
-    const files = Array.from(fileList || []).slice(0, 3 - images.value.length);
-    for (const file of files) {
-      if (!file.type.startsWith("image/")) {
-        error.value = `${file.name} bir görsel dosyası değil.`;
+    const { acceptedFiles, errors } = selectValidImageFiles(images.value, fileList);
+    if (errors.length) error.value = errors.at(-1);
+
+    for (const file of acceptedFiles) {
+      const dataUrl = await readFile(file);
+      const validationError = validateImageDataUrl(images.value, dataUrl);
+      if (validationError) {
+        error.value = `${file.name}: ${validationError}`;
         continue;
       }
-      if (file.size > 20 * 1024 * 1024) {
-        error.value = `${file.name} 20 MB sınırını aşıyor.`;
-        continue;
-      }
-      images.value.push({ name: file.name, dataUrl: await readFile(file) });
+      images.value.push({ name: file.name, dataUrl });
     }
   }
 
@@ -162,7 +181,7 @@ export function useOllama({ apiFetch, ensureCsrfToken, API_BASE_URL }) {
     };
 
     try {
-      const csrfToken = await ensureCsrfToken();
+      const csrfToken = await ensureCsrfToken({ signal: abortController.signal });
       const response = await fetch(`${API_BASE_URL}/api/ai/ollama/chat/`, {
         method: "POST",
         credentials: "include",
@@ -174,7 +193,9 @@ export function useOllama({ apiFetch, ensureCsrfToken, API_BASE_URL }) {
         const detail = await response.json().catch(() => ({}));
         throw new Error(detail.detail || `HTTP ${response.status}`);
       }
-      await consumeNdjson(response, (chunk) => applyChunk(assistantMessage, chunk));
+      await consumeNdjson(response, (chunk) => {
+        Object.assign(assistantMessage, reduceOllamaMessage(assistantMessage, chunk));
+      });
       if (!assistantMessage.content && !assistantMessage.toolCalls.length) {
         assistantMessage.content = "Model metin yanıtı üretmedi.";
       }
@@ -188,27 +209,17 @@ export function useOllama({ apiFetch, ensureCsrfToken, API_BASE_URL }) {
     } finally {
       generating.value = false;
       abortController = null;
-      await loadStatus();
-    }
-  }
-
-  function applyChunk(target, chunk) {
-    if (chunk.error) throw new Error(chunk.error);
-    if (chunk.message?.thinking) target.thinking += chunk.message.thinking;
-    if (chunk.message?.content) target.content += chunk.message.content;
-    if (chunk.message?.tool_calls?.length) target.toolCalls.push(...chunk.message.tool_calls);
-    if (chunk.done) {
-      target.stats = {
-        doneReason: chunk.done_reason,
-        promptTokens: chunk.prompt_eval_count || 0,
-        outputTokens: chunk.eval_count || 0,
-        totalDuration: chunk.total_duration || 0,
-        evalDuration: chunk.eval_duration || 0
-      };
+      if (!disposed) await loadStatus();
     }
   }
 
   function stopGeneration() {
+    abortController?.abort();
+  }
+
+  function dispose() {
+    disposed = true;
+    lifecycleController.abort();
     abortController?.abort();
   }
 
@@ -240,6 +251,7 @@ export function useOllama({ apiFetch, ensureCsrfToken, API_BASE_URL }) {
     removeImage,
     sendMessage,
     stopGeneration,
+    dispose,
     clearConversation
   };
 }
@@ -251,19 +263,4 @@ function readFile(file) {
     reader.onerror = () => reject(new Error(`${file.name} okunamadı.`));
     reader.readAsDataURL(file);
   });
-}
-
-async function consumeNdjson(response, onChunk) {
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-    for (const line of lines) if (line.trim()) onChunk(JSON.parse(line));
-    if (done) break;
-  }
-  if (buffer.trim()) onChunk(JSON.parse(buffer));
 }

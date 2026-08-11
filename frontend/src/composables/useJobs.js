@@ -8,15 +8,18 @@ export function useJobs(apiFetch) {
   const cancellingId = ref(null);
   let pollTimer = null;
   let requestInFlight = false;
+  let pollingController = null;
+  let visibilityListenerRegistered = false;
 
-  async function loadJobs({ silent = false } = {}) {
+  async function loadJobs({ silent = false, signal } = {}) {
     if (requestInFlight) return;
     requestInFlight = true;
     if (!silent) loading.value = true;
     try {
-      jobs.value = await apiFetch("/api/jobs/?limit=200");
+      jobs.value = await apiFetch("/api/jobs/?limit=200", { signal });
       error.value = "";
     } catch (err) {
+      if (err?.name === "AbortError") return;
       error.value = errorMessage(err, "Joblar yüklenemedi");
     } finally {
       requestInFlight = false;
@@ -24,15 +27,45 @@ export function useJobs(apiFetch) {
     }
   }
 
+  function clearPollTimer() {
+    if (pollTimer) window.clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  function schedulePolling() {
+    if (pollTimer || !pollingController || document.hidden) return;
+    pollTimer = window.setInterval(
+      () => loadJobs({ silent: true, signal: pollingController?.signal }),
+      3000
+    );
+  }
+
+  function handleVisibilityChange() {
+    if (document.hidden) {
+      clearPollTimer();
+      return;
+    }
+    loadJobs({ silent: true, signal: pollingController?.signal });
+    schedulePolling();
+  }
+
   function startPolling() {
     stopPolling();
-    loadJobs();
-    pollTimer = window.setInterval(() => loadJobs({ silent: true }), 3000);
+    pollingController = new AbortController();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    visibilityListenerRegistered = true;
+    loadJobs({ signal: pollingController.signal });
+    schedulePolling();
   }
 
   function stopPolling() {
-    if (pollTimer) window.clearInterval(pollTimer);
-    pollTimer = null;
+    clearPollTimer();
+    pollingController?.abort();
+    pollingController = null;
+    if (visibilityListenerRegistered) {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      visibilityListenerRegistered = false;
+    }
   }
 
   async function cancelJob(job) {
@@ -54,5 +87,15 @@ export function useJobs(apiFetch) {
     cancellingId.value = null;
   }
 
-  return { jobs, loading, error, cancellingId, loadJobs, startPolling, stopPolling, cancelJob, resetJobs };
+  return {
+    jobs,
+    loading,
+    error,
+    cancellingId,
+    loadJobs,
+    startPolling,
+    stopPolling,
+    cancelJob,
+    resetJobs
+  };
 }

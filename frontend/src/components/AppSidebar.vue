@@ -19,7 +19,9 @@ const emit = defineEmits(["logout", "update:menu-key"]);
       <span>Oturum</span>
       <strong>{{ user.username }}</strong>
       <small v-if="user.is_staff">Admin</small>
-      <n-button size="small" secondary :loading="loading" @click="emit('logout')">Çıkış Yap</n-button>
+      <n-button size="small" secondary :loading="loading" @click="emit('logout')"
+        >Çıkış Yap</n-button
+      >
     </div>
     <n-menu
       class="toolbox-menu"
@@ -28,7 +30,15 @@ const emit = defineEmits(["logout", "update:menu-key"]);
       :indent="18"
       :default-expanded-keys="
         user.is_staff
-          ? ['flight-operations', 'document-management', 'organization', 'tools', 'operations', 'system', 'admin']
+          ? [
+              'flight-operations',
+              'document-management',
+              'organization',
+              'tools',
+              'operations',
+              'system',
+              'admin'
+            ]
           : ['flight-operations', 'document-management', 'organization', 'tools', 'operations']
       "
       @update:value="emit('update:menu-key', $event)"

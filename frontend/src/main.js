@@ -1,8 +1,13 @@
 import { createApp } from "vue";
-import naive from "naive-ui";
 
 import App from "./App.vue";
+import { createAppContext, installAppContext } from "./app/bootstrap";
+import { ui } from "./app/ui";
 import router from "./router";
 import "./style.css";
 
-createApp(App).use(naive).use(router).mount("#app");
+const app = createApp(App);
+const appContext = createAppContext();
+
+installAppContext(app, appContext);
+app.use(ui).use(router).mount("#app");

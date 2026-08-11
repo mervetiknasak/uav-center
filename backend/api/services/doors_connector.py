@@ -11,10 +11,11 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Protocol, Sequence
+from typing import Any, Protocol
 
 try:
     from django.conf import settings
@@ -57,7 +58,7 @@ class DoorsConfig:
     lock_timeout: float = 60.0
 
     @classmethod
-    def from_settings(cls) -> "DoorsConfig":
+    def from_settings(cls) -> DoorsConfig:
         def value(name: str, default: Any) -> Any:
             if settings is None or not getattr(settings, "configured", False):
                 return default
@@ -275,7 +276,7 @@ def _read_response(path: Path, operation: str) -> list[str]:
 
 
 @contextmanager
-def _interprocess_lock(path: Path, timeout: float) -> Iterable[None]:
+def _interprocess_lock(path: Path, timeout: float) -> Iterator[None]:
     """Serialize access to the process-global DOORS Automation Result property."""
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -295,12 +296,12 @@ def _interprocess_lock(path: Path, timeout: float) -> Iterable[None]:
                     msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
                     locked = True
                     break
-                except OSError:
+                except OSError as exc:
                     if time.monotonic() >= deadline:
                         raise DoorsConnectorError(
                             "DOORS Automation kilidi zaman aşımına uğradı.",
                             code="LOCK_TIMEOUT",
-                        )
+                        ) from exc
                     time.sleep(0.05)
         yield
     finally:
@@ -308,7 +309,11 @@ def _interprocess_lock(path: Path, timeout: float) -> Iterable[None]:
             import msvcrt
 
             handle.seek(0)
-            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            msvcrt.locking(  # type: ignore[attr-defined]
+                handle.fileno(),
+                msvcrt.LK_UNLCK,  # type: ignore[attr-defined]
+                1,
+            )
         handle.close()
 
 
@@ -393,7 +398,9 @@ def _int(value: str) -> int:
     try:
         return int(value)
     except ValueError as exc:
-        raise DoorsConnectorError("DXL bridge integer alanı geçersiz.", code="INVALID_RESPONSE") from exc
+        raise DoorsConnectorError(
+            "DXL bridge integer alanı geçersiz.", code="INVALID_RESPONSE"
+        ) from exc
 
 
 def _expect(fields: Sequence[str], count: int, operation: str) -> None:
@@ -501,11 +508,15 @@ class DoorsConnector:
         scope: str = "object",
     ) -> list[AttributeDefinition]:
         if scope not in {"object", "module", "all"}:
-            raise DoorsConnectorError("scope object, module veya all olmalıdır.", code="INVALID_REQUEST")
+            raise DoorsConnectorError(
+                "scope object, module veya all olmalıdır.", code="INVALID_REQUEST"
+            )
         operation = "LIST_ATTRIBUTES"
         fields = self._call(operation, (module_path, scope))
         if not fields:
-            raise DoorsConnectorError("LIST_ATTRIBUTES boş yanıt döndürdü.", code="INVALID_RESPONSE")
+            raise DoorsConnectorError(
+                "LIST_ATTRIBUTES boş yanıt döndürdü.", code="INVALID_RESPONSE"
+            )
         count = _int(fields[0])
         width = 8
         _expect(fields, 1 + count * width, operation)
@@ -540,7 +551,9 @@ class DoorsConnector:
                 code="INVALID_REQUEST",
             )
         if len(attributes) > 200 or any(not name for name in attributes):
-            raise DoorsConnectorError("Öznitelik listesi geçersiz veya çok büyük.", code="INVALID_REQUEST")
+            raise DoorsConnectorError(
+                "Öznitelik listesi geçersiz veya çok büyük.", code="INVALID_REQUEST"
+            )
         operation = "LIST_OBJECTS"
         args = [module_path, str(offset), str(limit), str(len(attributes)), *attributes]
         fields = self._call(operation, args)
@@ -553,7 +566,11 @@ class DoorsConnector:
         cursor = 3
         for _ in range(count):
             absolute_number = _int(fields[cursor])
-            identifier, number, object_level = fields[cursor + 1], fields[cursor + 2], _int(fields[cursor + 3])
+            identifier, number, object_level = (
+                fields[cursor + 1],
+                fields[cursor + 2],
+                _int(fields[cursor + 3]),
+            )
             cursor += 4
             values: dict[str, str | None] = {}
             for attribute_name in attributes:
@@ -581,7 +598,9 @@ class DoorsConnector:
         attributes: Sequence[str],
     ) -> DoorsObject:
         if absolute_number < 1 or len(attributes) > 200 or any(not name for name in attributes):
-            raise DoorsConnectorError("Nesne numarası veya öznitelik listesi geçersiz.", code="INVALID_REQUEST")
+            raise DoorsConnectorError(
+                "Nesne numarası veya öznitelik listesi geçersiz.", code="INVALID_REQUEST"
+            )
         fields = self._call(
             operation,
             (module_path, absolute_number, len(attributes), *attributes),
@@ -596,7 +615,9 @@ class DoorsConnector:
             cursor += 2
         return DoorsObject(_int(fields[0]), fields[1], fields[2], _int(fields[3]), values)
 
-    def get_module_attributes(self, module_path: str, attributes: Sequence[str]) -> dict[str, str | None]:
+    def get_module_attributes(
+        self, module_path: str, attributes: Sequence[str]
+    ) -> dict[str, str | None]:
         if not attributes or len(attributes) > 200 or any(not name for name in attributes):
             raise DoorsConnectorError("Öznitelik listesi geçersiz.", code="INVALID_REQUEST")
         operation = "GET_MODULE_ATTRIBUTES"
@@ -622,13 +643,22 @@ class DoorsConnector:
         first_absolute_number: int = 1,
     ) -> ModuleInfo:
         if first_absolute_number < 1:
-            raise DoorsConnectorError("İlk mutlak numara en az 1 olmalıdır.", code="INVALID_REQUEST")
+            raise DoorsConnectorError(
+                "İlk mutlak numara en az 1 olmalıdır.", code="INVALID_REQUEST"
+            )
         operation = "CREATE_FORMAL_MODULE"
         fields = self._call(operation, (path, description, prefix, first_absolute_number))
         _expect(fields, 9, operation)
         return ModuleInfo(
-            fields[0], fields[1], fields[2], fields[3], fields[4], fields[5],
-            _bool(fields[6]), _bool(fields[7]), _bool(fields[8]),
+            fields[0],
+            fields[1],
+            fields[2],
+            fields[3],
+            fields[4],
+            fields[5],
+            _bool(fields[6]),
+            _bool(fields[7]),
+            _bool(fields[8]),
         )
 
     def create_object(
@@ -640,10 +670,19 @@ class DoorsConnector:
         anchor_absolute_number: int | None = None,
     ) -> DoorsObject:
         if position not in {"append", "after", "below"}:
-            raise DoorsConnectorError("position append, after veya below olmalıdır.", code="INVALID_REQUEST")
+            raise DoorsConnectorError(
+                "position append, after veya below olmalıdır.", code="INVALID_REQUEST"
+            )
         if position != "append" and (anchor_absolute_number is None or anchor_absolute_number < 1):
-            raise DoorsConnectorError("after/below için geçerli anchor gereklidir.", code="INVALID_REQUEST")
-        args = [module_path, position, str(anchor_absolute_number or 0), *_attribute_arguments(attributes)]
+            raise DoorsConnectorError(
+                "after/below için geçerli anchor gereklidir.", code="INVALID_REQUEST"
+            )
+        args = [
+            module_path,
+            position,
+            str(anchor_absolute_number or 0),
+            *_attribute_arguments(attributes),
+        ]
         fields = self._call("CREATE_OBJECT", args)
         _expect(fields, 4, "CREATE_OBJECT")
         return DoorsObject(
@@ -654,9 +693,13 @@ class DoorsConnector:
             _normalized_attribute_values(attributes),
         )
 
-    def update_object(self, module_path: str, absolute_number: int, attributes: Mapping[str, Any]) -> DoorsObject:
+    def update_object(
+        self, module_path: str, absolute_number: int, attributes: Mapping[str, Any]
+    ) -> DoorsObject:
         if absolute_number < 1:
-            raise DoorsConnectorError("Mutlak nesne numarası en az 1 olmalıdır.", code="INVALID_REQUEST")
+            raise DoorsConnectorError(
+                "Mutlak nesne numarası en az 1 olmalıdır.", code="INVALID_REQUEST"
+            )
         args = [module_path, str(absolute_number), *_attribute_arguments(attributes)]
         fields = self._call("UPDATE_OBJECT", args)
         _expect(fields, 4, "UPDATE_OBJECT")
@@ -664,7 +707,9 @@ class DoorsConnector:
         return DoorsObject(_int(fields[0]), fields[1], fields[2], _int(fields[3]), normalized)
 
     def update_module_attributes(self, module_path: str, attributes: Mapping[str, Any]) -> None:
-        fields = self._call("UPDATE_MODULE_ATTRIBUTES", (module_path, *_attribute_arguments(attributes)))
+        fields = self._call(
+            "UPDATE_MODULE_ATTRIBUTES", (module_path, *_attribute_arguments(attributes))
+        )
         _expect(fields, 0, "UPDATE_MODULE_ATTRIBUTES")
 
     def soft_delete_object(
@@ -675,7 +720,9 @@ class DoorsConnector:
         check_links: bool = True,
     ) -> None:
         if absolute_number < 1:
-            raise DoorsConnectorError("Mutlak nesne numarası en az 1 olmalıdır.", code="INVALID_REQUEST")
+            raise DoorsConnectorError(
+                "Mutlak nesne numarası en az 1 olmalıdır.", code="INVALID_REQUEST"
+            )
         fields = self._call(
             "SOFT_DELETE_OBJECT",
             (module_path, absolute_number, "1" if check_links else "0"),
@@ -689,11 +736,15 @@ class DoorsConnector:
         source_absolute_number: int | None = None,
     ) -> list[DoorsLink]:
         if source_absolute_number is not None and source_absolute_number < 1:
-            raise DoorsConnectorError("Kaynak nesne numarası en az 1 olmalıdır.", code="INVALID_REQUEST")
+            raise DoorsConnectorError(
+                "Kaynak nesne numarası en az 1 olmalıdır.", code="INVALID_REQUEST"
+            )
         operation = "LIST_OUTGOING_LINKS"
         fields = self._call(operation, (module_path, source_absolute_number or 0))
         if not fields:
-            raise DoorsConnectorError("LIST_OUTGOING_LINKS boş yanıt döndürdü.", code="INVALID_RESPONSE")
+            raise DoorsConnectorError(
+                "LIST_OUTGOING_LINKS boş yanıt döndürdü.", code="INVALID_RESPONSE"
+            )
         count = _int(fields[0])
         _expect(fields, 1 + count * 4, operation)
         return [
@@ -719,7 +770,13 @@ class DoorsConnector:
         operation = "CREATE_LINK"
         fields = self._call(
             operation,
-            (source_module, source_absolute_number, link_module, target_module, target_absolute_number),
+            (
+                source_module,
+                source_absolute_number,
+                link_module,
+                target_module,
+                target_absolute_number,
+            ),
         )
         _expect(fields, 4, operation)
         return DoorsLink(_int(fields[0]), fields[1], fields[2], _int(fields[3]))
@@ -736,6 +793,12 @@ class DoorsConnector:
             raise DoorsConnectorError("Link parametreleri geçersiz.", code="INVALID_REQUEST")
         fields = self._call(
             "DELETE_LINK",
-            (source_module, source_absolute_number, link_module, target_module, target_absolute_number),
+            (
+                source_module,
+                source_absolute_number,
+                link_module,
+                target_module,
+                target_absolute_number,
+            ),
         )
         _expect(fields, 0, "DELETE_LINK")

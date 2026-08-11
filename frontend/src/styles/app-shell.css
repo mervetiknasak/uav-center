@@ -1,0 +1,140 @@
+.app-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+}
+
+.auth-shell {
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+  place-items: center;
+}
+
+.auth-panel {
+  width: min(420px, 100%);
+  padding: 28px;
+  background: #ffffff;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  box-shadow: 0 18px 45px rgb(15 23 42 / 8%);
+}
+
+.auth-heading {
+  margin-bottom: 20px;
+}
+
+.auth-heading p {
+  margin: 0 0 6px;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.auth-heading h1 {
+  margin: 0;
+  color: #111827;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.auth-form {
+  margin-top: 18px;
+}
+
+.toolbox-sidebar {
+  position: sticky;
+  top: 0;
+  flex: 0 0 260px;
+  height: 100vh;
+  padding: 24px 14px;
+  overflow: auto;
+  background: #ffffff;
+  border-right: 1px solid #dbe3ea;
+}
+
+.toolbox-brand {
+  display: grid;
+  gap: 4px;
+  padding: 0 10px 18px;
+}
+
+.toolbox-brand span {
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.toolbox-brand strong {
+  color: #111827;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.toolbox-menu {
+  border-right: 0;
+}
+
+.session-box {
+  display: grid;
+  gap: 8px;
+  margin: 0 10px 18px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.session-box span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.session-box strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #111827;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-box small {
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.workspace {
+  flex: 1;
+  min-width: 0;
+  width: min(1480px, 100%);
+  margin: 0 auto;
+  padding: 32px;
+}
+
+.page-heading {
+  margin-bottom: 24px;
+}
+
+.page-heading p {
+  margin: 0 0 6px;
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.page-heading h1 {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.2;
+}

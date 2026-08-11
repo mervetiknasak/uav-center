@@ -1,8 +1,12 @@
+import logging
 import re
 
 from django.conf import settings
 
+from ..common.redaction import safe_exception_message
 from .ai_wrapper import AIProviderError, AIWrapper
+
+logger = logging.getLogger(__name__)
 
 
 def process_document_text(text, filename, prompt):
@@ -11,8 +15,13 @@ def process_document_text(text, filename, prompt):
         try:
             return _process_with_model(text, filename, prompt)
         except AIProviderError as exc:
+            logger.error(
+                "Document AI provider fallback: %s",
+                safe_exception_message(exc),
+                extra={"event": "document_ai_provider_fallback"},
+            )
             fallback = _process_locally(text, filename, prompt)
-            fallback["provider_error"] = str(exc)
+            fallback["provider_error"] = "AI sağlayıcısı kullanılamadı."
             return fallback
 
     return _process_locally(text, filename, prompt)
@@ -48,9 +57,7 @@ def _process_with_model(text, filename, prompt):
         "Yanıtlarını Türkçe, net ve uygulanabilir maddeler halinde ver."
     )
     full_prompt = (
-        f"Kullanıcı isteği:\n{prompt}\n\n"
-        f"Dosya: {filename}\n\n"
-        f"Belge metni:\n{text[:24000]}"
+        f"Kullanıcı isteği:\n{prompt}\n\nDosya: {filename}\n\nBelge metni:\n{text[:24000]}"
     )
     result = AIWrapper().generate(full_prompt, system_prompt=system_prompt)
 
@@ -84,7 +91,7 @@ def _extract_keywords(words):
         "of",
         "in",
     }
-    counts = {}
+    counts: dict[str, int] = {}
     for word in words:
         normalized = word.lower()
         if len(normalized) < 4 or normalized in stopwords:

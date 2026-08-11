@@ -189,7 +189,7 @@ class JiraConnectorTests(SimpleTestCase):
         )
 
         with patch.dict(sys.modules, {"jira": jira_module}):
-            JiraConnector(config=config).client
+            _client = JiraConnector(config=config).client
 
         jira_constructor.assert_called_once_with(
             options={

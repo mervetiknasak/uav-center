@@ -13,7 +13,8 @@ export function useAuth({ apiFetch, ensureCsrfToken, resetCsrfToken, onLogout })
   const title = computed(() => (mode.value === "login" ? "Giriş Yap" : "Yeni Üyelik"));
   const buttonLabel = computed(() => (mode.value === "login" ? "Giriş Yap" : "Üye Ol"));
   const passwordsMatch = computed(
-    () => credentials.value.password && credentials.value.password === credentials.value.passwordConfirm
+    () =>
+      credentials.value.password && credentials.value.password === credentials.value.passwordConfirm
   );
   const submitDisabled = computed(() => {
     if (!credentials.value.username || !credentials.value.password) return true;
@@ -41,14 +42,15 @@ export function useAuth({ apiFetch, ensureCsrfToken, resetCsrfToken, onLogout })
     error.value = "";
     registerMessage.value = "";
     try {
-      const payload = mode.value === "login"
-        ? { username: credentials.value.username, password: credentials.value.password }
-        : {
-            username: credentials.value.username,
-            email: credentials.value.email,
-            password: credentials.value.password,
-            password_confirm: credentials.value.passwordConfirm
-          };
+      const payload =
+        mode.value === "login"
+          ? { username: credentials.value.username, password: credentials.value.password }
+          : {
+              username: credentials.value.username,
+              email: credentials.value.email,
+              password: credentials.value.password,
+              password_confirm: credentials.value.passwordConfirm
+            };
       const data = await apiFetch(`/api/auth/${mode.value}/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -94,8 +96,20 @@ export function useAuth({ apiFetch, ensureCsrfToken, resetCsrfToken, onLogout })
   }
 
   return {
-    checking, loading, mode, error, registerMessage, currentUser, credentials,
-    title, buttonLabel, passwordsMatch, submitDisabled,
-    loadSession, submit, logout, switchMode
+    checking,
+    loading,
+    mode,
+    error,
+    registerMessage,
+    currentUser,
+    credentials,
+    title,
+    buttonLabel,
+    passwordsMatch,
+    submitDisabled,
+    loadSession,
+    submit,
+    logout,
+    switchMode
   };
 }

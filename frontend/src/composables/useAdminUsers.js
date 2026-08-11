@@ -47,5 +47,14 @@ export function useAdminUsers(apiFetch) {
     updatingUserId.value = null;
   }
 
-  return { users, loading, error, updatingUserId, loadUsers, loadUsersIfAdmin, updateUserStatus, resetUsers };
+  return {
+    users,
+    loading,
+    error,
+    updatingUserId,
+    loadUsers,
+    loadUsersIfAdmin,
+    updateUserStatus,
+    resetUsers
+  };
 }

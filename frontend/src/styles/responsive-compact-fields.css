@@ -1,0 +1,15 @@
+@media (max-width: 680px) {
+  .meeting-field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .meeting-field-label {
+    border-right: 1px solid #d8dee9;
+    border-bottom: 0;
+    border-radius: 4px 4px 0 0;
+  }
+
+  .meeting-field-value .n-input {
+    border-radius: 0 0 4px 4px;
+  }
+}

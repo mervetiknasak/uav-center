@@ -3,7 +3,11 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from api.models import Project, TechnicalDocument, TechnicalDocumentStatusHistory
+from api.organization.models import Project
+from api.technical_documents.models import (
+    TechnicalDocument,
+    TechnicalDocumentStatusHistory,
+)
 
 
 class Command(BaseCommand):

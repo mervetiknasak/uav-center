@@ -1,11 +1,19 @@
 # UAV Center
 
-Python Django backend ve Vue 3 + Naive UI frontend ile lokal belge işleme uygulaması.
+Python/Django backend ve Vue 3 + Naive UI frontend ile geliştirilen, local-first
+belge işleme ve mühendislik operasyonları platformu.
 
 ## Dizinler
 
 - `backend/`: Django API uygulaması
 - `frontend/`: Vue 3 arayüzü
+- `docs/`: mimari, entegrasyon ve operasyon belgeleri
+
+Sistem feature-first modular monolith olarak düzenlenmiştir. Domain sınırları,
+bağımlılık yönü, veri sahipliği ve genişletme kuralları için
+[`docs/architecture.md`](docs/architecture.md); katkı akışı için
+[`CONTRIBUTING.md`](CONTRIBUTING.md) ve bağlayıcı agent kuralları için
+[`AGENTS.md`](AGENTS.md) dosyasına bakın.
 
 ## Özellikler
 
@@ -17,7 +25,7 @@ Python Django backend ve Vue 3 + Naive UI frontend ile lokal belge işleme uygul
 - Çıkarılan metni lokal AI işlem katmanına gönderme
 - Kaynak kimlikli, kalıcı belge parçaları üzerinde BM25 retrieval ve grounded RAG yanıtları
 - Kalıcı, yeniden denemeli asenkron job kuyruğu ve paralel worker desteği
-- Kullanıcı bazında izole edilen job listesi, ilerleme ve hata takibi
+- Kullanıcı bazında izole edilen belge/job listesi, ilerleme ve hata takibi
 - Sunucu kontrolleri ile kullanıcıların arayüzden ekleyebildiği tekrar kullanılabilir analiz kontrolleri
 - Kaynak atıfları ve kullanıcı bazlı analiz çalıştırma geçmişi
 - Varsayılan lokal özetleyici ile özet, anahtar kelime ve metrik üretme
@@ -30,6 +38,7 @@ Python Django backend ve Vue 3 + Naive UI frontend ile lokal belge işleme uygul
 - Doküman durum/revizyon/yayın/termin takibi ve denetlenebilir durum geçmişi
 - Bir teknik dokümanı aynı projedeki birden fazla panelle ilişkilendirme
 - Panel sorumlularına alıcı önizlemeli e-posta bildirimi ve bildirim geçmişi
+- Uçuş izinlerinde geçerlilik takibi, güvenli doküman ekleri ve indirilebilir Word çıktısı
 
 ## Backend
 
@@ -70,12 +79,23 @@ python manage.py migrate
 python manage.py runserver 8000
 ```
 
-Backend ayarları [backend/.env](/Users/testuser/Projects/uav-center/backend/.env) dosyasından okunur.
+`requirements.txt`, OCR ve lokal Whisper dahil tam runtime'ı kurar. Yalnız API,
+statik analiz ve test ortamı için daha hafif `requirements-base.txt` ile
+`requirements-dev.txt` birlikte kullanılabilir; CI bu profili kullanır.
+
+Backend ayarları `backend/.env` dosyasından okunur.
+[`backend/.env.example`](backend/.env.example) geliştirme şablonu ve production
+değişken kontrol listesidir; içindeki `development`, HTTP, güvensiz cookie ve
+`HSTS=0` değerleri production'a aynen kopyalanmaz. `APP_ENV=production` güçlü
+secret, sınırlı host, SSL redirect, secure cookie, HSTS ve teslimat yapan e-posta
+backend'i olmadan fail-fast olur. Browser originleri veya Jira URL'si tanımlanırsa
+production'da HTTPS olmak zorundadır. Gerçek secret değerlerini commit etmeyin.
 
 API endpoint'leri:
 
 ```text
 http://localhost:8000/api/health/
+http://localhost:8000/api/health/ready/
 http://localhost:8000/api/documents/
 http://localhost:8000/api/documents/upload/
 http://localhost:8000/api/documents/<id>/
@@ -83,6 +103,7 @@ http://localhost:8000/api/documents/<id>/rag/query/
 http://localhost:8000/api/documents/<id>/controls/run/
 http://localhost:8000/api/analysis-controls/
 http://localhost:8000/api/jobs/
+http://localhost:8000/api/flight-permits/
 http://localhost:8000/api/organization/projects/
 http://localhost:8000/api/technical-documents/
 http://localhost:8000/api/word-to-jira/parse/
@@ -92,10 +113,10 @@ http://localhost:8000/api/ai/ollama/chat/
 
 DRF yanıt formatı:
 
-- `GET /api/documents/`: belge listesi
+- `GET /api/documents/`: kullanıcının belge listesi; staff bütün kayıtları denetleyebilir
 - `POST /api/documents/upload/`: `file`, `prompt`, `use_ocr` ve `use_ai` alanlarıyla belgeyi sıraya alır; `202 Accepted` ile job ve bekleyen belgeyi döndürür
-- `GET /api/documents/<id>/`: çıkarılan metin dahil belge objesi
-- `DELETE /api/documents/<id>/`: belge kaydını ve lokal dosyayı siler
+- `GET /api/documents/<id>/`: sahibine ait, çıkarılan metin dahil belge objesi
+- `DELETE /api/documents/<id>/`: sahibine ait belge kaydını ve lokal dosyayı siler
 - `POST /api/documents/<id>/rag/query/`: `query` ve opsiyonel `top_k` ile kaynaklı RAG yanıtı üretir
 - `POST /api/documents/<id>/controls/run/`: `control_ids` ile sunucu ve kullanıcı kontrollerini çalıştırır
 - `GET|POST /api/analysis-controls/`: hazır kontrolleri listeler veya kullanıcıya özel kontrol oluşturur
@@ -103,13 +124,17 @@ DRF yanıt formatı:
 - `GET /api/jobs/`: oturum sahibinin son joblarını listeler; `status` ve `limit` parametrelerini destekler
 - `GET /api/jobs/<uuid>/`: yalnızca oturum sahibinin job detayını döndürür
 - `POST /api/jobs/<uuid>/cancel/`: sırada bekleyen ve oturum sahibine ait jobı iptal eder
+- `GET|POST /api/flight-permits/`: paylaşımlı uçuş izinlerini listeler veya yeni izin oluşturur
+- `GET|PATCH|DELETE /api/flight-permits/<id>/`: uçuş iznini okur, günceller veya siler
+- `GET /api/flight-permits/<id>/document/`: doğrulanmış ek dokümanı sunucu MIME politikasıyla indirir
+- `GET /api/flight-permits/<id>/generated-document/`: kayıt alanlarından Word izin belgesi üretir
 - `GET /api/organization/projects/`: projeleri alt panelleri ve sorumlularıyla listeler
 - Organizasyon API'sindeki `POST`, `PATCH` ve `DELETE` işlemleri yalnızca admin kullanıcılarına açıktır
 - `GET|POST /api/technical-documents/`: teknik doküman listesi ve admin oluşturma işlemi
 - `GET|PATCH|DELETE /api/technical-documents/<id>/`: detay, statü dahil güncelleme ve silme
-- `POST /api/technical-documents/<id>/notify/`: bağlı panellerdeki e-posta adresi bulunan sorumlulara bildirim gönderme
+- `POST /api/technical-documents/<id>/notify/`: staff kullanıcının bağlı panel sorumlularına, zorunlu ve istek başına benzersiz `Idempotency-Key` başlığıyla bildirim göndermesi
 - `POST /api/word-to-jira/parse/`: `.docx` tablo hücrelerini 0 tabanlı global, tablo, satır ve sütun indeksleriyle okuma
-- `POST /api/word-to-jira/publish/`: düzenlenen toplantı taslağından bir Jira Task ve ona bağlı Sub-task kayıtları oluşturma
+- `POST /api/word-to-jira/publish/`: staff kullanıcının düzenlenen toplantı taslağından bir Jira Task ve ona bağlı Sub-task kayıtları oluşturması
 
 Yerel demo dokümanlarını mevcut projelere idempotent olarak eklemek için:
 
@@ -120,16 +145,57 @@ python manage.py seed_technical_documents
 
 E-posta geliştirme ortamında varsayılan olarak konsola yazılır. SMTP kullanımı için
 `backend/.env` içinde `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`,
-`EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` ve
-`DEFAULT_FROM_EMAIL` değerleri tanımlanabilir.
+`EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_TIMEOUT`,
+`TECHNICAL_NOTIFICATION_PENDING_TIMEOUT`, `EMAIL_USE_TLS` ve `DEFAULT_FROM_EMAIL`
+değerleri tanımlanabilir. `APP_ENV=production` ortamı,
+bildirimi teslim etmeyen console/dummy/file/locmem backend'leri reddeder; SMTP veya
+kurumun onaylı teslimat backend'i açıkça yapılandırılmalıdır.
 
-Örnek upload:
+Teknik doküman bildirim endpoint'i `Idempotency-Key` başlığını zorunlu tutar.
+Frontend aynı doküman ve payload için sonucu belirsiz kalan transport retry'ında
+aynı UUID'yi korur; sunucunun başarısız teslimatı kesin olarak kaydettiği durumda
+yeni deneme yeni anahtar alır. Aynı anahtar farklı payload ile kullanılırsa
+`409 Conflict` döner. SMTP teslimi ile başarı audit'inin kalıcılaştırılması arasındaki
+process-crash penceresinde mutlak exactly-once garantisi yoktur; `pending` kayıt
+`TECHNICAL_NOTIFICATION_PENDING_TIMEOUT` (varsayılan 300 saniye) sonrasında
+`unknown` durumuna alınır ve operasyonel olarak uzlaştırılmadan yeni anahtarla
+tekrar gönderim yapılmamalıdır.
+
+## Uçuş İzinleri
+
+Uçuş izni eklerinde en fazla 15 MB boyutunda, yalnız doğrulanabilir modern
+biçimler kabul edilir: PDF, DOCX, XLSX, JPG/JPEG ve PNG. İstemcinin bildirdiği
+MIME türü güvenilir kabul edilmez; dosya yapısı sunucuda incelenir. Eski ikili
+DOC/XLS biçimleri bu güvenlik sınırının dışındadır.
+
+SessionAuthentication kullanan komut satırı istemcisi önce `/api/auth/csrf/`
+yanıtındaki `csrfToken` değerini `CSRF_TOKEN` olarak almalı, aynı `cookies.txt`
+cookie jar'ı ile `/api/auth/login/` üzerinden giriş yapmalıdır. Aşağıdaki upload
+örnekleri bu doğrulanmış oturumun hazır olduğunu varsayar:
 
 ```bash
-curl -F "file=@ornek.pdf" \
+curl -b cookies.txt -H "X-CSRFToken: ${CSRF_TOKEN}" \
+  -F "file=@ornek.pdf" \
   -F "prompt=Bu belgedeki riskleri ve aksiyonları listele." \
   http://localhost:8000/api/documents/upload/
 ```
+
+Yükleme katmanı dosyayı kalıcılaştırmadan önce uzantı ve toplam boyuta ek olarak
+OOXML zorunlu parçalarını, arşiv öğesi/açılmış boyut sınırını, PDF sayfa sayısını
+ve görsel kare/piksel sınırını doğrular. Güvenli varsayılanlar gerektiğinde şu
+ortam değişkenleriyle daraltılabilir:
+
+```env
+DOCUMENT_MAX_UPLOAD_SIZE=26214400
+DOCUMENT_MAX_ARCHIVE_ENTRIES=2000
+DOCUMENT_MAX_UNCOMPRESSED_SIZE=104857600
+DOCUMENT_MAX_PDF_PAGES=500
+OCR_MAX_IMAGES=50
+OCR_MAX_PIXELS=20000000
+```
+
+Bu değerler pozitif olmalıdır; geçersiz kaynak limitleri uygulama başlangıcında
+reddedilir.
 
 ## Asenkron Job Kuyruğu
 
@@ -169,13 +235,17 @@ API'de `use_ocr` varsayılan olarak `false`, `use_ai` ise `true` değerindedir.
 AI kapatıldığında prompt zorunlu değildir:
 
 ```bash
-curl -F "file=@mail-ekran-goruntusu.png" \
+curl -b cookies.txt -H "X-CSRFToken: ${CSRF_TOKEN}" \
+  -F "file=@mail-ekran-goruntusu.png" \
   -F "use_ocr=true" \
   -F "use_ai=false" \
   http://localhost:8000/api/documents/upload/
 ```
 
-Görsel içerikleri hiçbir zaman dışarı gönderilmez. EasyOCR modellerini ilk
+Varsayılan `AI_ALLOW_REMOTE_SERVICES=false` politikası OCR, prompt, belge metni ve
+AI Studio görsellerini loopback/private servis sınırında tutar. Bu ayarı bilinçli
+olarak açmak veri aktarım güven sınırını değiştirir; production'da uzak AI URL'leri
+HTTPS olmak zorundadır. EasyOCR modellerini ilk
 kullanımdan önce `backend/.env` içinde geçici olarak
 `OCR_ALLOW_MODEL_DOWNLOAD=true` yapıp backend sanal ortamında şu komutu bir kez
 çalıştırarak `backend/ocr_models/` dizinine hazırlayın:
@@ -219,6 +289,7 @@ ollama pull gemma4:e4b
 
 ```env
 AI_PROVIDER=ollama
+AI_ALLOW_REMOTE_SERVICES=false
 OLLAMA_MODEL=gemma4:e4b
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_TIMEOUT=600
@@ -228,8 +299,10 @@ RAG_CHUNK_OVERLAP=220
 RAG_TOP_K=6
 ```
 
-Ollama varsayılan olarak `http://127.0.0.1:11434` adresinde çalışmalıdır;
-farklı bir servis adresi `OLLAMA_BASE_URL` ile verilebilir.
+Ollama varsayılan olarak `http://127.0.0.1:11434` adresinde çalışmalıdır. Uzak
+servis ancak `AI_ALLOW_REMOTE_SERVICES=true` açık onayıyla kullanılabilir;
+production uzak adresi HTTPS olmalı ve prompt/belge/görsel veri sınıflandırması
+operasyon ekibi tarafından onaylanmalıdır.
 
 Tam entegrasyon mimarisi, API sözleşmesi ve güvenlik notları için
 [`docs/gemma4_ollama_architecture.md`](docs/gemma4_ollama_architecture.md) dosyasına bakın.
@@ -239,8 +312,9 @@ OpenAI uyumlu lokal bir Qwen servisine bağlanmak için:
 ```env
 AI_PROVIDER=local_llm
 LOCAL_LLM_BASE_URL=http://127.0.0.1:8001
-QWEN_MODEL=qwen2.5:14b
+LOCAL_LLM_MODEL=qwen2.5:14b
 LOCAL_LLM_API_KEY=
+LOCAL_LLM_TIMEOUT=180
 ```
 
 Wrapper `POST /v1/chat/completions` endpoint'ini bekler.
@@ -276,6 +350,7 @@ kullanmak için:
 WHISPER_CONNECTION=http
 WHISPER_BASE_URL=http://127.0.0.1:8002
 WHISPER_MODEL=whisper-1
+WHISPER_TIMEOUT=180
 ```
 
 HTTP modunda wrapper OpenAI uyumlu `POST /v1/audio/transcriptions` endpoint'ine
@@ -346,13 +421,18 @@ dosyalarına bakın.
 
 ## Frontend
 
+Frontend `.node-version` ile Node.js 24.19.x sürümünü ve lockfile ile npm paket
+çözümünü sabitler.
+
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Frontend API proxy hedefi [frontend/.env](/Users/testuser/Projects/uav-center/frontend/.env) dosyasındaki `VITE_API_TARGET` değeriyle belirlenir.
+Frontend API proxy hedefi `frontend/.env` dosyasındaki `VITE_API_TARGET` değeriyle
+belirlenir. Örnek için [`frontend/.env.example`](frontend/.env.example) dosyasına
+bakın.
 
 Varsayılan frontend adresi:
 
@@ -361,3 +441,28 @@ http://localhost:5173
 ```
 
 Frontend, geliştirme modunda Django API'ye `/api` proxy'si üzerinden bağlanır.
+
+## Kalite kapıları
+
+Backend:
+
+```bash
+backend/.venv/bin/python backend/manage.py check
+backend/.venv/bin/python backend/manage.py makemigrations --check --dry-run
+backend/.venv/bin/python backend/manage.py test api config --noinput
+backend/.venv/bin/python -m ruff check launcher.py backend/config backend/api
+backend/.venv/bin/python -m ruff format --check launcher.py backend/config backend/api
+backend/.venv/bin/python -m mypy
+backend/.venv/bin/python -m pip check
+```
+
+Frontend:
+
+```bash
+npm --prefix frontend run check
+```
+
+Production yapılandırmasını ayrıca güvenli environment değerleriyle
+`manage.py check --deploy --fail-level WARNING` üzerinden doğrulayın. Tam
+geliştirme ve güvenlik süreci
+[`CONTRIBUTING.md`](CONTRIBUTING.md) ile [`SECURITY.md`](SECURITY.md) içindedir.

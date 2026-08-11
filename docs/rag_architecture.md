@@ -2,11 +2,22 @@
 
 ## Veri akışı
 
-1. `DocumentUploadView` mevcut extractor/OCR katmanıyla metni çıkarır.
-2. `index_document` metni çakışmalı parçalara böler ve `DocumentChunk` kayıtlarını atomik olarak yeniler.
-3. `retrieve` sorguyu ve parçaları normalize ederek BM25 skoruyla en ilgili 1–12 kaynağı seçer.
-4. `answer_document_query` kaynakları mevcut `AIWrapper` üzerinden Ollama veya OpenAI uyumlu yerel modele gönderir.
-5. Yanıt, kaynak nesneleri ve sağlayıcı bilgisi `DocumentAnalysisRun` kaydında tutulur.
+1. `DocumentUploadView`, doğrulanmış dosya için kullanıcı sahipliğinde bekleyen bir
+   `Document` ve kalıcı `AsyncJob` oluşturur; `202 Accepted` döner.
+2. `run_job_worker`, işi atomik olarak claim eder ve extractor/OCR katmanıyla metni
+   request sürecinden bağımsız çıkarır.
+3. `index_document` metni çakışmalı parçalara böler ve `DocumentChunk` kayıtlarını
+   atomik olarak yeniler.
+4. `retrieve` sorguyu ve parçaları normalize ederek BM25 skoruyla en ilgili 1–12
+   kaynağı seçer.
+5. `answer_document_query` kaynakları `AIWrapper` üzerinden Ollama veya OpenAI
+   uyumlu yerel modele gönderir.
+6. Upload analizi `Document.ai_result`; sonradan çalıştırılan RAG/kontrol yanıtları
+   ise kaynak ve sağlayıcı bilgisiyle `DocumentAnalysisRun` altında tutulur.
+
+Liste, detay, silme, RAG, kontrol ve analiz geçmişi aynı görünür belge selector'ını
+kullanır. Normal kullanıcı yalnız kendi belgesine; staff denetim amacıyla bütün
+belgelere erişebilir. Sahibi belirlenemeyen eski kayıtlar yalnız staff'a görünür.
 
 Harici vektör veritabanı zorunlu değildir. Bu, mevcut SQLite kurulumu ile deterministik ve ağdan bağımsız retrieval sağlar. Daha büyük koleksiyonlarda `retrieve` arabirimi korunarak PostgreSQL FTS/pgvector veya ayrı bir vektör deposu eklenebilir.
 
