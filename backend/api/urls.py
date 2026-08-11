@@ -18,6 +18,7 @@ from .views import (
     DocumentRagQueryView,
     FlightPermitDetailView,
     FlightPermitDocumentView,
+    FlightPermitGeneratedDocumentView,
     FlightPermitListCreateView,
     LoginView,
     LogoutView,
@@ -104,6 +105,11 @@ urlpatterns = [
         "flight-permits/<int:flight_permit_id>/document/",
         FlightPermitDocumentView.as_view(),
         name="flight-permit-document",
+    ),
+    path(
+        "flight-permits/<int:flight_permit_id>/generated-document/",
+        FlightPermitGeneratedDocumentView.as_view(),
+        name="flight-permit-generated-document",
     ),
     path(
         "documents/<int:document_id>/rag/query/",

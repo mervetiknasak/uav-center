@@ -1,8 +1,10 @@
 import shutil
 import tempfile
 from datetime import timedelta
+from io import BytesIO
 from pathlib import Path
 
+from docx import Document
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
@@ -63,6 +65,11 @@ class FlightPermitApiTests(APITestCase):
         self.assertEqual(response.data["validity_status"], "active")
         self.assertEqual(response.data["document_name"], "ucus-izni.pdf")
         self.assertTrue(response.data["document_url"].endswith("/api/flight-permits/1/document/"))
+        self.assertTrue(
+            response.data["generated_document_url"].endswith(
+                "/api/flight-permits/1/generated-document/"
+            )
+        )
 
         permit = FlightPermit.objects.get()
         stored_document = Path(permit.document.path)
@@ -86,6 +93,37 @@ class FlightPermitApiTests(APITestCase):
         list_response = self.client.get("/api/flight-permits/")
         self.assertEqual(list_response.status_code, 200)
         self.assertEqual(len(list_response.data), 1)
+
+    def test_generates_downloadable_word_permit_from_record(self):
+        create_response = self.client.post(
+            "/api/flight-permits/",
+            self.permit_payload(),
+            format="multipart",
+        )
+        permit_id = create_response.data["id"]
+
+        response = self.client.get(
+            f"/api/flight-permits/{permit_id}/generated-document/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        self.assertIn("attachment", response["Content-Disposition"])
+        self.assertIn("Ucus_Izni_TC-UAV-104_SHGM-UI-2026-0042.docx", response["Content-Disposition"])
+
+        generated = Document(BytesIO(b"".join(response.streaming_content)))
+        text_parts = [paragraph.text for paragraph in generated.paragraphs]
+        for table in generated.tables:
+            text_parts.extend(cell.text for row in table.rows for cell in row.cells)
+        generated_text = "\n".join(text_parts)
+        self.assertIn("UÇUŞ İZNİ", generated_text)
+        self.assertIn("TC-UAV-104", generated_text)
+        self.assertIn("SHGM-UI-2026-0042", generated_text)
+        self.assertIn("Ankara Test Sahası", generated_text)
+        self.assertNotIn("{{", generated_text)
 
     def test_rejects_invalid_date_range_and_document_type(self):
         today = timezone.localdate()

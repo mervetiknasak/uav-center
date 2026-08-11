@@ -364,6 +364,7 @@ class FlightPermitSerializer(serializers.ModelSerializer):
     validity_status = serializers.SerializerMethodField()
     validity_status_display = serializers.SerializerMethodField()
     document_url = serializers.SerializerMethodField()
+    generated_document_url = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source="created_by.username", read_only=True)
     updated_by_name = serializers.CharField(source="updated_by.username", read_only=True)
     remove_document = serializers.BooleanField(write_only=True, required=False, default=False)
@@ -390,6 +391,7 @@ class FlightPermitSerializer(serializers.ModelSerializer):
             "document_content_type",
             "document_size",
             "document_url",
+            "generated_document_url",
             "remove_document",
             "created_by_name",
             "updated_by_name",
@@ -458,6 +460,9 @@ class FlightPermitSerializer(serializers.ModelSerializer):
         if not permit.document:
             return ""
         return f"/api/flight-permits/{permit.pk}/document/"
+
+    def get_generated_document_url(self, permit):
+        return f"/api/flight-permits/{permit.pk}/generated-document/"
 
     @staticmethod
     def document_metadata(uploaded_file):

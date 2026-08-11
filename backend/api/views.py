@@ -69,6 +69,7 @@ from .services.rag_service import (
     run_document_controls,
 )
 from .services.job_queue import enqueue_document_processing
+from .services.flight_permit_document import build_flight_permit_document
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -689,6 +690,30 @@ class FlightPermitDocumentView(APIView):
             as_attachment=False,
             filename=permit.document_name or Path(permit.document.name).name,
             content_type=permit.document_content_type or "application/octet-stream",
+        )
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
+
+
+class FlightPermitGeneratedDocumentView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def get(self, request, flight_permit_id):
+        permit = generics.get_object_or_404(FlightPermit, pk=flight_permit_id)
+        document = build_flight_permit_document(permit)
+        safe_aircraft_number = "".join(
+            character if character.isalnum() or character in {"-", "_"} else "_"
+            for character in permit.aircraft_number
+        )
+        safe_permit_number = "".join(
+            character if character.isalnum() or character in {"-", "_"} else "_"
+            for character in permit.permit_number
+        )
+        response = FileResponse(
+            document,
+            as_attachment=True,
+            filename=f"Ucus_Izni_{safe_aircraft_number}_{safe_permit_number}.docx",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
         response["X-Content-Type-Options"] = "nosniff"
         return response

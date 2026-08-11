@@ -4,6 +4,7 @@ import { NButton, NIcon, NSpace, NTag, NText, NTooltip, useDialog } from "naive-
 import {
   AlertTriangle,
   CalendarDays,
+  Download,
   ExternalLink,
   FileCheck2,
   FileText,
@@ -141,6 +142,15 @@ function openDocument(permit) {
   if (opened) opened.opener = null;
 }
 
+function downloadGeneratedPermit(permit) {
+  const link = document.createElement("a");
+  link.href = permit.generated_document_url;
+  link.download = `Ucus_Izni_${permit.aircraft_number}_${permit.permit_number}.docx`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
 function iconButton(icon, title, onClick, options = {}) {
   return h(
     NTooltip,
@@ -257,12 +267,25 @@ const tableColumns = [
   {
     title: "İşlemler",
     key: "actions",
-    width: 112,
+    width: 218,
     fixed: "right",
     align: "right",
     render: (permit) =>
       h(NSpace, { justify: "end", size: 2 }, {
         default: () => [
+          h(
+            NButton,
+            {
+              size: "small",
+              secondary: true,
+              type: "primary",
+              onClick: () => downloadGeneratedPermit(permit)
+            },
+            {
+              icon: () => h(NIcon, null, { default: () => h(Download, { size: 16 }) }),
+              default: () => "Word indir"
+            }
+          ),
           iconButton(Pencil, "İzni düzenle", () => openEditor(permit)),
           iconButton(Trash2, "İzni sil", () => requestDelete(permit), { type: "error" })
         ]
@@ -473,7 +496,7 @@ function updateFileList(files) {
         :loading="loading"
         :pagination="tablePagination"
         :row-key="(permit) => permit.id"
-        :scroll-x="1227"
+        :scroll-x="1333"
       />
     </n-card>
 
