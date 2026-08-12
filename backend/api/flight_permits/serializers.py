@@ -1,6 +1,9 @@
+import json
 from pathlib import Path
 
 from rest_framework import serializers
+from rest_framework.fields import empty
+from rest_framework.utils import html
 
 from ..services.document_limits import DocumentPreflightError, preflight_document
 from .file_policy import (
@@ -8,12 +11,36 @@ from .file_policy import (
     FLIGHT_PERMIT_DOCUMENT_MAX_SIZE,
 )
 from .models import FlightPermit
+from .purposes import FlightPurpose, flight_purpose_labels
 from .services.lifecycle import create_flight_permit, update_flight_permit
 
 
+class MultipartChoiceListField(serializers.ListField):
+    def get_value(self, dictionary):
+        if html.is_html_input(dictionary):
+            return dictionary.get(self.field_name, empty)
+        return super().get_value(dictionary)
+
+    def to_internal_value(self, data):
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError as exc:
+                raise serializers.ValidationError(
+                    "Geçerli bir seçim listesi gönderilmelidir."
+                ) from exc
+        return super().to_internal_value(data)
+
+
 class FlightPermitSerializer(serializers.ModelSerializer):
+    purpose_of_flight = MultipartChoiceListField(
+        child=serializers.ChoiceField(choices=FlightPurpose.choices),
+        required=False,
+        allow_empty=True,
+        max_length=len(FlightPurpose.choices),
+    )
+    purpose_of_flight_display = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
-    permit_type_display = serializers.CharField(source="get_permit_type_display", read_only=True)
     validity_status = serializers.SerializerMethodField()
     validity_status_display = serializers.SerializerMethodField()
     document_url = serializers.SerializerMethodField()
@@ -26,12 +53,22 @@ class FlightPermitSerializer(serializers.ModelSerializer):
         model = FlightPermit
         fields = [
             "id",
-            "aircraft_number",
+            "permit_applicant",
             "permit_number",
-            "permit_type",
-            "permit_type_display",
-            "issuing_authority",
-            "flight_region",
+            "aircraft_nationality",
+            "aircraft_id_mark",
+            "aircraft_owner",
+            "aircraft_type",
+            "aircraft_manufacturer",
+            "serial_number",
+            "purpose_of_flight",
+            "purpose_of_flight_display",
+            "target_date",
+            "flight_duration",
+            "aircraft_configuration",
+            "conditions_restrictions",
+            "conditions_substantiations",
+            "is_recommendation",
             "valid_from",
             "valid_until",
             "status",
@@ -60,11 +97,28 @@ class FlightPermitSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
-    def validate_aircraft_number(self, value):
-        return value.strip().upper()
-
     def validate_permit_number(self, value):
         return value.strip().upper()
+
+    def validate_permit_applicant(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Başvuru sahibi zorunludur.")
+        return value
+
+    def validate_aircraft_nationality(self, value):
+        return value.strip().upper()
+
+    def validate_aircraft_id_mark(self, value):
+        return value.strip().upper()
+
+    def validate_serial_number(self, value):
+        return value.strip().upper()
+
+    def validate_purpose_of_flight(self, value):
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError("Aynı uçuş amacı birden fazla kez seçilemez.")
+        return value
 
     def validate_document(self, uploaded_file):
         suffix = Path(uploaded_file.name).suffix.lower()
@@ -92,6 +146,9 @@ class FlightPermitSerializer(serializers.ModelSerializer):
 
     def get_validity_status(self, permit):
         return permit.validity_status()
+
+    def get_purpose_of_flight_display(self, permit):
+        return flight_purpose_labels(permit.purpose_of_flight)
 
     def get_validity_status_display(self, permit):
         return {

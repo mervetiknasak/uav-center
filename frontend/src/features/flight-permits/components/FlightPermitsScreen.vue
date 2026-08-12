@@ -24,7 +24,7 @@ const {
   fileList,
   existingDocument,
   form,
-  aircraftOptions,
+  serialNumberOptions,
   filteredPermits,
   metrics,
   openDocument,
@@ -49,7 +49,7 @@ function openDocumentUrl(url) {
   <section class="flight-permits-view">
     <n-page-header
       title="Uçuş İzinleri"
-      subtitle="Uçak bazlı izinleri, geçerlilik sürelerini ve resmi dokümanlarını tek merkezden yönetin."
+      subtitle="Uçuş izni ve tavsiye kayıtlarını, hava aracı bilgilerini ve resmi dokümanlarını yönetin."
     >
       <template #header>
         <n-space align="center" :size="6">
@@ -82,7 +82,7 @@ function openDocumentUrl(url) {
     <FlightPermitTable
       :permits="filteredPermits"
       :filters="filters"
-      :aircraft-options="aircraftOptions"
+      :serial-number-options="serialNumberOptions"
       :loading="loading"
       @open-document="openDocument"
       @download="downloadGeneratedPermit"

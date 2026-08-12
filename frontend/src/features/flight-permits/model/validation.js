@@ -5,16 +5,18 @@ const FLIGHT_PERMIT_FILE_EXTENSIONS = new Set(FLIGHT_PERMIT_FILE_ACCEPT.split(",
 
 export function validateFlightPermitForm(form) {
   if (
-    !String(form.aircraft_number || "").trim() ||
+    !String(form.permit_applicant || "").trim() ||
     !String(form.permit_number || "").trim() ||
-    !String(form.issuing_authority || "").trim() ||
     !form.valid_from ||
     !form.valid_until
   ) {
-    return "Uçak numarası, izin numarası, yetkili kurum ve geçerlilik tarihleri zorunludur.";
+    return "Başvuru sahibi, izin numarası ve geçerlilik tarihleri zorunludur.";
   }
   if (form.valid_until < form.valid_from) {
     return "Geçerlilik bitiş tarihi başlangıç tarihinden önce olamaz.";
+  }
+  if (form.flight_duration !== null && form.flight_duration < 1) {
+    return "Uçuş süresi en az 1 saat olmalıdır.";
   }
   return "";
 }

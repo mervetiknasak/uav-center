@@ -25,18 +25,23 @@ class FlightPermitListCreateView(generics.ListCreateAPIView):
         queryset = flight_permits_with_actors()
         search = self.request.query_params.get("search", "").strip()
         status_value = self.request.query_params.get("status", "").strip()
-        permit_type = self.request.query_params.get("permit_type", "").strip()
+        recommendation = self.request.query_params.get("is_recommendation", "").strip().lower()
         if search:
             queryset = queryset.filter(
-                Q(aircraft_number__icontains=search)
+                Q(permit_applicant__icontains=search)
                 | Q(permit_number__icontains=search)
-                | Q(issuing_authority__icontains=search)
-                | Q(flight_region__icontains=search)
+                | Q(aircraft_nationality__icontains=search)
+                | Q(aircraft_id_mark__icontains=search)
+                | Q(aircraft_owner__icontains=search)
+                | Q(aircraft_type__icontains=search)
+                | Q(aircraft_manufacturer__icontains=search)
+                | Q(serial_number__icontains=search)
+                | Q(purpose_of_flight__icontains=search)
             )
         if status_value:
             queryset = queryset.filter(status=status_value)
-        if permit_type:
-            queryset = queryset.filter(permit_type=permit_type)
+        if recommendation in {"true", "false"}:
+            queryset = queryset.filter(is_recommendation=recommendation == "true")
         return queryset
 
 
@@ -76,9 +81,12 @@ class FlightPermitGeneratedDocumentView(APIView):
     def get(self, request, flight_permit_id):
         permit = generics.get_object_or_404(FlightPermit, pk=flight_permit_id)
         document = build_flight_permit_document(permit)
-        safe_aircraft_number = "".join(
-            character if character.isalnum() or character in {"-", "_"} else "_"
-            for character in permit.aircraft_number
+        safe_serial_number = (
+            "".join(
+                character if character.isalnum() or character in {"-", "_"} else "_"
+                for character in permit.serial_number
+            )
+            or "hava_araci"
         )
         safe_permit_number = "".join(
             character if character.isalnum() or character in {"-", "_"} else "_"
@@ -87,7 +95,7 @@ class FlightPermitGeneratedDocumentView(APIView):
         response = FileResponse(
             document,
             as_attachment=True,
-            filename=f"Ucus_Izni_{safe_aircraft_number}_{safe_permit_number}.docx",
+            filename=f"Ucus_Izni_{safe_serial_number}_{safe_permit_number}.docx",
             content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
         response["X-Content-Type-Options"] = "nosniff"

@@ -15,22 +15,28 @@ class FlightPermit(models.Model):
         (STATUS_REVOKED, "İptal Edildi"),
     ]
 
-    TYPE_DOMESTIC = "domestic"
-    TYPE_INTERNATIONAL = "international"
-    TYPE_TEST = "test"
-    TYPE_FERRY = "ferry"
-    TYPE_CHOICES = [
-        (TYPE_DOMESTIC, "Yurt İçi"),
-        (TYPE_INTERNATIONAL, "Uluslararası"),
-        (TYPE_TEST, "Test Uçuşu"),
-        (TYPE_FERRY, "İntikal Uçuşu"),
-    ]
-
-    aircraft_number = models.CharField(max_length=80)
+    permit_applicant = models.TextField()
     permit_number = models.CharField(max_length=100, unique=True)
-    permit_type = models.CharField(max_length=24, choices=TYPE_CHOICES)
-    issuing_authority = models.CharField(max_length=160)
-    flight_region = models.CharField(max_length=200, blank=True)
+    aircraft_nationality = models.CharField(max_length=64, blank=True)
+    aircraft_id_mark = models.CharField(max_length=64, blank=True)
+    aircraft_owner = models.CharField(max_length=64, blank=True)
+    aircraft_type = models.CharField(max_length=64, blank=True)
+    aircraft_manufacturer = models.CharField(max_length=64, blank=True)
+    serial_number = models.CharField(max_length=64, blank=True)
+    purpose_of_flight = models.JSONField(default=list, blank=True)
+    target_date = models.DateField(null=True, blank=True)
+    flight_duration = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Duration in hours",
+    )
+    aircraft_configuration = models.TextField(blank=True)
+    conditions_restrictions = models.TextField(blank=True)
+    conditions_substantiations = models.TextField(blank=True)
+    is_recommendation = models.BooleanField(
+        default=False,
+        help_text="Indicates if the permit is a recommendation",
+    )
     valid_from = models.DateField()
     valid_until = models.DateField()
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_DRAFT)
@@ -61,14 +67,14 @@ class FlightPermit(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["valid_until", "aircraft_number", "permit_number"]
+        ordering = ["valid_until", "serial_number", "permit_number"]
         indexes = [
-            models.Index(fields=["aircraft_number", "valid_until"]),
+            models.Index(fields=["serial_number", "valid_until"]),
             models.Index(fields=["status", "valid_until"]),
         ]
 
     def __str__(self):
-        return f"{self.aircraft_number} — {self.permit_number}"
+        return f"{self.permit_number} — {self.serial_number}"
 
     def validity_status(self, *, on_date=None):
         """Return the effective validity state for a calendar date."""

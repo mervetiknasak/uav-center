@@ -4,32 +4,37 @@ export function normalizeFlightPermitSearch(value) {
     .trim();
 }
 
-export function selectAircraftOptions(permits) {
-  return [...new Set((permits || []).map((permit) => permit.aircraft_number))]
+export function selectSerialNumberOptions(permits) {
+  return [...new Set((permits || []).map((permit) => permit.serial_number).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, "tr"))
     .map((value) => ({ label: value, value }));
 }
 
 export function filterFlightPermits(
   permits,
-  { search = "", validityStatus = null, permitType = null, aircraft = null } = {}
+  { search = "", validityStatus = null, recommendation = null, serialNumber = null } = {}
 ) {
   const query = normalizeFlightPermitSearch(search);
   return (permits || []).filter((permit) => {
     const matchesSearch =
       !query ||
       [
-        permit.aircraft_number,
+        permit.permit_applicant,
         permit.permit_number,
-        permit.issuing_authority,
-        permit.flight_region,
+        permit.aircraft_nationality,
+        permit.aircraft_id_mark,
+        permit.aircraft_owner,
+        permit.aircraft_type,
+        permit.aircraft_manufacturer,
+        permit.serial_number,
+        ...(permit.purpose_of_flight_display || []),
         permit.document_name
       ].some((value) => normalizeFlightPermitSearch(value).includes(query));
     return (
       matchesSearch &&
       (!validityStatus || permit.validity_status === validityStatus) &&
-      (!permitType || permit.permit_type === permitType) &&
-      (!aircraft || permit.aircraft_number === aircraft)
+      (recommendation === null || permit.is_recommendation === recommendation) &&
+      (!serialNumber || permit.serial_number === serialNumber)
     );
   });
 }

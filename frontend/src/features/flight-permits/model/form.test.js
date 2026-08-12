@@ -10,37 +10,60 @@ import {
 describe("flight permit form model", () => {
   it("creates fresh defaults and maps records", () => {
     expect(createFlightPermitForm()).toMatchObject({
-      permit_type: "domestic",
+      is_recommendation: false,
       status: "approved",
       valid_from: null
     });
     expect(
       flightPermitToForm({
-        aircraft_number: "TC-UAV-1",
+        permit_applicant: "UAV Center",
         permit_number: "P-1",
-        permit_type: "test",
-        issuing_authority: "SHGM",
-        flight_region: "Ankara",
+        aircraft_nationality: "TR",
+        aircraft_id_mark: "TC-UAV-1",
+        aircraft_owner: "UAV Center",
+        aircraft_type: "Test",
+        aircraft_manufacturer: "UAV Center",
+        serial_number: "SN-1",
+        purpose_of_flight: ["research_development", "customer_acceptance"],
+        target_date: "2026-08-15",
+        flight_duration: 2,
+        aircraft_configuration: "Standart",
+        conditions_restrictions: "Ankara",
+        conditions_substantiations: "Rapor",
+        is_recommendation: true,
         valid_from: "2026-08-01",
         valid_until: "2026-08-31",
         status: "approved",
         notes: ""
-      }).permit_type
-    ).toBe("test");
+      }).purpose_of_flight
+    ).toEqual(["research_development", "customer_acceptance"]);
+    expect(
+      flightPermitToForm({
+        ...createFlightPermitForm(),
+        purpose_of_flight: ["training"]
+      }).purpose_of_flight
+    ).toEqual(["training"]);
   });
 
   it("normalizes identifiers in the API payload", () => {
     expect(
       buildFlightPermitPayload({
         ...createFlightPermitForm(),
-        aircraft_number: " tc-uav-1 ",
+        permit_applicant: " UAV Center ",
+        aircraft_nationality: " tr ",
+        aircraft_id_mark: " tc-uav-1 ",
         permit_number: " shgm-1 ",
-        issuing_authority: " SHGM "
+        serial_number: " sn-1 "
       })
     ).toMatchObject({
-      aircraft_number: "TC-UAV-1",
+      permit_applicant: "UAV Center",
+      aircraft_nationality: "TR",
+      aircraft_id_mark: "TC-UAV-1",
       permit_number: "SHGM-1",
-      issuing_authority: "SHGM"
+      serial_number: "SN-1",
+      purpose_of_flight: [],
+      target_date: "",
+      flight_duration: ""
     });
   });
 

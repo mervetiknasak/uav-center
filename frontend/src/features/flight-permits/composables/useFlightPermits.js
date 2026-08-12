@@ -28,7 +28,9 @@ export function useFlightPermits(apiFetch) {
     notice.value = "";
     const formData = new FormData();
     Object.entries(payload).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) formData.append(key, value);
+      if (value !== null && value !== undefined) {
+        formData.append(key, Array.isArray(value) ? JSON.stringify(value) : value);
+      }
     });
     if (file) formData.append("document", file, file.name);
     if (removeDocument) formData.append("remove_document", "true");

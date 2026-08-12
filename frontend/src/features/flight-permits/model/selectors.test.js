@@ -4,41 +4,44 @@ import {
   calculateFlightPermitMetrics,
   filterFlightPermits,
   normalizeFlightPermitSearch,
-  selectAircraftOptions
+  selectSerialNumberOptions
 } from "./selectors";
 
 const permits = [
   {
     id: 1,
-    aircraft_number: "TC-İHA-2",
+    permit_applicant: "SSB",
     permit_number: "SHGM-2",
-    issuing_authority: "SHGM",
-    flight_region: "Ankara",
+    serial_number: "SN-2",
+    purpose_of_flight: ["research_development"],
+    purpose_of_flight_display: ["Araştırma ve geliştirme uçuşu"],
     document_name: "izin.pdf",
     document_url: "/api/flight-permits/1/document/",
-    permit_type: "test",
+    is_recommendation: true,
     validity_status: "active"
   },
   {
     id: 2,
-    aircraft_number: "TC-UAV-1",
+    permit_applicant: "UAV Center",
     permit_number: "SHGM-1",
-    issuing_authority: "SHGM",
-    flight_region: "Konya",
+    serial_number: "SN-1",
+    purpose_of_flight: ["customer_acceptance"],
+    purpose_of_flight_display: ["Müşteri kabul uçuşu"],
     document_name: "",
     document_url: "",
-    permit_type: "domestic",
+    is_recommendation: false,
     validity_status: "expiring"
   },
   {
     id: 3,
-    aircraft_number: "TC-UAV-1",
+    permit_applicant: "UAV Center",
     permit_number: "SHGM-3",
-    issuing_authority: "SHGM",
-    flight_region: "İzmir",
+    serial_number: "SN-1",
+    purpose_of_flight: ["training"],
+    purpose_of_flight_display: ["Eğitim uçuşu"],
     document_name: "",
     document_url: "",
-    permit_type: "domestic",
+    is_recommendation: false,
     validity_status: "expired"
   }
 ];
@@ -48,20 +51,20 @@ describe("flight permit selectors", () => {
     expect(normalizeFlightPermitSearch("  İHA  ")).toBe("iha");
   });
 
-  it("creates unique sorted aircraft options", () => {
-    expect(selectAircraftOptions(permits)).toEqual([
-      { label: "TC-İHA-2", value: "TC-İHA-2" },
-      { label: "TC-UAV-1", value: "TC-UAV-1" }
+  it("creates unique sorted serial number options", () => {
+    expect(selectSerialNumberOptions(permits)).toEqual([
+      { label: "SN-1", value: "SN-1" },
+      { label: "SN-2", value: "SN-2" }
     ]);
   });
 
   it("combines search, validity, type and aircraft filters", () => {
     expect(
       filterFlightPermits(permits, {
-        search: "konya",
+        search: "müşteri kabul",
         validityStatus: "expiring",
-        permitType: "domestic",
-        aircraft: "TC-UAV-1"
+        recommendation: false,
+        serialNumber: "SN-1"
       }).map((permit) => permit.id)
     ).toEqual([2]);
   });

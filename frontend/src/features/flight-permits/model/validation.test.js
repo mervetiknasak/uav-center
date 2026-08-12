@@ -7,20 +7,22 @@ import {
 } from "./validation";
 
 const validForm = {
-  aircraft_number: "TC-UAV-1",
+  permit_applicant: "UAV Center",
   permit_number: "SHGM-1",
-  issuing_authority: "SHGM",
   valid_from: "2026-08-01",
   valid_until: "2026-08-31"
 };
 
 describe("flight permit validation", () => {
   it("validates required fields and date order", () => {
-    expect(validateFlightPermitForm({ ...validForm, aircraft_number: "" })).toContain("zorunludur");
+    expect(validateFlightPermitForm({ ...validForm, permit_applicant: "" })).toContain(
+      "zorunludur"
+    );
     expect(validateFlightPermitForm({ ...validForm, valid_until: "2026-07-31" })).toContain(
       "önce olamaz"
     );
     expect(validateFlightPermitForm(validForm)).toBe("");
+    expect(validateFlightPermitForm({ ...validForm, flight_duration: 0 })).toContain("en az 1");
   });
 
   it("validates file extension and size", () => {

@@ -4,6 +4,7 @@ from datetime import timedelta
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
+from zipfile import ZipFile
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -48,11 +49,21 @@ class FlightPermitApiTests(APITestCase):
     def permit_payload(self, **overrides):
         today = timezone.localdate()
         payload = {
-            "aircraft_number": "tc-uav-104",
+            "permit_applicant": "Savunma Sanayii Başkanlığı",
             "permit_number": "shgm-ui-2026-0042",
-            "permit_type": FlightPermit.TYPE_TEST,
-            "issuing_authority": "SHGM",
-            "flight_region": "Ankara Test Sahası",
+            "aircraft_nationality": "tr",
+            "aircraft_id_mark": "tc-uav-104",
+            "aircraft_owner": "UAV Center",
+            "aircraft_type": "Test Platformu",
+            "aircraft_manufacturer": "UAV Center",
+            "serial_number": "sn-104",
+            "purpose_of_flight": '["research_development", "customer_acceptance"]',
+            "target_date": (today + timedelta(days=10)).isoformat(),
+            "flight_duration": 3,
+            "aircraft_configuration": "Test sensör paketi",
+            "conditions_restrictions": "Ankara Test Sahası",
+            "conditions_substantiations": "Uçuş koşulları raporu",
+            "is_recommendation": False,
             "valid_from": today.isoformat(),
             "valid_until": (today + timedelta(days=60)).isoformat(),
             "status": FlightPermit.STATUS_APPROVED,
@@ -74,7 +85,16 @@ class FlightPermitApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["aircraft_number"], "TC-UAV-104")
+        self.assertEqual(response.data["aircraft_id_mark"], "TC-UAV-104")
+        self.assertEqual(response.data["serial_number"], "SN-104")
+        self.assertEqual(
+            response.data["purpose_of_flight"],
+            ["research_development", "customer_acceptance"],
+        )
+        self.assertEqual(
+            response.data["purpose_of_flight_display"],
+            ["Araştırma ve geliştirme uçuşu", "Müşteri kabul uçuşu"],
+        )
         self.assertEqual(response.data["permit_number"], "SHGM-UI-2026-0042")
         self.assertEqual(response.data["validity_status"], "active")
         self.assertEqual(response.data["document_name"], "ucus-izni.pdf")
@@ -97,11 +117,18 @@ class FlightPermitApiTests(APITestCase):
         with self.captureOnCommitCallbacks(execute=True):
             update_response = self.client.patch(
                 f"/api/flight-permits/{permit.id}/",
-                {"flight_region": "Konya Test Sahası", "remove_document": "true"},
+                {
+                    "conditions_restrictions": "Konya Test Sahası",
+                    "target_date": "",
+                    "flight_duration": "",
+                    "remove_document": "true",
+                },
                 format="multipart",
             )
         self.assertEqual(update_response.status_code, 200)
-        self.assertEqual(update_response.data["flight_region"], "Konya Test Sahası")
+        self.assertEqual(update_response.data["conditions_restrictions"], "Konya Test Sahası")
+        self.assertIsNone(update_response.data["target_date"])
+        self.assertIsNone(update_response.data["flight_duration"])
         self.assertEqual(update_response.data["document_url"], "")
         self.assertFalse(stored_document.exists())
 
@@ -112,7 +139,7 @@ class FlightPermitApiTests(APITestCase):
     def test_generates_downloadable_word_permit_from_record(self):
         create_response = self.client.post(
             "/api/flight-permits/",
-            self.permit_payload(),
+            self.permit_payload(is_recommendation=True),
             format="multipart",
         )
         permit_id = create_response.data["id"]
@@ -125,23 +152,37 @@ class FlightPermitApiTests(APITestCase):
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
         self.assertIn("attachment", response["Content-Disposition"])
-        self.assertIn(
-            "Ucus_Izni_TC-UAV-104_SHGM-UI-2026-0042.docx", response["Content-Disposition"]
-        )
+        self.assertIn("Ucus_Izni_SN-104_SHGM-UI-2026-0042.docx", response["Content-Disposition"])
 
-        generated = Document(BytesIO(b"".join(response.streaming_content)))
+        generated_bytes = b"".join(response.streaming_content)
+        generated = Document(BytesIO(generated_bytes))
         text_parts = [paragraph.text for paragraph in generated.paragraphs]
         for table in generated.tables:
             text_parts.extend(cell.text for row in table.rows for cell in row.cells)
         generated_text = "\n".join(text_parts)
-        self.assertIn("UÇUŞ İZNİ", generated_text)
+        with ZipFile(BytesIO(generated_bytes)) as generated_package:
+            document_xml = generated_package.read("word/document.xml").decode("utf-8")
+        self.assertIn("UÇUŞ İZNİ", document_xml)
+        self.assertIn("TAVSİYESİ", document_xml)
+        self.assertIn("Savunma Sanayii Başkanlığı", generated_text)
         self.assertIn("TC-UAV-104", generated_text)
+        self.assertIn("SN-104", generated_text)
+        self.assertIn("Araştırma ve geliştirme uçuşu", generated_text)
+        self.assertIn("Müşteri kabul uçuşu", generated_text)
         self.assertIn("SHGM-UI-2026-0042", generated_text)
         self.assertIn("Ankara Test Sahası", generated_text)
         self.assertNotIn("{{", generated_text)
 
     def test_rejects_invalid_date_range_and_document_type(self):
         today = timezone.localdate()
+        missing_applicant = self.client.post(
+            "/api/flight-permits/",
+            self.permit_payload(permit_applicant=""),
+            format="multipart",
+        )
+        self.assertEqual(missing_applicant.status_code, 400)
+        self.assertIn("permit_applicant", missing_applicant.data)
+
         invalid_dates = self.client.post(
             "/api/flight-permits/",
             self.permit_payload(
@@ -164,6 +205,17 @@ class FlightPermitApiTests(APITestCase):
         )
         self.assertEqual(invalid_document.status_code, 400)
         self.assertIn("document", invalid_document.data)
+
+        invalid_purpose = self.client.post(
+            "/api/flight-permits/",
+            self.permit_payload(
+                permit_number="SHGM-UI-2026-0099",
+                purpose_of_flight='["not_in_catalog"]',
+            ),
+            format="multipart",
+        )
+        self.assertEqual(invalid_purpose.status_code, 400)
+        self.assertIn("purpose_of_flight", invalid_purpose.data)
 
         for index, filename in enumerate(("izin.doc", "liste.xls"), start=4):
             with self.subTest(filename=filename):
@@ -248,10 +300,10 @@ class FlightPermitApiTests(APITestCase):
         ):
             create_flight_permit(
                 validated_data={
-                    "aircraft_number": "TC-UAV-FAIL",
+                    "permit_applicant": "Test Başvurusu",
                     "permit_number": "SHGM-FAIL-1",
-                    "permit_type": FlightPermit.TYPE_TEST,
-                    "issuing_authority": "SHGM",
+                    "aircraft_id_mark": "TC-UAV-FAIL",
+                    "serial_number": "SN-FAIL",
                     "valid_from": today,
                     "valid_until": today + timedelta(days=60),
                     "status": FlightPermit.STATUS_APPROVED,

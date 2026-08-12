@@ -10,13 +10,18 @@ import {
 import {
   calculateFlightPermitMetrics,
   filterFlightPermits,
-  selectAircraftOptions
+  selectSerialNumberOptions
 } from "../model/selectors";
 import { validateFlightPermitFile, validateFlightPermitForm } from "../model/validation";
 
 export function useFlightPermitsController({ permits, onSave, onDelete }) {
   const dialog = useDialog();
-  const filters = reactive({ search: "", validityStatus: null, permitType: null, aircraft: null });
+  const filters = reactive({
+    search: "",
+    validityStatus: null,
+    recommendation: null,
+    serialNumber: null
+  });
   const showEditor = ref(false);
   const editingId = ref(null);
   const formError = ref("");
@@ -25,7 +30,7 @@ export function useFlightPermitsController({ permits, onSave, onDelete }) {
   const removeDocument = ref(false);
   const form = reactive(createFlightPermitForm());
 
-  const aircraftOptions = computed(() => selectAircraftOptions(unref(permits)));
+  const serialNumberOptions = computed(() => selectSerialNumberOptions(unref(permits)));
   const filteredPermits = computed(() => filterFlightPermits(unref(permits), filters));
   const metrics = computed(() => calculateFlightPermitMetrics(unref(permits)));
 
@@ -38,7 +43,7 @@ export function useFlightPermitsController({ permits, onSave, onDelete }) {
   function downloadGeneratedPermit(permit) {
     const link = document.createElement("a");
     link.href = permit.generated_document_url;
-    link.download = `Ucus_Izni_${permit.aircraft_number}_${permit.permit_number}.docx`;
+    link.download = `Ucus_Izni_${permit.serial_number || "hava_araci"}_${permit.permit_number}.docx`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -72,7 +77,7 @@ export function useFlightPermitsController({ permits, onSave, onDelete }) {
   function requestDelete(permit) {
     dialog.warning({
       title: "Uçuş iznini sil",
-      content: `“${permit.aircraft_number} — ${permit.permit_number}” kaydı${permit.document_url ? " ve ekli dokümanı" : ""} kalıcı olarak silinecek.`,
+      content: `“${permit.permit_number} — ${permit.serial_number || "seri numarası yok"}” kaydı${permit.document_url ? " ve ekli dokümanı" : ""} kalıcı olarak silinecek.`,
       positiveText: "Sil",
       negativeText: "Vazgeç",
       positiveButtonProps: { type: "error" },
@@ -98,7 +103,7 @@ export function useFlightPermitsController({ permits, onSave, onDelete }) {
     fileList,
     existingDocument,
     form,
-    aircraftOptions,
+    serialNumberOptions,
     filteredPermits,
     metrics,
     openDocument,

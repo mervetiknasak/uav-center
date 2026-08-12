@@ -1,8 +1,21 @@
-export const FLIGHT_PERMIT_TYPES = Object.freeze([
-  { label: "Yurt İçi", value: "domestic" },
-  { label: "Uluslararası", value: "international" },
-  { label: "Test Uçuşu", value: "test" },
-  { label: "İntikal Uçuşu", value: "ferry" }
+export const FLIGHT_PERMIT_KINDS = Object.freeze([
+  { label: "Uçuş izni", value: false },
+  { label: "Uçuş izni tavsiyesi", value: true }
+]);
+
+export const FLIGHT_PURPOSE_OPTIONS = Object.freeze([
+  { label: "Geliştirme", value: "research_development" },
+  {
+    label: "Tasarım ya da üretim kuruluşlarının personel eğitimi",
+    value: "certification_compliance"
+  },
+  { label: "Üretim tesisleri arasında hava aracının uçurulması", value: "production_flight_test" },
+  { label: "Müşteri kabulü için uçurulması", value: "customer_acceptance" },
+  { label: "Uçak teslimatı ve ihracı", value: "maintenance_check" },
+  {
+    label: "Bakım veya uçuşa elverişlilik incelenmesi için ya da depolama yerine uçurulması",
+    value: "demonstration"
+  }
 ]);
 
 export const FLIGHT_PERMIT_RECORD_STATUSES = Object.freeze([

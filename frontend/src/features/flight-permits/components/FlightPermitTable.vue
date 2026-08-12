@@ -5,7 +5,7 @@ import { Download, FileText, Pencil, Plane, Search, Trash2 } from "@lucide/vue";
 
 import { formatFlightPermitDate, formatFlightPermitFileSize } from "../model/formatters";
 import {
-  FLIGHT_PERMIT_TYPES,
+  FLIGHT_PERMIT_KINDS,
   FLIGHT_PERMIT_VALIDITY_STATUSES,
   FLIGHT_PERMIT_VALIDITY_TAG_TYPES
 } from "../model/options";
@@ -13,7 +13,7 @@ import {
 defineProps({
   permits: { type: Array, required: true },
   filters: { type: Object, required: true },
-  aircraftOptions: { type: Array, required: true },
+  serialNumberOptions: { type: Array, required: true },
   loading: { type: Boolean, required: true }
 });
 
@@ -41,11 +41,11 @@ function iconButton(icon, title, onClick, options = {}) {
 
 const columns = [
   {
-    title: "Uçak",
-    key: "aircraft_number",
-    width: 140,
+    title: "Hava aracı",
+    key: "serial_number",
+    width: 210,
     fixed: "left",
-    sorter: (a, b) => a.aircraft_number.localeCompare(b.aircraft_number, "tr"),
+    sorter: (a, b) => (a.serial_number || "").localeCompare(b.serial_number || "", "tr"),
     render: (permit) =>
       h(
         NSpace,
@@ -53,7 +53,25 @@ const columns = [
         {
           default: () => [
             h(NIcon, { color: "#0f766e", size: 18 }, { default: () => h(Plane) }),
-            h(NText, { strong: true }, { default: () => permit.aircraft_number })
+            h(
+              NSpace,
+              { vertical: true, size: 2 },
+              {
+                default: () => [
+                  h(NText, { strong: true }, { default: () => permit.serial_number || "—" }),
+                  h(
+                    NText,
+                    { depth: 3 },
+                    {
+                      default: () =>
+                        [permit.aircraft_manufacturer, permit.aircraft_type]
+                          .filter(Boolean)
+                          .join(" / ") || "Üretici / tip belirtilmedi"
+                    }
+                  )
+                ]
+              }
+            )
           ]
         }
       )
@@ -70,24 +88,50 @@ const columns = [
         {
           default: () => [
             h(NText, { strong: true, type: "primary" }, { default: () => permit.permit_number }),
-            h(NText, { depth: 3 }, { default: () => permit.permit_type_display })
+            h(NText, { depth: 3 }, { default: () => permit.permit_applicant }),
+            permit.is_recommendation
+              ? h(
+                  NTag,
+                  { size: "tiny", type: "info", bordered: false },
+                  { default: () => "Tavsiye" }
+                )
+              : null
           ]
         }
       )
   },
   {
-    title: "Yetkili kurum / bölge",
-    key: "authority",
-    width: 230,
-    sorter: (a, b) => a.issuing_authority.localeCompare(b.issuing_authority, "tr"),
+    title: "Uçuş kapsamı",
+    key: "purpose_of_flight",
+    width: 240,
+    sorter: (a, b) =>
+      (a.purpose_of_flight_display || [])
+        .join(" ")
+        .localeCompare((b.purpose_of_flight_display || []).join(" "), "tr"),
     render: (permit) =>
       h(
         NSpace,
         { vertical: true, size: 3 },
         {
           default: () => [
-            h(NText, { strong: true }, { default: () => permit.issuing_authority }),
-            h(NText, { depth: 3 }, { default: () => permit.flight_region || "Bölge belirtilmedi" })
+            h(
+              NText,
+              { strong: true },
+              {
+                default: () =>
+                  (permit.purpose_of_flight_display || []).join(", ") || "Amaç belirtilmedi"
+              }
+            ),
+            h(
+              NText,
+              { depth: 3 },
+              {
+                default: () =>
+                  permit.target_date
+                    ? `Hedef: ${formatFlightPermitDate(permit.target_date)}${permit.flight_duration ? ` · ${permit.flight_duration} saat` : ""}`
+                    : "Hedef tarih belirtilmedi"
+              }
+            )
           ]
         }
       )
@@ -212,7 +256,7 @@ const pagination = {
         <n-input
           v-model:value="filters.search"
           clearable
-          placeholder="Uçak, izin no, kurum veya bölge ara…"
+          placeholder="Başvuru sahibi, izin no, seri no veya uçuş amacı ara…"
         >
           <template #prefix
             ><n-icon><Search /></n-icon
@@ -229,19 +273,19 @@ const pagination = {
       </n-grid-item>
       <n-grid-item>
         <n-select
-          v-model:value="filters.permitType"
+          v-model:value="filters.recommendation"
           clearable
-          placeholder="Tüm izin türleri"
-          :options="FLIGHT_PERMIT_TYPES"
+          placeholder="Tüm belge türleri"
+          :options="FLIGHT_PERMIT_KINDS"
         />
       </n-grid-item>
       <n-grid-item>
         <n-select
-          v-model:value="filters.aircraft"
+          v-model:value="filters.serialNumber"
           clearable
           filterable
-          placeholder="Tüm uçaklar"
-          :options="aircraftOptions"
+          placeholder="Tüm seri numaraları"
+          :options="serialNumberOptions"
         />
       </n-grid-item>
     </n-grid>
@@ -258,7 +302,7 @@ const pagination = {
       :loading="loading"
       :pagination="pagination"
       :row-key="(permit) => permit.id"
-      :scroll-x="1333"
+      :scroll-x="1423"
     />
   </n-card>
 </template>
