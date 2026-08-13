@@ -54,6 +54,7 @@ backend/api/
 ├── organization/           proje, panel, kişi ve gruplar
 ├── technical_documents/   teknik doküman yaşam döngüsü ve bildirim
 ├── flight_permits/         uçuş izinleri ve belge üretimi
+├── form_processes/         FM şablon kataloğu, dinamik kayıtlar ve Word üretimi
 ├── meeting_minutes/        Word ayrıştırma ve Jira yayın use-case'i
 ├── services/               cross-feature belge/AI/job işleme ve dış adaptör yüzeyleri
 ├── models.py               Django discovery için açık re-export façade
@@ -111,6 +112,7 @@ Uygulama karma görünürlük modeline sahiptir:
 | Organizasyon ve teknik doküman okuma | Aktif kullanıcılar |
 | Organizasyon ve teknik doküman yazma/bildirim | Staff; bildirim body/alıcı/hata ayrıntısı staff-only |
 | Uçuş izinleri | Paylaşımlı operasyonel veri; backend izni belirleyicidir |
+| Mühendislik form süreçleri | Paylaşımlı operasyonel kayıtlar; şablon kodu ve alan şeması backend tarafından doğrulanır |
 | Jira yayın ve model yönetimi | Staff veya açıkça tanımlı özel izin |
 
 Sahiplik uygulanan nesneler görünür queryset üzerinden alınır. Yabancı kimliği

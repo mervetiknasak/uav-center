@@ -39,6 +39,7 @@ bağımlılık yönü, veri sahipliği ve genişletme kuralları için
 - Bir teknik dokümanı aynı projedeki birden fazla panelle ilişkilendirme
 - Panel sorumlularına alıcı önizlemeli e-posta bildirimi ve bildirim geçmişi
 - Uçuş izinlerinde geçerlilik takibi, güvenli doküman ekleri ve indirilebilir Word çıktısı
+- Klasör bazlı 13 mühendislik süreci, 35 sürümlü FM Word şablonu ve dinamik form kayıtları
 
 ## Backend
 
@@ -104,6 +105,7 @@ http://localhost:8000/api/documents/<id>/controls/run/
 http://localhost:8000/api/analysis-controls/
 http://localhost:8000/api/jobs/
 http://localhost:8000/api/flight-permits/
+http://localhost:8000/api/form-processes/
 http://localhost:8000/api/organization/projects/
 http://localhost:8000/api/technical-documents/
 http://localhost:8000/api/word-to-jira/parse/
@@ -128,6 +130,10 @@ DRF yanıt formatı:
 - `GET|PATCH|DELETE /api/flight-permits/<id>/`: uçuş iznini okur, günceller veya siler
 - `GET /api/flight-permits/<id>/document/`: doğrulanmış ek dokümanı sunucu MIME politikasıyla indirir
 - `GET /api/flight-permits/<id>/generated-document/`: kayıt alanlarından Word izin belgesi üretir
+- `GET /api/form-processes/templates/`: süreç, FM şablonu ve dinamik alan kataloğunu döndürür
+- `GET|POST /api/form-processes/`: paylaşımlı mühendislik form kayıtlarını listeler veya oluşturur
+- `GET|PATCH|DELETE /api/form-processes/<id>/`: mühendislik form kaydını okur, günceller veya siler
+- `GET /api/form-processes/<id>/generated-document/`: kaynak FM şablonunu ve doğrulanmış kayıt alanlarını içeren Word çıktısı üretir
 - `GET /api/organization/projects/`: projeleri alt panelleri ve sorumlularıyla listeler
 - Organizasyon API'sindeki `POST`, `PATCH` ve `DELETE` işlemleri yalnızca admin kullanıcılarına açıktır
 - `GET|POST /api/technical-documents/`: teknik doküman listesi ve admin oluşturma işlemi
@@ -178,6 +184,22 @@ Uçuş izni eklerinde en fazla 15 MB boyutunda, yalnız doğrulanabilir modern
 biçimler kabul edilir: PDF, DOCX, XLSX, JPG/JPEG ve PNG. İstemcinin bildirdiği
 MIME türü güvenilir kabul edilmez; dosya yapısı sunucuda incelenir. Eski ikili
 DOC/XLS biçimleri bu güvenlik sınırının dışındadır.
+
+## Mühendislik Form Süreçleri
+
+**Süreçler → Mühendislik Formları** ekranı, `Formlar` envanterindeki klasörleri
+süreç ve `FM` ile başlayan DOCX dosyalarını sürümlü şablon olarak sunar. Katalogda
+13 süreç altında 35 şablon bulunur. Her şablon; kaynak formdaki başlık, boş hücre
+ve yer tutuculardan çıkarılan alan şemasına sahiptir. Backend yalnız seçilen
+şablonun alanlarını kabul eder; zorunlu alan, veri tipi, tarih, seçim ve uzunluk
+sınırlarını yan etkiden önce doğrular.
+
+Kayıtlar paylaşımlı operasyonel veridir ve aktif kullanıcılar tarafından yönetilir.
+`GET /api/form-processes/templates/` arayüzün dinamik form kataloğudur. Word indirme
+akışı kaynak DOCX'i docxtpl ile açar, kaynak sayfaları korur ve doğrulanmış alanları
+aynı dokümanın sonuna “Süreç Kayıt Bilgileri” bölümü olarak ekler. Böylece kaynak
+form revizyonu görünür kalırken veri tabanındaki tam kayıt denetlenebilir biçimde
+çıktıya taşınır.
 
 SessionAuthentication kullanan komut satırı istemcisi önce `/api/auth/csrf/`
 yanıtındaki `csrfToken` değerini `CSRF_TOKEN` olarak almalı, aynı `cookies.txt`

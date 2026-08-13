@@ -4,7 +4,10 @@ export const menuSections = [
   {
     label: "Süreçler",
     key: "processes",
-    children: [{ label: "Uçuş İzinleri", key: "flight-permits" }]
+    children: [
+      { label: "Uçuş İzinleri", key: "flight-permits" },
+      { label: "Mühendislik Formları", key: "form-processes" }
+    ]
   },
   {
     label: "Doküman Yönetimi",

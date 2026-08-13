@@ -20,6 +20,7 @@ EXPECTED_MODEL_EXPORTS = {
     "DocumentAnalysisRun",
     "DocumentChunk",
     "FlightPermit",
+    "FormProcessRecord",
     "PanelResponsible",
     "Person",
     "PersonGroup",
@@ -154,6 +155,10 @@ EXPECTED_NAMED_ROUTES = {
     "flight-permit-generated-document": (
         "flight-permits/<int:flight_permit_id>/generated-document/"
     ),
+    "form-process-record-list": "form-processes/",
+    "form-process-templates": "form-processes/templates/",
+    "form-process-record-detail": "form-processes/<int:record_id>/",
+    "form-process-generated-document": ("form-processes/<int:record_id>/generated-document/"),
     "technical-document-list": "technical-documents/",
     "technical-document-detail": "technical-documents/<int:technical_document_id>/",
     "technical-document-notify": ("technical-documents/<int:technical_document_id>/notify/"),
@@ -227,11 +232,11 @@ class ApiArchitectureTests(SimpleTestCase):
                 with self.subTest(facade=facade.__name__, export=exported_name):
                     self.assertTrue(hasattr(facade, exported_name))
 
-    def test_43_named_routes_remain_unique_and_unchanged(self):
+    def test_named_routes_remain_unique_and_unchanged(self):
         routes = _named_routes(urlpatterns)
         counts = Counter(name for name, _route in routes)
 
-        self.assertEqual(len(routes), 44)
+        self.assertEqual(len(routes), 48)
         self.assertEqual(
             {name for name, count in counts.items() if count > 1},
             set(),

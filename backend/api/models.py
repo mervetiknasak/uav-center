@@ -7,6 +7,7 @@ label used by historical migrations.
 
 from .documents.models import AnalysisControl, Document, DocumentAnalysisRun, DocumentChunk
 from .flight_permits.models import FlightPermit
+from .form_processes.models import FormProcessRecord
 from .jobs.models import AsyncJob
 from .organization.models import PanelResponsible, Person, PersonGroup, Project, ProjectPanel
 from .technical_documents.models import (
@@ -24,6 +25,7 @@ __all__ = [
     "DocumentAnalysisRun",
     "DocumentChunk",
     "FlightPermit",
+    "FormProcessRecord",
     "PanelResponsible",
     "Person",
     "PersonGroup",
