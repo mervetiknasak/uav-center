@@ -5,9 +5,11 @@ from .views import (
     FlightPermitDocumentView,
     FlightPermitGeneratedDocumentView,
     FlightPermitListCreateView,
+    FlightPermitTemplateCatalogView,
 )
 
 urlpatterns = [
+    path("templates/", FlightPermitTemplateCatalogView.as_view(), name="flight-permit-templates"),
     path("", FlightPermitListCreateView.as_view(), name="flight-permit-list"),
     path("<int:flight_permit_id>/", FlightPermitDetailView.as_view(), name="flight-permit-detail"),
     path(

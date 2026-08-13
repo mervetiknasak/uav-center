@@ -14,6 +14,7 @@ onMounted(flightPermits.loadPermits);
 <template>
   <FlightPermitsScreen
     :permits="flightPermits.permits.value"
+    :templates="flightPermits.templates.value"
     :loading="flightPermits.loading.value"
     :saving="flightPermits.saving.value"
     :error="flightPermits.error.value"

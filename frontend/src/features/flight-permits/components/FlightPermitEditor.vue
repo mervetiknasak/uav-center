@@ -9,6 +9,7 @@ defineProps({
   show: { type: Boolean, required: true },
   editingId: { type: Number, default: null },
   form: { type: Object, required: true },
+  templates: { type: Array, required: true },
   formError: { type: String, default: "" },
   fileList: { type: Array, required: true },
   existingDocument: { type: Object, default: null },
@@ -22,6 +23,12 @@ const emit = defineEmits([
   "remove-document",
   "update:file-list"
 ]);
+
+function selectTemplate(form, code) {
+  form.template_code = code;
+  form.template_data = {};
+  if (code !== "institution_a") form.is_recommendation = false;
+}
 </script>
 
 <template>
@@ -35,9 +42,45 @@ const emit = defineEmits([
   >
     <n-alert v-if="formError" type="error" class="fp-form-alert">{{ formError }}</n-alert>
     <n-form label-placement="top">
+      <n-alert type="info" :show-icon="false" class="fp-template-alert">
+        Uçuş izni, seçtiğiniz kuruma ait Word şablonu ve alanlarla oluşturulur.
+      </n-alert>
+      <n-form-item label="Gönderilecek kurum / şablon" required>
+        <n-select
+          :value="form.template_code"
+          :options="
+            templates.map((template) => ({ label: template.institution, value: template.code }))
+          "
+          placeholder="Kurum seçin"
+          @update:value="selectTemplate(form, $event)"
+        />
+      </n-form-item>
+      <n-grid
+        v-if="templates.find((template) => template.code === form.template_code)?.fields.length"
+        cols="1 s:2"
+        responsive="screen"
+        :x-gap="16"
+      >
+        <n-form-item-gi
+          v-for="field in templates.find((template) => template.code === form.template_code).fields"
+          :key="field.key"
+          :label="field.label"
+          :required="field.required"
+        >
+          <n-input
+            v-model:value="form.template_data[field.key]"
+            :type="field.type"
+            :rows="field.type === 'textarea' ? 3 : undefined"
+            :maxlength="field.max_length"
+            :placeholder="field.placeholder"
+            show-count
+          />
+        </n-form-item-gi>
+      </n-grid>
+      <n-divider />
       <n-flex justify="space-between" align="center" class="fp-form-section">
         <n-text strong>İzin bilgileri</n-text>
-        <n-flex align="center" :size="8">
+        <n-flex v-if="form.template_code === 'institution_a'" align="center" :size="8">
           <n-text>Uçuş izni tavsiyesi</n-text>
           <n-switch v-model:value="form.is_recommendation" aria-label="Uçuş izni tavsiyesi" />
         </n-flex>
@@ -114,14 +157,17 @@ const emit = defineEmits([
       </n-grid>
 
       <n-form-item label="Uçuşun amacı">
-        <n-checkbox-group v-model:value="form.purpose_of_flight" class="fp-purpose-options">
-          <n-checkbox
-            v-for="option in FLIGHT_PURPOSE_OPTIONS"
-            :key="option.value"
-            :value="option.value"
-            :label="option.label"
-          />
-        </n-checkbox-group>
+        <n-space>
+          Uçuş izni kapsamının 21.A.701 maddesi yer alan,
+          <n-checkbox-group v-model:value="form.purpose_of_flight" class="fp-purpose-options">
+            <n-checkbox
+              v-for="option in FLIGHT_PURPOSE_OPTIONS"
+              :key="option.value"
+              :value="option.value"
+              :label="option.label"
+            />
+          </n-checkbox-group>
+        </n-space>
       </n-form-item>
       <n-form-item label="Uçuş izniyle ilgili hava aracı konfigürasyonu">
         <n-input v-model:value="form.aircraft_configuration" type="textarea" :rows="2" />

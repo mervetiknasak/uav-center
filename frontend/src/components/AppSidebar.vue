@@ -31,7 +31,7 @@ const emit = defineEmits(["logout", "update:menu-key"]);
       :default-expanded-keys="
         user.is_staff
           ? [
-              'flight-operations',
+              'processes',
               'document-management',
               'organization',
               'tools',
@@ -39,7 +39,7 @@ const emit = defineEmits(["logout", "update:menu-key"]);
               'system',
               'admin'
             ]
-          : ['flight-operations', 'document-management', 'organization', 'tools', 'operations']
+          : ['processes', 'document-management', 'organization', 'tools', 'operations']
       "
       @update:value="emit('update:menu-key', $event)"
     />

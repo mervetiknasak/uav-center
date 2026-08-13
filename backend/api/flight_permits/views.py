@@ -14,6 +14,7 @@ from .models import FlightPermit
 from .selectors import flight_permits_with_actors
 from .serializers import FlightPermitSerializer
 from .services.lifecycle import delete_flight_permit
+from .templates import flight_permit_template_catalog
 
 
 class FlightPermitListCreateView(generics.ListCreateAPIView):
@@ -43,6 +44,13 @@ class FlightPermitListCreateView(generics.ListCreateAPIView):
         if recommendation in {"true", "false"}:
             queryset = queryset.filter(is_recommendation=recommendation == "true")
         return queryset
+
+
+class FlightPermitTemplateCatalogView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def get(self, request):
+        return Response(flight_permit_template_catalog())
 
 
 class FlightPermitDetailView(generics.RetrieveUpdateDestroyAPIView):

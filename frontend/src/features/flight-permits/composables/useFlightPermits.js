@@ -4,6 +4,7 @@ import { errorMessage } from "../../../composables/errorMessage";
 
 export function useFlightPermits(apiFetch) {
   const permits = ref([]);
+  const templates = ref([]);
   const loading = ref(false);
   const saving = ref(false);
   const error = ref("");
@@ -13,8 +14,12 @@ export function useFlightPermits(apiFetch) {
     loading.value = true;
     error.value = "";
     try {
-      const data = await apiFetch("/api/flight-permits/");
+      const [data, templateData] = await Promise.all([
+        apiFetch("/api/flight-permits/"),
+        apiFetch("/api/flight-permits/templates/")
+      ]);
       permits.value = Array.isArray(data) ? data : [];
+      templates.value = Array.isArray(templateData) ? templateData : [];
     } catch (err) {
       error.value = errorMessage(err, "Uçuş izinleri alınamadı");
     } finally {
@@ -71,12 +76,14 @@ export function useFlightPermits(apiFetch) {
 
   function resetPermits() {
     permits.value = [];
+    templates.value = [];
     error.value = "";
     notice.value = "";
   }
 
   return {
     permits,
+    templates,
     loading,
     saving,
     error,

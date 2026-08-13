@@ -9,6 +9,7 @@ import FlightPermitTable from "./FlightPermitTable.vue";
 
 const props = defineProps({
   permits: { type: Array, required: true },
+  templates: { type: Array, required: true },
   loading: { type: Boolean, required: true },
   saving: { type: Boolean, required: true },
   error: { type: String, default: "" },
@@ -36,6 +37,7 @@ const {
   updateFileList
 } = useFlightPermitsController({
   permits: toRef(props, "permits"),
+  templates: toRef(props, "templates"),
   onSave: (payload) => emit("save", payload),
   onDelete: (permit) => emit("delete", permit)
 });
@@ -54,7 +56,7 @@ function openDocumentUrl(url) {
       <template #header>
         <n-space align="center" :size="6">
           <n-icon :size="16"><Plane /></n-icon>
-          <n-text type="primary" strong>Uçuş Operasyonları</n-text>
+          <n-text type="primary" strong>Süreçler</n-text>
         </n-space>
       </template>
       <template #extra>
@@ -93,6 +95,7 @@ function openDocumentUrl(url) {
       v-model:show="showEditor"
       :editing-id="editingId"
       :form="form"
+      :templates="templates"
       :form-error="formError"
       :file-list="fileList"
       :existing-document="existingDocument"

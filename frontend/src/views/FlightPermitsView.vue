@@ -3,6 +3,7 @@ import FlightPermitsScreen from "../features/flight-permits/components/FlightPer
 
 defineProps({
   permits: { type: Array, required: true },
+  templates: { type: Array, default: () => [] },
   loading: { type: Boolean, required: true },
   saving: { type: Boolean, required: true },
   error: { type: String, default: "" },

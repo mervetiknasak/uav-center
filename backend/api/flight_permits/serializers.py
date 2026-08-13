@@ -13,6 +13,13 @@ from .file_policy import (
 from .models import FlightPermit
 from .purposes import FlightPurpose, flight_purpose_labels
 from .services.lifecycle import create_flight_permit, update_flight_permit
+from .templates import (
+    DEFAULT_FLIGHT_PERMIT_TEMPLATE_CODE,
+    FLIGHT_PERMIT_TEMPLATES,
+    TemplateDataValidationError,
+    get_flight_permit_template,
+    validate_template_data,
+)
 
 
 class MultipartChoiceListField(serializers.ListField):
@@ -32,7 +39,25 @@ class MultipartChoiceListField(serializers.ListField):
         return super().to_internal_value(data)
 
 
+class MultipartJSONField(serializers.JSONField):
+    def to_internal_value(self, data):
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError as exc:
+                raise serializers.ValidationError(
+                    "Geçerli bir JSON nesnesi gönderilmelidir."
+                ) from exc
+        return super().to_internal_value(data)
+
+
 class FlightPermitSerializer(serializers.ModelSerializer):
+    template_code = serializers.ChoiceField(
+        choices=[(template.code, template.institution) for template in FLIGHT_PERMIT_TEMPLATES],
+        default=DEFAULT_FLIGHT_PERMIT_TEMPLATE_CODE,
+    )
+    template_data = MultipartJSONField(required=False)
+    institution_display = serializers.SerializerMethodField()
     purpose_of_flight = MultipartChoiceListField(
         child=serializers.ChoiceField(choices=FlightPurpose.choices),
         required=False,
@@ -55,6 +80,9 @@ class FlightPermitSerializer(serializers.ModelSerializer):
             "id",
             "permit_applicant",
             "permit_number",
+            "template_code",
+            "template_data",
+            "institution_display",
             "aircraft_nationality",
             "aircraft_id_mark",
             "aircraft_owner",
@@ -142,7 +170,24 @@ class FlightPermitSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"valid_until": ["Geçerlilik bitiş tarihi başlangıç tarihinden önce olamaz."]}
             )
+        template_code = attrs.get(
+            "template_code",
+            getattr(self.instance, "template_code", FLIGHT_PERMIT_TEMPLATES[0].code),
+        )
+        template_data = attrs.get(
+            "template_data",
+            getattr(self.instance, "template_data", {}),
+        )
+        try:
+            attrs["template_data"] = validate_template_data(template_code, template_data)
+        except TemplateDataValidationError as exc:
+            raise serializers.ValidationError(exc.errors) from exc
+        if template_code != DEFAULT_FLIGHT_PERMIT_TEMPLATE_CODE:
+            attrs["is_recommendation"] = False
         return attrs
+
+    def get_institution_display(self, permit):
+        return get_flight_permit_template(permit.template_code).institution
 
     def get_validity_status(self, permit):
         return permit.validity_status()

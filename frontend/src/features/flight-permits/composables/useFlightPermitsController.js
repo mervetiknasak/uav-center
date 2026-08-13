@@ -14,7 +14,7 @@ import {
 } from "../model/selectors";
 import { validateFlightPermitFile, validateFlightPermitForm } from "../model/validation";
 
-export function useFlightPermitsController({ permits, onSave, onDelete }) {
+export function useFlightPermitsController({ permits, templates, onSave, onDelete }) {
   const dialog = useDialog();
   const filters = reactive({
     search: "",
@@ -51,7 +51,10 @@ export function useFlightPermitsController({ permits, onSave, onDelete }) {
 
   function openEditor(permit = null) {
     editingId.value = permit?.id ?? null;
-    Object.assign(form, flightPermitToForm(permit));
+    Object.assign(
+      form,
+      permit ? flightPermitToForm(permit) : createFlightPermitForm(unref(templates)[0]?.code)
+    );
     fileList.value = [];
     existingDocument.value = selectExistingFlightPermitDocument(permit);
     removeDocument.value = false;
@@ -61,7 +64,8 @@ export function useFlightPermitsController({ permits, onSave, onDelete }) {
 
   function submitPermit() {
     const file = fileList.value[0]?.file || null;
-    formError.value = validateFlightPermitForm(form) || validateFlightPermitFile(file);
+    formError.value =
+      validateFlightPermitForm(form, unref(templates)) || validateFlightPermitFile(file);
     if (formError.value) return;
     onSave({
       id: editingId.value,

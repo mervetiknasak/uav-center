@@ -88,6 +88,11 @@ const columns = [
         {
           default: () => [
             h(NText, { strong: true, type: "primary" }, { default: () => permit.permit_number }),
+            h(
+              NTag,
+              { size: "tiny", bordered: false },
+              { default: () => permit.institution_display }
+            ),
             h(NText, { depth: 3 }, { default: () => permit.permit_applicant }),
             permit.is_recommendation
               ? h(

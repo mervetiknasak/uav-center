@@ -12,19 +12,23 @@ describe("flight permit form model", () => {
     expect(createFlightPermitForm()).toMatchObject({
       is_recommendation: false,
       status: "approved",
+      template_code: "institution_a",
+      template_data: {},
       valid_from: null
     });
     expect(
       flightPermitToForm({
         permit_applicant: "UAV Center",
         permit_number: "P-1",
+        template_code: "institution_c",
+        template_data: { coordination_contact: "Ayşe Yılmaz" },
         aircraft_nationality: "TR",
         aircraft_id_mark: "TC-UAV-1",
         aircraft_owner: "UAV Center",
         aircraft_type: "Test",
         aircraft_manufacturer: "UAV Center",
         serial_number: "SN-1",
-        purpose_of_flight: ["research_development", "customer_acceptance"],
+        purpose_of_flight: ["option_1", "option_6"],
         target_date: "2026-08-15",
         flight_duration: 2,
         aircraft_configuration: "Standart",
@@ -36,7 +40,7 @@ describe("flight permit form model", () => {
         status: "approved",
         notes: ""
       }).purpose_of_flight
-    ).toEqual(["research_development", "customer_acceptance"]);
+    ).toEqual(["option_1", "option_6"]);
     expect(
       flightPermitToForm({
         ...createFlightPermitForm(),

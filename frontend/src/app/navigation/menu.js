@@ -2,8 +2,8 @@ export const DEFAULT_ROUTE_NAME = "technical-documents";
 
 export const menuSections = [
   {
-    label: "Uçuş Operasyonları",
-    key: "flight-operations",
+    label: "Süreçler",
+    key: "processes",
     children: [{ label: "Uçuş İzinleri", key: "flight-permits" }]
   },
   {

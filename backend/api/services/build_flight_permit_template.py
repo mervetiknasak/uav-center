@@ -190,7 +190,7 @@ def build_template(output_path):
     header = section.header
     header_paragraph = header.paragraphs[0]
     header_paragraph.paragraph_format.space_after = Pt(0)
-    header_run = header_paragraph.add_run("UAV CENTER  |  UÇUŞ OPERASYONLARI")
+    header_run = header_paragraph.add_run("UAV CENTER  |  SÜREÇLER  |  C KURUMU")
     set_run_font(header_run, size=8.5, bold=True, color=ACCENT)
 
     footer = section.footer
@@ -248,14 +248,15 @@ def build_template(output_path):
     set_run_font(header_run, size=10, bold=True, color=WHITE)
     set_repeat_table_header(details.rows[0])
 
-    add_detail_row(details, "UÇAK NUMARASI", "{{ aircraft_number }}")
+    add_detail_row(details, "ALICI KURUM", "{{ institution }}")
+    add_detail_row(details, "BAŞVURU SAHİBİ", "{{ permit_applicant }}")
     add_detail_row(details, "UÇUŞ İZİN NUMARASI", "{{ permit_number }}")
-    add_detail_row(details, "İZİN TÜRÜ", "{{ permit_type }}")
-    add_detail_row(details, "İZNİ VEREN KURUM", "{{ issuing_authority }}")
-    add_detail_row(details, "UÇUŞ BÖLGESİ / KAPSAM", "{{ flight_region }}")
+    add_detail_row(details, "HAVA ARACI", "{{ aircraft_manufacturer }}")
+    add_detail_row(details, "SERİ NUMARASI", "{{ serial_number }}")
+    add_detail_row(details, "UÇUŞ AMACI", "{{ purpose_of_flight }}")
+    add_detail_row(details, "HEDEF TARİH / SÜRE", "{{ target_date }}")
     add_detail_row(details, "GEÇERLİLİK BAŞLANGICI", "{{ valid_from }}")
     add_detail_row(details, "GEÇERLİLİK BİTİŞİ", "{{ valid_until }}")
-    add_detail_row(details, "İZİN DURUMU", "{{ validity_status }}")
     set_table_geometry(details, [LABEL_WIDTH_DXA, VALUE_WIDTH_DXA])
 
     notes_heading = document.add_paragraph()
@@ -265,32 +266,37 @@ def build_template(output_path):
     set_run_font(notes_heading_run, size=9.5, bold=True, color=ACCENT)
     notes = document.add_paragraph()
     notes.paragraph_format.space_after = Pt(14)
-    notes_run = notes.add_run("{{ notes }}")
+    notes_run = notes.add_run("{{ conditions_restrictions }}")
     set_run_font(notes_run, size=10, color=INK)
 
-    approval = document.add_paragraph()
-    approval.paragraph_format.space_before = Pt(8)
-    approval.paragraph_format.space_after = Pt(20)
-    approval_run = approval.add_run(
-        "Bu izin yalnızca belirtilen kapsam ve geçerlilik tarihleri içinde kullanılabilir. "
-        "Uçuş öncesinde güncel operasyonel ve yasal gerekliliklerin kontrolü sorumluluğu kullanıcıya aittir."
+    coordination = document.add_table(rows=1, cols=2)
+    coordination.style = "Table Grid"
+    coordination.rows[0].cells[0].merge(coordination.rows[0].cells[1])
+    set_cell_fill(coordination.rows[0].cells[0], ACCENT)
+    coordination_header = coordination.rows[0].cells[0].paragraphs[0]
+    coordination_header.paragraph_format.space_after = Pt(0)
+    set_run_font(
+        coordination_header.add_run("C KURUMU KOORDİNASYON BİLGİLERİ"),
+        size=10,
+        bold=True,
+        color=WHITE,
     )
-    set_run_font(approval_run, size=9, italic=True, color=MUTED)
+    add_detail_row(coordination, "KOORDİNASYON SORUMLUSU", "{{ coordination_contact }}")
+    add_detail_row(coordination, "KOORDİNASYON REFERANSI", "{{ coordination_reference }}")
+    add_detail_row(coordination, "OPERASYON NOTLARI", "{{ operational_notes }}")
+    set_table_geometry(coordination, [LABEL_WIDTH_DXA, VALUE_WIDTH_DXA])
 
-    signature_table = document.add_table(rows=2, cols=2)
+    signature_table = document.add_table(rows=1, cols=2)
     signature_table.style = "Table Grid"
     for cell in signature_table.rows[0].cells:
         set_cell_fill(cell, LIGHT_FILL)
     set_repeat_table_header(signature_table.rows[0])
     signature_labels = (("DÜZENLEME TARİHİ", "{{ generated_at }}"), ("ONAY / İMZA", "Yetkili İmza"))
     for index, (label, value) in enumerate(signature_labels):
-        label_p = signature_table.rows[0].cells[index].paragraphs[0]
-        label_p.paragraph_format.space_after = Pt(0)
-        set_run_font(label_p.add_run(label), size=9, bold=True, color=MUTED)
-        value_p = signature_table.rows[1].cells[index].paragraphs[0]
-        value_p.paragraph_format.space_before = Pt(16 if index else 5)
-        value_p.paragraph_format.space_after = Pt(5)
-        set_run_font(value_p.add_run(value), size=10, bold=not index, color=INK)
+        paragraph = signature_table.rows[0].cells[index].paragraphs[0]
+        paragraph.paragraph_format.space_after = Pt(0)
+        set_run_font(paragraph.add_run(f"{label}: "), size=9, bold=True, color=MUTED)
+        set_run_font(paragraph.add_run(value), size=9.5, bold=not index, color=INK)
     set_table_geometry(signature_table, [4680, 4680])
 
     document.core_properties.title = "Uçuş İzni / Flight Permit"

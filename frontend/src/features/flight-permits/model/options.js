@@ -4,17 +4,43 @@ export const FLIGHT_PERMIT_KINDS = Object.freeze([
 ]);
 
 export const FLIGHT_PURPOSE_OPTIONS = Object.freeze([
-  { label: "Geliştirme", value: "research_development" },
+  { label: "1. Geliştirme", value: "option_1" },
   {
-    label: "Tasarım ya da üretim kuruluşlarının personel eğitimi",
-    value: "certification_compliance"
+    label: "2. Düzenlemelere veya sertifikasyon şartnamelerine uygunluğun gösterilmesi",
+    value: "option_2"
   },
-  { label: "Üretim tesisleri arasında hava aracının uçurulması", value: "production_flight_test" },
-  { label: "Müşteri kabulü için uçurulması", value: "customer_acceptance" },
-  { label: "Uçak teslimatı ve ihracı", value: "maintenance_check" },
+  { label: "3. Tasarım ya da üretim kuruluşlarının personel eğitimi", value: "option_3" },
+  { label: "4. Yeni üretilen hava araçlarında üretim uçuş testleri", value: "option_4" },
+  { label: "5. Üretim tesisleri arasında hava aracının uçurulması", value: "option_5" },
+  { label: "6. Müşteri kabulü için uçurulması", value: "option_6" },
+  { label: "7. Uçak teslimatı ve ihracı", value: "option_7" },
+  { label: "8. Yetkili makam tarafından kabul uçuşu yapılması", value: "option_8" },
+  { label: "9. Pazar araştırması, müşterinin personel eğitimi de dahil", value: "option_9" },
+  { label: "10. Sergiler ve hava gösterileri", value: "option_10" },
   {
-    label: "Bakım veya uçuşa elverişlilik incelenmesi için ya da depolama yerine uçurulması",
-    value: "demonstration"
+    label: "11. Bakım veya uçuşa elverişlilik incelemesi için ya da depolama yerine uçurulması",
+    value: "option_11"
+  },
+  {
+    label:
+      "12. MTOW üzerinde, normal menzilin ötesi su veya karada (uygun iniş tesislerinin veya yakıtın bulunmadığı bölgelerde) aşırı yükle uçuş",
+    value: "option_12"
+  },
+  { label: "13. Rekor kırma, hava yarışı veya benzeri yarışmalar", value: "option_13" },
+  {
+    label:
+      "14. Çevresel gereksinimlere (gürültü, emisyon vb.) uyum sağlamadığı halde uçuşa elverişlilik gereksinimlerini karşılayan hava araçlarının uçurulması",
+    value: "option_14"
+  },
+  {
+    label:
+      "15. Sivil, bireysel ve kompleks olmayan hava araçlarında, UE sertifikası veya Restricted UE olmayan durumlarda ticari olmayan uçuş faaliyetleri",
+    value: "option_15"
+  },
+  {
+    label:
+      "16. Bakımdan sonra bir veya daha fazla sistem, parça ya da donanım işleyişinin test edilmesi veya sorun giderilme amacıyla uçuş",
+    value: "option_16"
   }
 ]);
 

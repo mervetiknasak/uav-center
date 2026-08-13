@@ -3,7 +3,7 @@ export const FLIGHT_PERMIT_FILE_MAX_BYTES = 15 * 1024 * 1024;
 
 const FLIGHT_PERMIT_FILE_EXTENSIONS = new Set(FLIGHT_PERMIT_FILE_ACCEPT.split(","));
 
-export function validateFlightPermitForm(form) {
+export function validateFlightPermitForm(form, templates = []) {
   if (
     !String(form.permit_applicant || "").trim() ||
     !String(form.permit_number || "").trim() ||
@@ -18,6 +18,12 @@ export function validateFlightPermitForm(form) {
   if (form.flight_duration !== null && form.flight_duration < 1) {
     return "Uçuş süresi en az 1 saat olmalıdır.";
   }
+  const template = templates.find((item) => item.code === form.template_code);
+  if (!template) return "Geçerli bir alıcı kurum ve şablon seçilmelidir.";
+  const missingField = template.fields.find(
+    (field) => field.required && !String(form.template_data?.[field.key] || "").trim()
+  );
+  if (missingField) return `${missingField.label} zorunludur.`;
   return "";
 }
 

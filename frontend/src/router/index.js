@@ -20,6 +20,10 @@ const routes = [
     meta: { menuKey: "flight-permits" }
   },
   {
+    path: "/processes/flight-permits/:institution(institution-a|institution-b|institution-c)",
+    redirect: { name: "flight-permits" }
+  },
+  {
     path: "/jobs",
     name: "jobs",
     component: () => import("../features/jobs/pages/JobsPage.vue"),

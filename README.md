@@ -163,6 +163,17 @@ tekrar gönderim yapılmamalıdır.
 
 ## Uçuş İzinleri
 
+Arayüzde uçuş izinleri, **Süreçler → Uçuş İzinleri** ekranında yönetilir. A, B ve
+C Kurumu seçimleri aynı form içinde farklı Word şablonlarını ve kuruma özgü form
+alanlarını kullanır. Seçilen `template_code` ile bu alanların `template_data`
+değerleri kayıtla birlikte saklanır; sunucu, yalnız seçilen şablonun tanımladığı
+alanları kabul eder ve zorunlu alanları doğrular. Uçuş izni tavsiyesi seçeneği
+yalnız A Kurumu şablonuna aittir; diğer kurumlarda değer sunucuda `false` tutulur.
+
+`GET /api/flight-permits/templates/` aktif şablon kataloğunu ve dinamik form alanı
+şemalarını döndürür. Yeni kurum şablonları `api/flight_permits/templates.py`
+kaydına eklenerek genişletilir.
+
 Uçuş izni eklerinde en fazla 15 MB boyutunda, yalnız doğrulanabilir modern
 biçimler kabul edilir: PDF, DOCX, XLSX, JPG/JPEG ve PNG. İstemcinin bildirdiği
 MIME türü güvenilir kabul edilmez; dosya yapısı sunucuda incelenir. Eski ikili

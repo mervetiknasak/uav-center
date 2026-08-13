@@ -57,7 +57,7 @@ class FlightPermitApiTests(APITestCase):
             "aircraft_type": "Test Platformu",
             "aircraft_manufacturer": "UAV Center",
             "serial_number": "sn-104",
-            "purpose_of_flight": '["research_development", "customer_acceptance"]',
+            "purpose_of_flight": '["option_1", "option_6"]',
             "target_date": (today + timedelta(days=10)).isoformat(),
             "flight_duration": 3,
             "aircraft_configuration": "Test sensör paketi",
@@ -89,11 +89,11 @@ class FlightPermitApiTests(APITestCase):
         self.assertEqual(response.data["serial_number"], "SN-104")
         self.assertEqual(
             response.data["purpose_of_flight"],
-            ["research_development", "customer_acceptance"],
+            ["option_1", "option_6"],
         )
         self.assertEqual(
             response.data["purpose_of_flight_display"],
-            ["Araştırma ve geliştirme uçuşu", "Müşteri kabul uçuşu"],
+            [" 1. Geliştirme", "6. Müşteri kabulü için uçurulması"],
         )
         self.assertEqual(response.data["permit_number"], "SHGM-UI-2026-0042")
         self.assertEqual(response.data["validity_status"], "active")
@@ -161,17 +161,96 @@ class FlightPermitApiTests(APITestCase):
             text_parts.extend(cell.text for row in table.rows for cell in row.cells)
         generated_text = "\n".join(text_parts)
         with ZipFile(BytesIO(generated_bytes)) as generated_package:
-            document_xml = generated_package.read("word/document.xml").decode("utf-8")
-        self.assertIn("UÇUŞ İZNİ", document_xml)
-        self.assertIn("TAVSİYESİ", document_xml)
+            word_xml = "\n".join(
+                generated_package.read(name).decode("utf-8")
+                for name in generated_package.namelist()
+                if name.startswith("word/") and name.endswith(".xml")
+            )
+        self.assertIn("UÇUŞ İZNİ", word_xml)
+        self.assertIn("TAVSİYESİ", word_xml)
         self.assertIn("Savunma Sanayii Başkanlığı", generated_text)
         self.assertIn("TC-UAV-104", generated_text)
         self.assertIn("SN-104", generated_text)
-        self.assertIn("Araştırma ve geliştirme uçuşu", generated_text)
-        self.assertIn("Müşteri kabul uçuşu", generated_text)
+        self.assertIn("1. Geliştirme", generated_text)
+        self.assertIn("6. Müşteri kabulü için uçurulması", generated_text)
         self.assertIn("SHGM-UI-2026-0042", generated_text)
         self.assertIn("Ankara Test Sahası", generated_text)
         self.assertNotIn("{{", generated_text)
+
+    def test_lists_templates_and_validates_template_owned_fields(self):
+        catalog_response = self.client.get("/api/flight-permits/templates/")
+
+        self.assertEqual(catalog_response.status_code, 200)
+        self.assertEqual(
+            [template["code"] for template in catalog_response.data],
+            ["institution_a", "institution_b", "institution_c"],
+        )
+        self.assertTrue(catalog_response.data[1]["fields"][0]["required"])
+
+        missing_template_field = self.client.post(
+            "/api/flight-permits/",
+            self.permit_payload(
+                permit_number="B-FAIL-1",
+                template_code="institution_b",
+                template_data="{}",
+            ),
+            format="multipart",
+        )
+
+        self.assertEqual(missing_template_field.status_code, 400)
+        self.assertIn("approval_reference", missing_template_field.data)
+        self.assertFalse(FlightPermit.objects.filter(permit_number="B-FAIL-1").exists())
+
+        institution_b = self.client.post(
+            "/api/flight-permits/",
+            self.permit_payload(
+                permit_number="B-2026-1",
+                template_code="institution_b",
+                template_data='{"approval_reference":"KURUL-42"}',
+                is_recommendation=True,
+            ),
+            format="multipart",
+        )
+
+        self.assertEqual(institution_b.status_code, 201)
+        self.assertFalse(institution_b.data["is_recommendation"])
+        self.assertFalse(FlightPermit.objects.get(permit_number="B-2026-1").is_recommendation)
+
+    def test_template_catalog_requires_an_active_user(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get("/api/flight-permits/templates/")
+
+        self.assertIn(response.status_code, {401, 403})
+
+    def test_selected_institution_controls_generated_template(self):
+        create_response = self.client.post(
+            "/api/flight-permits/",
+            self.permit_payload(
+                permit_number="C-2026-1",
+                template_code="institution_c",
+                template_data=(
+                    '{"coordination_contact":"Ayşe Yılmaz",'
+                    '"coordination_reference":"KR-42",'
+                    '"operational_notes":"Kontrollü saha koordinasyonu"}'
+                ),
+            ),
+            format="multipart",
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(create_response.data["institution_display"], "C Kurumu")
+        response = self.client.get(
+            f"/api/flight-permits/{create_response.data['id']}/generated-document/"
+        )
+        generated = Document(BytesIO(b"".join(response.streaming_content)))
+        text_parts = [paragraph.text for paragraph in generated.paragraphs]
+        for table in generated.tables:
+            text_parts.extend(cell.text for row in table.rows for cell in row.cells)
+        generated_text = "\n".join(text_parts)
+        self.assertIn("C KURUMU KOORDİNASYON BİLGİLERİ", generated_text)
+        self.assertIn("Ayşe Yılmaz", generated_text)
+        self.assertIn("KR-42", generated_text)
 
     def test_rejects_invalid_date_range_and_document_type(self):
         today = timezone.localdate()

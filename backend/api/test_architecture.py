@@ -148,6 +148,7 @@ EXPECTED_NAMED_ROUTES = {
     "ollama-unload": "ai/ollama/unload/",
     "ollama-chat": "ai/ollama/chat/",
     "flight-permit-list": "flight-permits/",
+    "flight-permit-templates": "flight-permits/templates/",
     "flight-permit-detail": "flight-permits/<int:flight_permit_id>/",
     "flight-permit-document": "flight-permits/<int:flight_permit_id>/document/",
     "flight-permit-generated-document": (
@@ -230,7 +231,7 @@ class ApiArchitectureTests(SimpleTestCase):
         routes = _named_routes(urlpatterns)
         counts = Counter(name for name, _route in routes)
 
-        self.assertEqual(len(routes), 43)
+        self.assertEqual(len(routes), 44)
         self.assertEqual(
             {name for name, count in counts.items() if count > 1},
             set(),

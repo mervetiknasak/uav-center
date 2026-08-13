@@ -1,7 +1,9 @@
-export function createFlightPermitForm() {
+export function createFlightPermitForm(templateCode = "institution_a") {
   return {
     permit_applicant: "",
     permit_number: "",
+    template_code: templateCode,
+    template_data: {},
     aircraft_nationality: "",
     aircraft_id_mark: "",
     aircraft_owner: "",
@@ -27,6 +29,8 @@ export function flightPermitToForm(permit) {
   return {
     permit_applicant: permit.permit_applicant,
     permit_number: permit.permit_number,
+    template_code: permit.template_code || "institution_a",
+    template_data: { ...(permit.template_data || {}) },
     aircraft_nationality: permit.aircraft_nationality,
     aircraft_id_mark: permit.aircraft_id_mark,
     aircraft_owner: permit.aircraft_owner,
@@ -60,6 +64,8 @@ export function buildFlightPermitPayload(form) {
     permit_number: String(form.permit_number || "")
       .trim()
       .toUpperCase(),
+    template_code: form.template_code,
+    template_data: { ...(form.template_data || {}) },
     aircraft_owner: String(form.aircraft_owner || "").trim(),
     aircraft_type: String(form.aircraft_type || "").trim(),
     aircraft_manufacturer: String(form.aircraft_manufacturer || "").trim(),

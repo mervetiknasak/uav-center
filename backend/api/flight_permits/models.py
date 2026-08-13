@@ -2,6 +2,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from .templates import DEFAULT_FLIGHT_PERMIT_TEMPLATE_CODE
+
 
 class FlightPermit(models.Model):
     STATUS_DRAFT = "draft"
@@ -17,6 +19,12 @@ class FlightPermit(models.Model):
 
     permit_applicant = models.TextField()
     permit_number = models.CharField(max_length=100, unique=True)
+    template_code = models.CharField(
+        max_length=64,
+        default=DEFAULT_FLIGHT_PERMIT_TEMPLATE_CODE,
+        db_index=True,
+    )
+    template_data = models.JSONField(default=dict, blank=True)
     aircraft_nationality = models.CharField(max_length=64, blank=True)
     aircraft_id_mark = models.CharField(max_length=64, blank=True)
     aircraft_owner = models.CharField(max_length=64, blank=True)
@@ -68,6 +76,15 @@ class FlightPermit(models.Model):
 
     class Meta:
         ordering = ["valid_until", "serial_number", "permit_number"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(template_code=DEFAULT_FLIGHT_PERMIT_TEMPLATE_CODE)
+                    | models.Q(is_recommendation=False)
+                ),
+                name="flight_permit_recommendation_only_for_a",
+            )
+        ]
         indexes = [
             models.Index(fields=["serial_number", "valid_until"]),
             models.Index(fields=["status", "valid_until"]),
