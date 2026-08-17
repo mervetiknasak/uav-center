@@ -3,31 +3,30 @@ import { toRef } from "vue";
 import { Files, Plus, RefreshCw } from "@lucide/vue";
 
 import { useFormProcessController } from "../composables/useFormProcessController";
-import FormProcessEditor from "./FormProcessEditor.vue";
 import FormProcessTable from "./FormProcessTable.vue";
 
 const props = defineProps({
   records: { type: Array, required: true },
   processes: { type: Array, required: true },
   loading: { type: Boolean, required: true },
-  saving: { type: Boolean, required: true },
   error: { type: String, default: "" },
   notice: { type: String, default: "" }
 });
 
-const emit = defineEmits(["refresh", "save", "delete"]);
+const emit = defineEmits(["refresh", "create", "edit", "status", "delete"]);
 const controller = useFormProcessController({
   records: toRef(props, "records"),
   processes: toRef(props, "processes"),
-  onSave: (payload) => emit("save", payload),
-  onDelete: (record) => emit("delete", record)
+  onEdit: (record) => emit("edit", record),
+  onDelete: (record) => emit("delete", record),
+  onStatus: (record, status) => emit("status", record, status)
 });
 </script>
 
 <template>
   <section class="form-processes-view">
     <n-page-header
-      title="Mühendislik Form Süreçleri"
+      title="Formlar"
       subtitle="Klasör bazlı süreçleri, FM Word şablonlarını ve oluşturulan kayıtları yönetin."
     >
       <template #header>
@@ -47,7 +46,7 @@ const controller = useFormProcessController({
           <n-button
             type="primary"
             :disabled="!controller.templates.value.length"
-            @click="controller.openEditor()"
+            @click="emit('create')"
           >
             <template #icon
               ><n-icon><Plus /></n-icon
@@ -58,7 +57,7 @@ const controller = useFormProcessController({
       </template>
     </n-page-header>
 
-    <n-alert v-if="error" type="error" title="Form süreçleri alınamadı">{{ error }}</n-alert>
+    <n-alert v-if="error" type="error" title="İşlem tamamlanamadı">{{ error }}</n-alert>
     <n-alert v-if="notice" type="success">{{ notice }}</n-alert>
 
     <n-grid cols="1 s:2 l:4" responsive="screen" :x-gap="12" :y-gap="12">
@@ -89,19 +88,10 @@ const controller = useFormProcessController({
       :filters="controller.filters"
       :loading="loading"
       @download="controller.download"
-      @edit="controller.openEditor"
+      @edit="controller.edit"
+      @archive="controller.requestArchive"
+      @reopen="controller.reopen"
       @delete="controller.requestDelete"
-    />
-    <FormProcessEditor
-      v-model:show="controller.showEditor.value"
-      :editing-id="controller.editingId.value"
-      :form="controller.form"
-      :processes="processes"
-      :templates="controller.templates.value"
-      :form-error="controller.formError.value"
-      :saving="saving"
-      @change-template="controller.changeTemplate"
-      @submit="controller.submit"
     />
   </section>
 </template>

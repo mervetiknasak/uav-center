@@ -63,10 +63,26 @@ class FormProcessRecordSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         template_code = attrs.get("template_code", getattr(self.instance, "template_code", ""))
+        if self.instance and template_code != self.instance.template_code:
+            raise serializers.ValidationError(
+                {
+                    "template_code": [
+                        "Kayıt oluşturulduktan sonra süreç ve FM şablonu değiştirilemez."
+                    ]
+                }
+            )
         data = attrs.get("data", getattr(self.instance, "data", {}))
+        status_value = attrs.get(
+            "status",
+            getattr(self.instance, "status", FormProcessRecord.STATUS_DRAFT),
+        )
         try:
             definition = get_form_template(template_code)
-            attrs["data"] = validate_form_data(template_code, data)
+            attrs["data"] = validate_form_data(
+                template_code,
+                data,
+                require_required=(status_value != FormProcessRecord.STATUS_DRAFT),
+            )
         except FormTemplateValidationError as exc:
             raise serializers.ValidationError(exc.errors) from exc
         attrs["process_code"] = definition.process_code

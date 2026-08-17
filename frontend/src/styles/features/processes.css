@@ -1,0 +1,9 @@
+.process-app-page {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.process-app-navigation {
+  width: min(520px, 100%);
+}

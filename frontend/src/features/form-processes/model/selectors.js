@@ -11,6 +11,21 @@ export function groupTemplateFields(fields = []) {
   return groups;
 }
 
+export function filterFormTemplates(templates = [], processCode = "", search = "") {
+  const query = String(search || "")
+    .trim()
+    .toLocaleLowerCase("tr-TR");
+  return templates.filter((template) => {
+    if (processCode && template.process_code !== processCode) return false;
+    if (!query) return true;
+    return [template.form_number, template.title, template.description].some((value) =>
+      String(value || "")
+        .toLocaleLowerCase("tr-TR")
+        .includes(query)
+    );
+  });
+}
+
 export function filterFormProcessRecords(records = [], filters = {}) {
   const search = String(filters.search || "")
     .trim()

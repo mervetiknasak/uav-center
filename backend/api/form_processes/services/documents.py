@@ -1,5 +1,6 @@
 """Render a validated record with its retained FM DOCX template."""
 
+from datetime import date
 from io import BytesIO
 
 from django.utils import timezone
@@ -33,17 +34,44 @@ def _set_table_borders(table) -> None:
     table._tbl.tblPr.append(borders)
 
 
-def _display_value(value) -> str:
+def _display_value(value, field=None) -> str:
     if value is True:
         return "Evet"
     if value is False:
         return "Hayır"
+    if isinstance(value, list):
+        if not value:
+            return "—"
+        columns = getattr(field, "columns", ())
+        return (
+            "\n".join(
+                " | ".join(
+                    f"{column.label}: "
+                    f"{_display_date(row.get(column.key)) if column.field_type == 'date' else row.get(column.key) or '—'}"
+                    for column in columns
+                )
+                for row in value
+                if isinstance(row, dict)
+            )
+            or "—"
+        )
+    if getattr(field, "field_type", "") == "date":
+        return _display_date(value) or "—"
+    if getattr(field, "field_type", "") == "select":
+        return dict(field.options).get(value, value) or "—"
     return str(value or "—")
 
 
-def build_form_process_document(record):
-    definition = get_form_template(record.template_code)
-    template = DocxTemplate(definition.document_path)
+def _display_date(value) -> str:
+    if not value:
+        return ""
+    try:
+        return date.fromisoformat(value).strftime("%d.%m.%Y")
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _template_context(record, definition) -> dict:
     context = {
         "record_number": record.record_number,
         "record_title": record.title,
@@ -51,6 +79,39 @@ def build_form_process_document(record):
         "generated_at": timezone.localdate().strftime("%d.%m.%Y"),
         **record.data,
     }
+    if definition.code != "fm_dsg_0327":
+        return context
+
+    clearance_type = record.data.get("clearance_type")
+    context.update(
+        {
+            "clearance_initial_mark": "☒" if clearance_type == "initial" else "☐",
+            "clearance_renewal_mark": "☒" if clearance_type == "renewal" else "☐",
+            "clearance_cancelled_mark": ("☒" if clearance_type == "cancelled_suspended" else "☐"),
+            "valid_from_display": _display_date(record.data.get("valid_from")),
+            "valid_until_display": _display_date(record.data.get("valid_until")),
+        }
+    )
+    issue_records = []
+    for row in record.data.get("issue_records") or []:
+        normalized = dict(row)
+        normalized["date_display"] = _display_date(row.get("date"))
+        issue_records.append(normalized)
+    empty_issue = {
+        "issue": "",
+        "date": "",
+        "date_display": "",
+        "prepared_by": "",
+        "description": "",
+    }
+    context["issue_records"] = (issue_records + [empty_issue] * 5)[:5]
+    return context
+
+
+def build_form_process_document(record):
+    definition = get_form_template(record.template_code)
+    template = DocxTemplate(definition.document_path)
+    context = _template_context(record, definition)
     template.render(context, autoescape=True)
     rendered = BytesIO()
     template.save(rendered)
@@ -95,7 +156,7 @@ def build_form_process_document(record):
         cells = details.add_row().cells
         _set_cell_shading(cells[0], "F1F5F9")
         cells[0].text = field.label
-        cells[1].text = _display_value(record.data.get(field.key))
+        cells[1].text = _display_value(record.data.get(field.key), field)
         for cell in cells:
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
 

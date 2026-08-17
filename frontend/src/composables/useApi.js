@@ -108,6 +108,9 @@ export function useApi() {
     const method = (options.method || "GET").toUpperCase();
     const headers = new Headers(options.headers || {});
     const signal = options.signal;
+    if (typeof options.body === "string" && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     if (!SAFE_METHODS.has(method)) {
       headers.set("X-CSRFToken", await ensureCsrfToken({ signal }));
     }

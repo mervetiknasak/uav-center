@@ -14,16 +14,33 @@ const routes = [
     meta: { menuKey: "technical-documents" }
   },
   {
+    path: "/processes",
+    name: "processes",
+    redirect: { name: "form-processes" }
+  },
+  {
     path: "/flight-permits",
     name: "flight-permits",
     component: () => import("../features/flight-permits/pages/FlightPermitsPage.vue"),
-    meta: { menuKey: "flight-permits" }
+    meta: { menuKey: "processes" }
   },
   {
     path: "/form-processes",
     name: "form-processes",
     component: () => import("../features/form-processes/pages/FormProcessesPage.vue"),
-    meta: { menuKey: "form-processes" }
+    meta: { menuKey: "processes" }
+  },
+  {
+    path: "/form-processes/new",
+    name: "form-process-new",
+    component: () => import("../features/form-processes/pages/FormProcessEditorPage.vue"),
+    meta: { menuKey: "processes" }
+  },
+  {
+    path: "/form-processes/:recordId(\\d+)",
+    name: "form-process-edit",
+    component: () => import("../features/form-processes/pages/FormProcessEditorPage.vue"),
+    meta: { menuKey: "processes" }
   },
   {
     path: "/processes/flight-permits/:institution(institution-a|institution-b|institution-c)",

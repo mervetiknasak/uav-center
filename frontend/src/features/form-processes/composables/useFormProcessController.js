@@ -1,55 +1,14 @@
-import { computed, reactive, ref, unref } from "vue";
+import { computed, reactive, unref } from "vue";
 import { useDialog } from "naive-ui";
 
-import {
-  buildFormProcessPayload,
-  createFormProcessForm,
-  flattenFormTemplates,
-  formProcessRecordToForm,
-  selectFormProcessTemplate
-} from "../model/form";
+import { flattenFormTemplates } from "../model/form";
 import { filterFormProcessRecords } from "../model/selectors";
-import { validateFormProcessForm } from "../model/validation";
 
-export function useFormProcessController({ records, processes, onSave, onDelete }) {
+export function useFormProcessController({ records, processes, onEdit, onDelete, onStatus }) {
   const dialog = useDialog();
   const filters = reactive({ search: "", process: null, template: null, status: null });
-  const showEditor = ref(false);
-  const editingId = ref(null);
-  const formError = ref("");
-  const form = reactive(createFormProcessForm());
   const templates = computed(() => flattenFormTemplates(unref(processes)));
   const filteredRecords = computed(() => filterFormProcessRecords(unref(records), filters));
-
-  function openEditor(record = null) {
-    const availableTemplates = templates.value;
-    editingId.value = record?.id ?? null;
-    Object.assign(
-      form,
-      record
-        ? formProcessRecordToForm(record, availableTemplates)
-        : createFormProcessForm(availableTemplates[0])
-    );
-    formError.value = "";
-    showEditor.value = true;
-  }
-
-  function changeTemplate(templateCode) {
-    const template = templates.value.find((item) => item.code === templateCode);
-    if (template) selectFormProcessTemplate(form, template);
-  }
-
-  function submit() {
-    formError.value = validateFormProcessForm(form, templates.value);
-    if (formError.value) return;
-    onSave({
-      id: editingId.value,
-      payload: buildFormProcessPayload(form),
-      done: () => {
-        showEditor.value = false;
-      }
-    });
-  }
 
   function download(record) {
     const link = document.createElement("a");
@@ -71,18 +30,24 @@ export function useFormProcessController({ records, processes, onSave, onDelete 
     });
   }
 
+  function requestArchive(record) {
+    dialog.warning({
+      title: "Form kaydını arşivle",
+      content: `“${record.record_number} — ${record.title}” kaydı arşivlenecek.`,
+      positiveText: "Arşivle",
+      negativeText: "Vazgeç",
+      onPositiveClick: () => onStatus(record, "archived")
+    });
+  }
+
   return {
     filters,
-    showEditor,
-    editingId,
-    formError,
-    form,
     templates,
     filteredRecords,
-    openEditor,
-    changeTemplate,
-    submit,
+    edit: onEdit,
     download,
-    requestDelete
+    requestDelete,
+    requestArchive,
+    reopen: (record) => onStatus(record, "draft")
   };
 }

@@ -63,6 +63,22 @@ describe("useApi transport boundary", () => {
     expect(options.headers).toBeInstanceOf(Headers);
     expect(options.headers.get("X-CSRFToken")).toBe("csrf-safe");
     expect(options.headers.get("X-Request-ID")).toBe("request-1");
+    expect(options.headers.get("Content-Type")).toBe("application/json");
+  });
+
+  it("does not set a JSON content type for multipart form data", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ csrfToken: "csrf-form" }))
+      .mockResolvedValueOnce(jsonResponse({ saved: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { apiFetch } = useApi();
+
+    await apiFetch("/api/upload/", { method: "POST", body: new FormData() });
+
+    const options = fetchMock.mock.calls[1][1];
+    expect(options.headers.get("Content-Type")).toBeNull();
+    expect(options.headers.get("X-CSRFToken")).toBe("csrf-form");
   });
 
   it("does not let a stale CSRF generation overwrite a reset token", async () => {

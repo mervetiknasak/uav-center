@@ -1,6 +1,6 @@
 <script setup>
 import { computed, h } from "vue";
-import { Download, FileText, Pencil, Search, Trash2 } from "@lucide/vue";
+import { Archive, Download, FileText, Pencil, RotateCcw, Search, Trash2 } from "@lucide/vue";
 import { NButton, NIcon, NSpace, NTag, NText, NTooltip } from "naive-ui";
 
 import { FORM_PROCESS_STATUSES, FORM_PROCESS_STATUS_TAGS } from "../model/options";
@@ -13,7 +13,7 @@ const props = defineProps({
   loading: { type: Boolean, required: true }
 });
 
-const emit = defineEmits(["download", "edit", "delete"]);
+const emit = defineEmits(["download", "edit", "archive", "reopen", "delete"]);
 
 function iconButton(icon, title, onClick, type) {
   return h(NTooltip, null, {
@@ -84,30 +84,39 @@ const columns = [
   {
     title: "İşlemler",
     key: "actions",
-    width: 205,
+    width: 245,
     align: "right",
     render: (record) =>
       h(
         NSpace,
         { justify: "end", size: 2 },
         {
-          default: () => [
-            h(
-              NButton,
-              {
-                size: "small",
-                secondary: true,
-                type: "primary",
-                onClick: () => emit("download", record)
-              },
-              {
-                icon: () => h(NIcon, null, { default: () => h(Download, { size: 16 }) }),
-                default: () => "Word"
-              }
-            ),
-            iconButton(Pencil, "Kaydı düzenle", () => emit("edit", record)),
-            iconButton(Trash2, "Kaydı sil", () => emit("delete", record), "error")
-          ]
+          default: () =>
+            [
+              h(
+                NButton,
+                {
+                  size: "small",
+                  secondary: true,
+                  type: "primary",
+                  onClick: () => emit("download", record)
+                },
+                {
+                  icon: () => h(NIcon, null, { default: () => h(Download, { size: 16 }) }),
+                  default: () => "Word"
+                }
+              ),
+              record.status !== "archived"
+                ? iconButton(Pencil, "Kaydı düzenle", () => emit("edit", record))
+                : null,
+              record.status === "approved"
+                ? iconButton(Archive, "Kaydı arşivle", () => emit("archive", record))
+                : null,
+              record.status === "archived"
+                ? iconButton(RotateCcw, "Kaydı yeniden aç", () => emit("reopen", record), "primary")
+                : null,
+              iconButton(Trash2, "Kaydı sil", () => emit("delete", record), "error")
+            ].filter(Boolean)
         }
       )
   }

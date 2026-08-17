@@ -22,16 +22,304 @@
   text-transform: uppercase;
 }
 
-.form-process-editor {
-  width: min(1040px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
-  overflow: auto;
+.form-process-editor-page {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
 }
 
-.form-process-editor .n-date-picker {
+.form-process-editor-page .n-date-picker {
   width: 100%;
 }
 
 .form-process-alert {
   margin-bottom: 16px;
+}
+
+.form-process-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid #dce4ee;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.form-process-steps button {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  border: 0;
+  border-right: 1px solid #e2e8f0;
+  color: #64748b;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.form-process-steps button:last-child {
+  border-right: 0;
+}
+
+.form-process-steps button span {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  place-items: center;
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.form-process-steps button.is-active {
+  color: #0f766e;
+  background: #f0fdfa;
+}
+
+.form-process-steps button.is-active span {
+  color: #fff;
+  background: #0f766e;
+}
+
+.form-process-steps button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.form-process-selection-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.3fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.form-process-choice-list,
+.form-template-choice-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.form-process-choice,
+.form-template-choice {
+  width: 100%;
+  border: 1px solid #dbe3ec;
+  border-radius: 10px;
+  color: #1e293b;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.form-process-choice:hover,
+.form-template-choice:hover,
+.form-process-choice.is-selected,
+.form-template-choice.is-selected {
+  border-color: #0f766e;
+  background: #f0fdfa;
+}
+
+.form-process-choice {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 12px;
+  font-weight: 650;
+}
+
+.form-template-choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  padding: 14px;
+}
+
+.form-template-choice > span {
+  display: grid;
+  gap: 3px;
+}
+
+.form-template-choice small {
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.form-process-locked-template {
+  border-color: #cbd5e1;
+}
+
+.form-process-locked-template .n-card__content {
+  display: grid;
+  gap: 4px;
+}
+
+.form-process-fields,
+.form-process-review {
+  display: grid;
+  gap: 16px;
+}
+
+.form-process-error-links {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.form-process-error-links button {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.form-process-review-list {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.35fr) minmax(0, 0.65fr);
+  margin: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.form-process-review-list dt,
+.form-process-review-list dd {
+  margin: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: pre-wrap;
+}
+
+.form-process-review-list dt {
+  color: #475569;
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.form-process-review-list dt:last-of-type,
+.form-process-review-list dd:last-of-type {
+  border-bottom: 0;
+}
+
+.form-process-review-list dd.is-empty-required {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.form-process-review-notes {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.form-process-table-field {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 10px;
+}
+
+.form-process-table-field:focus {
+  outline: 2px solid #0f766e;
+  outline-offset: 3px;
+}
+
+.form-process-table-field-scroll,
+.form-process-review-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.form-process-table-field table,
+.form-process-review-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+}
+
+.form-process-table-field th,
+.form-process-table-field td,
+.form-process-review-table th,
+.form-process-review-table td {
+  padding: 8px;
+  border: 1px solid #dbe3ec;
+  text-align: left;
+  vertical-align: top;
+}
+
+.form-process-table-field th,
+.form-process-review-table th {
+  color: #475569;
+  background: #f8fafc;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.form-process-table-row-actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.form-process-table-field small {
+  color: #64748b;
+}
+
+.form-process-table-field .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.form-process-action-bar {
+  position: sticky;
+  z-index: 10;
+  bottom: 0;
+  padding: 14px 16px;
+  border: 1px solid #dbe3ec;
+  border-radius: 12px 12px 0 0;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 -8px 24px rgb(15 23 42 / 8%);
+  backdrop-filter: blur(8px);
+}
+
+@media (max-width: 760px) {
+  .form-process-selection-grid,
+  .form-process-review-list {
+    grid-template-columns: 1fr;
+  }
+
+  .form-process-steps button {
+    gap: 5px;
+    padding: 10px 6px;
+    font-size: 12px;
+  }
+
+  .form-process-steps button span {
+    width: 22px;
+    height: 22px;
+  }
+
+  .form-process-review-list dt {
+    border-bottom: 0;
+  }
+
+  .form-process-action-bar {
+    margin-inline: -8px;
+  }
 }

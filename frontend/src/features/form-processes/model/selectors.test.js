@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { filterFormProcessRecords, groupTemplateFields } from "./selectors";
+import { filterFormProcessRecords, filterFormTemplates, groupTemplateFields } from "./selectors";
 
 describe("form process selectors", () => {
   it("keeps source field group order", () => {
@@ -31,5 +31,20 @@ describe("form process selectors", () => {
       records[0]
     ]);
     expect(filterFormProcessRecords(records, { status: "draft" })).toEqual([records[1]]);
+  });
+
+  it("filters templates by process and searchable Turkish text", () => {
+    const templates = [
+      {
+        process_code: "panel",
+        form_number: "FM.DSG.1",
+        title: "İHA Uyum Beyanı",
+        description: "Panel değerlendirmesi"
+      },
+      { process_code: "cri", form_number: "FM.DSG.2", title: "CRI", description: "İnceleme" }
+    ];
+
+    expect(filterFormTemplates(templates, "panel", "iha")).toEqual([templates[0]]);
+    expect(filterFormTemplates(templates, "", "inceleme")).toEqual([templates[1]]);
   });
 });

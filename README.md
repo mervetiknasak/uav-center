@@ -187,7 +187,7 @@ DOC/XLS biçimleri bu güvenlik sınırının dışındadır.
 
 ## Mühendislik Form Süreçleri
 
-**Süreçler → Mühendislik Formları** ekranı, `Formlar` envanterindeki klasörleri
+**Süreçler → Formlar** ekranı, `Formlar` envanterindeki klasörleri
 süreç ve `FM` ile başlayan DOCX dosyalarını sürümlü şablon olarak sunar. Katalogda
 13 süreç altında 35 şablon bulunur. Her şablon; kaynak formdaki başlık, boş hücre
 ve yer tutuculardan çıkarılan alan şemasına sahiptir. Backend yalnız seçilen

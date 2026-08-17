@@ -27,22 +27,22 @@ export function useFormProcesses(apiFetch) {
     }
   }
 
-  async function save({ id, payload, done }) {
+  async function updateStatus(record, status) {
     saving.value = true;
     error.value = "";
     notice.value = "";
     try {
-      const saved = await apiFetch(id ? `/api/form-processes/${id}/` : "/api/form-processes/", {
-        method: id ? "PATCH" : "POST",
-        body: JSON.stringify(payload)
+      const saved = await apiFetch(`/api/form-processes/${record.id}/`, {
+        method: "PATCH",
+        body: JSON.stringify({ status })
       });
-      records.value = id
-        ? records.value.map((record) => (record.id === saved.id ? saved : record))
-        : [saved, ...records.value];
-      notice.value = `${saved.record_number} numaralı kayıt ${id ? "güncellendi" : "oluşturuldu"}.`;
-      done?.();
+      records.value = records.value.map((item) => (item.id === saved.id ? saved : item));
+      notice.value =
+        status === "archived"
+          ? `${saved.record_number} numaralı kayıt arşivlendi.`
+          : `${saved.record_number} numaralı kayıt yeniden taslak olarak açıldı.`;
     } catch (err) {
-      error.value = errorMessage(err, "Form kaydı kaydedilemedi");
+      error.value = errorMessage(err, "Form durumu güncellenemedi");
     } finally {
       saving.value = false;
     }
@@ -63,5 +63,5 @@ export function useFormProcesses(apiFetch) {
     }
   }
 
-  return { records, processes, loading, saving, error, notice, load, save, remove };
+  return { records, processes, loading, saving, error, notice, load, updateStatus, remove };
 }

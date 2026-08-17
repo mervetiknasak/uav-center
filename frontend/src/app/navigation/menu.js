@@ -3,11 +3,7 @@ export const DEFAULT_ROUTE_NAME = "technical-documents";
 export const menuSections = [
   {
     label: "Süreçler",
-    key: "processes",
-    children: [
-      { label: "Uçuş İzinleri", key: "flight-permits" },
-      { label: "Mühendislik Formları", key: "form-processes" }
-    ]
+    key: "processes"
   },
   {
     label: "Doküman Yönetimi",

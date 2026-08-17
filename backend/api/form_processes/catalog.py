@@ -9,6 +9,24 @@ TEMPLATE_DIRECTORY = Path(__file__).resolve().parent / "templates"
 
 
 @dataclass(frozen=True)
+class FormTableColumn:
+    key: str
+    label: str
+    field_type: str = "text"
+    required: bool = False
+    max_length: int = 500
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "key": self.key,
+            "label": self.label,
+            "type": self.field_type,
+            "required": self.required,
+            "max_length": self.max_length,
+        }
+
+
+@dataclass(frozen=True)
 class FormField:
     key: str
     label: str
@@ -18,6 +36,8 @@ class FormField:
     max_length: int = 500
     placeholder: str = ""
     options: tuple[tuple[str, str], ...] = ()
+    columns: tuple[FormTableColumn, ...] = ()
+    max_items: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -29,6 +49,8 @@ class FormField:
             "max_length": self.max_length,
             "placeholder": self.placeholder,
             "options": [{"value": value, "label": label} for value, label in self.options],
+            "columns": [column.as_dict() for column in self.columns],
+            "max_items": self.max_items,
         }
 
 
@@ -81,8 +103,14 @@ def area(
     return FormField(key, label, "textarea", group, required, max_length)
 
 
-def day(key: str, label: str, *, group: str = "Tarih ve Onay") -> FormField:
-    return FormField(key, label, "date", group, False, 10)
+def day(
+    key: str,
+    label: str,
+    *,
+    group: str = "Tarih ve Onay",
+    required: bool = False,
+) -> FormField:
+    return FormField(key, label, "date", group, required, 10)
 
 
 def choice(
@@ -91,8 +119,29 @@ def choice(
     options: tuple[tuple[str, str], ...],
     *,
     group: str = "Genel Bilgiler",
+    required: bool = False,
 ) -> FormField:
-    return FormField(key, label, "select", group, False, 120, options=options)
+    return FormField(key, label, "select", group, required, 120, options=options)
+
+
+def table(
+    key: str,
+    label: str,
+    columns: tuple[FormTableColumn, ...],
+    *,
+    group: str,
+    required: bool = False,
+    max_items: int = 5,
+) -> FormField:
+    return FormField(
+        key,
+        label,
+        "table",
+        group,
+        required,
+        columns=columns,
+        max_items=max_items,
+    )
 
 
 APPROVAL_FIELDS = (
@@ -140,8 +189,6 @@ MISSION_FIELDS = (
     area("discipline_scope", "Disiplin ve kapsam", group="Görevlendirme"),
     area("reporting_lines", "Raporlama hatları", group="Görevlendirme"),
     area("accountabilities", "Sorumluluklar", group="Görevlendirme"),
-    text("employee_signature", "Personel imzası", group="Tarih ve Onay"),
-    day("employee_signature_date", "Personel imza tarihi"),
     text("authorized_by", "Yetkilendiren", group="Tarih ve Onay"),
     day("authorization_date", "Yetkilendirme tarihi"),
     area("cancellation_reason", "İptal nedeni", group="İptal"),
@@ -179,7 +226,7 @@ PTF_IDENTITY_FIELDS = (
     area("conditions_restrictions", "Koşullar ve kısıtlamalar", group="Uçuş Bilgileri"),
     area("substantiations", "Kanıtlar / dayanaklar", group="Uçuş Bilgileri"),
     day("issue_date", "Yayın tarihi"),
-    text("signer_name", "İsim ve imza", group="Tarih ve Onay"),
+    text("approver_name", "Onaylayan adı", group="Tarih ve Onay"),
 )
 
 
@@ -424,8 +471,7 @@ FORM_TEMPLATES = (
                 group="Karar",
             ),
             area("conclusion", "Sonuç", group="Karar"),
-            text("signer_name", "İmzalayan", group="Tarih ve Onay"),
-            day("signature_date", "İmza tarihi"),
+            text("approver_name", "Onaylayan adı", group="Tarih ve Onay"),
         ),
     ),
     FormTemplate(
@@ -507,8 +553,8 @@ FORM_TEMPLATES = (
             ),
             area("declaration_text", "Beyan metni", group="Uyum Beyanı"),
             day("declaration_date", "Beyan tarihi"),
-            text("signer_name", "İmzalayan", group="Tarih ve Onay"),
-            text("signer_title", "İmzalayan unvanı", group="Tarih ve Onay"),
+            text("approver_name", "Onaylayan adı", group="Tarih ve Onay"),
+            text("approver_title", "Onaylayan unvanı", group="Tarih ve Onay"),
         ),
     ),
     FormTemplate(
@@ -537,8 +583,8 @@ FORM_TEMPLATES = (
             ),
             area("declaration_text", "Beyan metni", group="Uyum Beyanı"),
             day("declaration_date", "Beyan tarihi"),
-            text("signer_name", "İmzalayan", group="Tarih ve Onay"),
-            text("signer_title", "İmzalayan unvanı", group="Tarih ve Onay"),
+            text("approver_name", "Onaylayan adı", group="Tarih ve Onay"),
+            text("approver_title", "Onaylayan unvanı", group="Tarih ve Onay"),
         ),
     ),
     FormTemplate(
@@ -547,14 +593,159 @@ FORM_TEMPLATES = (
         "FCC",
         "FM.DSG.0327",
         "Uçuş Uygunluk Belgesi / Flight Clearance Certificate",
-        "Proje bazlı uçuş uygunluk belgesi kapak şablonu.",
+        "Uçuş uygunluk belgesi, dayanaklar, onaylar ve yayın geçmişi.",
         (
-            text("project_name", "Proje adı", required=True),
-            text("aircraft_type", "Hava aracı tipi"),
-            text("aircraft_serial_number", "Hava aracı seri numarası"),
-            text("flight_clearance_reference", "Uçuş uygunluk belgesi referansı"),
-            area("certificate_summary", "Belge özeti", group="Belge Bilgileri"),
-            *APPROVAL_FIELDS,
+            text("project_name", "Proje adı", group="Hava Aracı Bilgileri", required=True),
+            text(
+                "aircraft_type",
+                "Hava aracı tipi",
+                group="Hava Aracı Bilgileri",
+                required=True,
+            ),
+            text(
+                "aircraft_model",
+                "Hava aracı modeli",
+                group="Hava Aracı Bilgileri",
+                required=True,
+            ),
+            text(
+                "aircraft_serial_number",
+                "MSN / kuyruk numarası",
+                group="Hava Aracı Bilgileri",
+                required=True,
+            ),
+            text(
+                "flight_clearance_reference",
+                "Uçuş uygunluk belgesi referansı",
+                group="Hava Aracı Bilgileri",
+            ),
+            choice(
+                "clearance_type",
+                "Uçuş uygunluk belgesi tipi",
+                (
+                    ("initial", "İlk yayın"),
+                    ("renewal", "Yenileme"),
+                    ("cancelled_suspended", "İptal / askıya alma"),
+                ),
+                group="Uçuş Uygunluk Talebi",
+                required=True,
+            ),
+            area(
+                "request_reason",
+                "Uçuş uygunluk talebinin nedeni",
+                group="Uçuş Uygunluk Talebi",
+                required=True,
+            ),
+            area(
+                "request_reason_continued",
+                "Talep nedeni devamı",
+                group="Uçuş Uygunluk Talebi",
+            ),
+            day(
+                "valid_from",
+                "Geçerlilik başlangıcı",
+                group="Uçuş Uygunluk Talebi",
+                required=True,
+            ),
+            day(
+                "valid_until",
+                "Geçerlilik bitişi",
+                group="Uçuş Uygunluk Talebi",
+                required=True,
+            ),
+            text(
+                "aircraft_limitation_document_reference",
+                "Hava aracı limitasyon dokümanı referansı",
+                group="Sertifikasyon ve Onay",
+                required=True,
+            ),
+            text(
+                "product_head_name",
+                "Ürün Başmühendisi / Ürün IPT adı",
+                group="Sertifikasyon ve Onay",
+                required=True,
+            ),
+            text(
+                "srb_manager_name",
+                "SRB yöneticisi adı",
+                group="Sertifikasyon ve Onay",
+                required=True,
+            ),
+            text(
+                "statement_of_conformity_reference",
+                "Uygunluk Beyanı referansı",
+                group="Ekler ve Dayanaklar",
+                required=True,
+            ),
+            text(
+                "flight_conditions_application_reference",
+                "Uçuş Koşulları Onayı başvuru referansı",
+                group="Ekler ve Dayanaklar",
+                required=True,
+            ),
+            text(
+                "aircraft_configuration_reference",
+                "Hava aracı konfigürasyon referansı",
+                group="Ekler ve Dayanaklar",
+                required=True,
+            ),
+            area(
+                "airworthiness_safety_summary_documents",
+                "Uçuşa elverişlilik / uçuş emniyeti değerlendirme dokümanları",
+                group="Ekler ve Dayanaklar",
+                required=True,
+            ),
+            text(
+                "itinerary_airspace_restrictions_reference",
+                "Rota ve hava sahası kısıtları referansı",
+                group="Ekler ve Dayanaklar",
+            ),
+            text(
+                "flight_crew_qualification_reference",
+                "Uçuş ekibi yeterlilik referansı",
+                group="Ekler ve Dayanaklar",
+            ),
+            text(
+                "passenger_carrying_restrictions_reference",
+                "Yolcu taşıma kısıtları referansı",
+                group="Ekler ve Dayanaklar",
+            ),
+            text(
+                "afm_reference",
+                "AFM referansı",
+                group="Ekler ve Dayanaklar",
+                required=True,
+            ),
+            text(
+                "flight_test_procedure_reference",
+                "Uçuş Test Prosedürü referansı",
+                group="Ekler ve Dayanaklar",
+                required=True,
+            ),
+            text(
+                "continuing_airworthiness_reference",
+                "Sürekli uçuşa elverişlilik düzenlemeleri referansı",
+                group="Ekler ve Dayanaklar",
+            ),
+            text(
+                "clearance_change_criteria_reference",
+                "Yeni uçuş uygunluk belgesi kriter dokümanı",
+                group="Ekler ve Dayanaklar",
+            ),
+            area("other_appendix", "Diğer ek / kanıtlar", group="Ekler ve Dayanaklar"),
+            table(
+                "issue_records",
+                "Yayın geçmişi",
+                (
+                    FormTableColumn("issue", "Yayın", required=True, max_length=60),
+                    FormTableColumn("date", "Tarih", "date", required=True, max_length=10),
+                    FormTableColumn("prepared_by", "Hazırlayan / güncelleyen", max_length=200),
+                    FormTableColumn("description", "Değişiklik nedeni", max_length=1_000),
+                ),
+                group="Yayın Geçmişi",
+                required=True,
+                max_items=5,
+            ),
         ),
     ),
     FormTemplate(
@@ -787,7 +978,7 @@ FORM_TEMPLATES = (
             text("nationality_registration", "Hava aracı tescil işareti"),
             text("validity_period", "Geçerlilik süresi", group="Uçuş Bilgileri"),
             text("place_of_issue", "Yayın yeri", group="Tarih ve Onay"),
-            text("authority_signer", "Otorite yetkilisi", group="Tarih ve Onay"),
+            text("authority_representative_name", "Otorite yetkilisi", group="Tarih ve Onay"),
         ),
     ),
     FormTemplate(
@@ -899,7 +1090,7 @@ FORM_TEMPLATES = (
             area("authority_positions", "Otorite pozisyonları", group="Değerlendirme"),
             area("conclusion", "Sonuç", group="Sonuç"),
             text("conclusion_authority", "Sonuç otoritesi", group="Sonuç"),
-            text("conclusion_name", "Sonuç imzalayan", group="Sonuç"),
+            text("conclusion_approver_name", "Sonuç onaylayanı", group="Sonuç"),
             day("conclusion_date", "Sonuç tarihi", group="Sonuç"),
             area("acceptable_means", "Kabul edilebilir uyum yöntemleri", group="Ekler"),
             area(
@@ -929,7 +1120,12 @@ def get_form_template(code: str) -> FormTemplate:
         ) from exc
 
 
-def validate_form_data(template_code: str, data: Any) -> dict[str, Any]:
+def validate_form_data(
+    template_code: str,
+    data: Any,
+    *,
+    require_required: bool = True,
+) -> dict[str, Any]:
     template = get_form_template(template_code)
     if not isinstance(data, dict):
         raise FormTemplateValidationError(
@@ -949,6 +1145,69 @@ def validate_form_data(template_code: str, data: Any) -> dict[str, Any]:
     cleaned: dict[str, Any] = {}
     for key, field in field_by_key.items():
         value = data.get(key)
+        if field.field_type == "table":
+            if value is None:
+                value = []
+            if not isinstance(value, list):
+                errors[key] = ["Tablo satırları liste biçiminde gönderilmelidir."]
+                cleaned[key] = []
+                continue
+            if field.max_items and len(value) > field.max_items:
+                errors[key] = [f"En fazla {field.max_items} satır eklenebilir."]
+            column_by_key = {column.key: column for column in field.columns}
+            cleaned_rows = []
+            row_errors = []
+            for row_index, row in enumerate(value, start=1):
+                if not isinstance(row, dict):
+                    row_errors.append(f"{row_index}. satır nesne biçiminde olmalıdır.")
+                    continue
+                unknown_columns = sorted(set(row) - set(column_by_key))
+                if unknown_columns:
+                    row_errors.append(
+                        f"{row_index}. satırda bilinmeyen sütunlar var: "
+                        f"{', '.join(unknown_columns)}"
+                    )
+                    continue
+                row_is_empty = all(
+                    raw_value is None or (isinstance(raw_value, str) and not raw_value.strip())
+                    for raw_value in row.values()
+                )
+                if row_is_empty:
+                    continue
+                cleaned_row = {}
+                for column_key, column in column_by_key.items():
+                    column_value = row.get(column_key)
+                    if column_value is None:
+                        column_value = ""
+                    if not isinstance(column_value, str):
+                        row_errors.append(
+                            f"{row_index}. satır / {column.label}: metin değeri gönderilmelidir."
+                        )
+                        continue
+                    column_value = column_value.strip()
+                    if require_required and column.required and not column_value:
+                        row_errors.append(f"{row_index}. satır / {column.label}: alan zorunludur.")
+                    elif len(column_value) > column.max_length:
+                        row_errors.append(
+                            f"{row_index}. satır / {column.label}: en fazla "
+                            f"{column.max_length} karakter girilebilir."
+                        )
+                    elif column.field_type == "date" and column_value:
+                        try:
+                            date.fromisoformat(column_value)
+                        except ValueError:
+                            row_errors.append(
+                                f"{row_index}. satır / {column.label}: geçerli bir tarih "
+                                "gönderilmelidir."
+                            )
+                    cleaned_row[column_key] = column_value
+                cleaned_rows.append(cleaned_row)
+            if require_required and field.required and not cleaned_rows:
+                row_errors.append(f"{field.label} için en az bir satır zorunludur.")
+            if row_errors:
+                errors[key] = row_errors
+            cleaned[key] = cleaned_rows
+            continue
         if field.field_type in {"text", "textarea", "date", "select"}:
             if value is None:
                 value = ""
@@ -956,7 +1215,7 @@ def validate_form_data(template_code: str, data: Any) -> dict[str, Any]:
                 errors[key] = ["Metin değeri gönderilmelidir."]
                 continue
             value = value.strip()
-            if field.required and not value:
+            if require_required and field.required and not value:
                 errors[key] = [f"{field.label} zorunludur."]
             elif len(value) > field.max_length:
                 errors[key] = [f"En fazla {field.max_length} karakter girilebilir."]
@@ -965,9 +1224,23 @@ def validate_form_data(template_code: str, data: Any) -> dict[str, Any]:
                     date.fromisoformat(value)
                 except ValueError:
                     errors[key] = ["Geçerli bir tarih gönderilmelidir."]
-            elif field.field_type == "select" and value not in {item[0] for item in field.options}:
+            elif (
+                field.field_type == "select"
+                and value
+                and value not in {item[0] for item in field.options}
+            ):
                 errors[key] = ["Geçerli bir seçim yapılmalıdır."]
         cleaned[key] = value
+
+    if (
+        template_code == "fm_dsg_0327"
+        and cleaned.get("valid_from")
+        and cleaned.get("valid_until")
+        and "valid_from" not in errors
+        and "valid_until" not in errors
+        and date.fromisoformat(cleaned["valid_from"]) > date.fromisoformat(cleaned["valid_until"])
+    ):
+        errors["valid_until"] = ["Geçerlilik bitişi, başlangıç tarihinden önce olamaz."]
 
     if errors:
         raise FormTemplateValidationError(errors)
