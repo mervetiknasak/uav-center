@@ -49,33 +49,31 @@ function openDocumentUrl(url) {
 
 <template>
   <section class="flight-permits-view">
-    <n-page-header
-      title="Uçuş İzinleri"
-      subtitle="Uçuş izni ve tavsiye kayıtlarını, hava aracı bilgilerini ve resmi dokümanlarını yönetin."
-    >
-      <template #header>
+    <header class="process-section-header">
+      <div>
         <n-space align="center" :size="6">
-          <n-icon :size="16"><Plane /></n-icon>
-          <n-text type="primary" strong>Süreçler</n-text>
+          <n-icon :size="18"><Plane /></n-icon>
+          <n-text class="process-section-title" strong>Uçuş İzinleri</n-text>
         </n-space>
-      </template>
-      <template #extra>
-        <n-space>
-          <n-button secondary :loading="loading" @click="emit('refresh')">
-            <template #icon
-              ><n-icon><RefreshCw /></n-icon
-            ></template>
-            Yenile
-          </n-button>
-          <n-button type="primary" @click="openEditor()">
-            <template #icon
-              ><n-icon><Plus /></n-icon
-            ></template>
-            Yeni uçuş izni
-          </n-button>
-        </n-space>
-      </template>
-    </n-page-header>
+        <n-text depth="3">
+          Uçuş izni ve tavsiye kayıtlarını, hava aracı bilgilerini ve resmi dokümanlarını yönetin.
+        </n-text>
+      </div>
+      <n-space>
+        <n-button secondary :loading="loading" @click="emit('refresh')">
+          <template #icon
+            ><n-icon><RefreshCw /></n-icon
+          ></template>
+          Yenile
+        </n-button>
+        <n-button type="primary" @click="openEditor()">
+          <template #icon
+            ><n-icon><Plus /></n-icon
+          ></template>
+          Yeni uçuş izni
+        </n-button>
+      </n-space>
+    </header>
 
     <n-alert v-if="error" type="error" title="Uçuş izinleri alınamadı">{{ error }}</n-alert>
     <n-alert v-if="notice" type="success" :show-icon="true">{{ notice }}</n-alert>

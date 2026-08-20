@@ -1,6 +1,6 @@
 <script setup>
 import { toRef } from "vue";
-import { Files, Plus, RefreshCw } from "@lucide/vue";
+import { FileText, Plus, RefreshCw } from "@lucide/vue";
 
 import { useFormProcessController } from "../composables/useFormProcessController";
 import FormProcessTable from "./FormProcessTable.vue";
@@ -25,37 +25,35 @@ const controller = useFormProcessController({
 
 <template>
   <section class="form-processes-view">
-    <n-page-header
-      title="Formlar"
-      subtitle="Klasör bazlı süreçleri, FM Word şablonlarını ve oluşturulan kayıtları yönetin."
-    >
-      <template #header>
+    <header class="process-section-header">
+      <div>
         <n-space align="center" :size="6">
-          <n-icon :size="16"><Files /></n-icon>
-          <n-text type="primary" strong>Süreçler</n-text>
+          <n-icon :size="18"><FileText /></n-icon>
+          <n-text class="process-section-title" strong>Mühendislik Formları</n-text>
         </n-space>
-      </template>
-      <template #extra>
-        <n-space>
-          <n-button secondary :loading="loading" @click="emit('refresh')">
-            <template #icon
-              ><n-icon><RefreshCw /></n-icon
-            ></template>
-            Yenile
-          </n-button>
-          <n-button
-            type="primary"
-            :disabled="!controller.templates.value.length"
-            @click="emit('create')"
-          >
-            <template #icon
-              ><n-icon><Plus /></n-icon
-            ></template>
-            Yeni form kaydı
-          </n-button>
-        </n-space>
-      </template>
-    </n-page-header>
+        <n-text depth="3">
+          Klasör bazlı süreçleri, FM Word şablonlarını ve oluşturulan kayıtları yönetin.
+        </n-text>
+      </div>
+      <n-space>
+        <n-button secondary :loading="loading" @click="emit('refresh')">
+          <template #icon
+            ><n-icon><RefreshCw /></n-icon
+          ></template>
+          Yenile
+        </n-button>
+        <n-button
+          type="primary"
+          :disabled="!controller.templates.value.length"
+          @click="emit('create')"
+        >
+          <template #icon
+            ><n-icon><Plus /></n-icon
+          ></template>
+          Yeni form kaydı
+        </n-button>
+      </n-space>
+    </header>
 
     <n-alert v-if="error" type="error" title="İşlem tamamlanamadı">{{ error }}</n-alert>
     <n-alert v-if="notice" type="success">{{ notice }}</n-alert>

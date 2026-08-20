@@ -167,10 +167,11 @@ process-crash penceresinde mutlak exactly-once garantisi yoktur; `pending` kayı
 `unknown` durumuna alınır ve operasyonel olarak uzlaştırılmadan yeni anahtarla
 tekrar gönderim yapılmamalıdır.
 
-## Uçuş İzinleri
+## Formlar ve Uçuş İzinleri
 
-Arayüzde uçuş izinleri, **Süreçler → Uçuş İzinleri** ekranında yönetilir. A, B ve
-C Kurumu seçimleri aynı form içinde farklı Word şablonlarını ve kuruma özgü form
+Arayüzde mühendislik formları ile uçuş izinleri, **Süreçler** altında tek bir
+**Formlar** çalışma alanında birlikte yönetilir. A, B ve C Kurumu seçimleri uçuş
+izni formu içinde farklı Word şablonlarını ve kuruma özgü form
 alanlarını kullanır. Seçilen `template_code` ile bu alanların `template_data`
 değerleri kayıtla birlikte saklanır; sunucu, yalnız seçilen şablonun tanımladığı
 alanları kabul eder ve zorunlu alanları doğrular. Uçuş izni tavsiyesi seçeneği
@@ -187,7 +188,7 @@ DOC/XLS biçimleri bu güvenlik sınırının dışındadır.
 
 ## Mühendislik Form Süreçleri
 
-**Süreçler → Formlar** ekranı, `Formlar` envanterindeki klasörleri
+Bu çalışma alanındaki **Mühendislik Formları** bölümü, `Formlar` envanterindeki klasörleri
 süreç ve `FM` ile başlayan DOCX dosyalarını sürümlü şablon olarak sunar. Katalogda
 13 süreç altında 35 şablon bulunur. Her şablon; kaynak formdaki başlık, boş hücre
 ve yer tutuculardan çıkarılan alan şemasına sahiptir. Backend yalnız seçilen

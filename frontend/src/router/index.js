@@ -16,19 +16,18 @@ const routes = [
   {
     path: "/processes",
     name: "processes",
-    redirect: { name: "form-processes" }
+    component: () => import("../features/processes/pages/ProcessesPage.vue"),
+    meta: { menuKey: "processes" }
   },
   {
     path: "/flight-permits",
     name: "flight-permits",
-    component: () => import("../features/flight-permits/pages/FlightPermitsPage.vue"),
-    meta: { menuKey: "processes" }
+    redirect: { name: "processes" }
   },
   {
     path: "/form-processes",
     name: "form-processes",
-    component: () => import("../features/form-processes/pages/FormProcessesPage.vue"),
-    meta: { menuKey: "processes" }
+    redirect: { name: "processes" }
   },
   {
     path: "/form-processes/new",
@@ -44,7 +43,7 @@ const routes = [
   },
   {
     path: "/processes/flight-permits/:institution(institution-a|institution-b|institution-c)",
-    redirect: { name: "flight-permits" }
+    redirect: { name: "processes" }
   },
   {
     path: "/jobs",
