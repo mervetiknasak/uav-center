@@ -3,12 +3,14 @@ import { computed, reactive, ref } from "vue";
 import { errorMessage } from "../../../composables/errorMessage";
 import {
   buildFormProcessPayload,
+  buildFormProcessRequestBody,
   createFormProcessForm,
   flattenFormTemplates,
   formProcessRecordToForm,
   selectFormProcessTemplate
 } from "../model/form";
 import { apiFormProcessErrors, collectFormProcessErrors } from "../model/validation";
+import { existingFormAttachment, validateFormAttachment } from "../model/attachment";
 
 function formSnapshot(form) {
   return JSON.stringify({
@@ -32,6 +34,11 @@ export function useFormProcessEditor({ apiFetch, router, recordId = null }) {
   const error = ref("");
   const notice = ref("");
   const validationErrors = ref({});
+  const fileList = ref([]);
+  const existingAttachment = ref(null);
+  const attachmentWasPresent = ref(false);
+  const removeAttachment = ref(false);
+  const attachmentDirty = ref(false);
   const savedSnapshot = ref(formSnapshot(form));
   const templates = computed(() => flattenFormTemplates(processes.value));
   const selectedTemplate = computed(() =>
@@ -39,11 +46,22 @@ export function useFormProcessEditor({ apiFetch, router, recordId = null }) {
   );
   const templateLocked = computed(() => Boolean(record.value?.id));
   const archived = computed(() => record.value?.status === "archived");
-  const dirty = computed(() => ready.value && formSnapshot(form) !== savedSnapshot.value);
+  const dirty = computed(
+    () => ready.value && (formSnapshot(form) !== savedSnapshot.value || attachmentDirty.value)
+  );
+  const reviewAttachment = computed(() => {
+    const file = fileList.value[0]?.file;
+    return file ? { name: file.name, size: file.size } : existingAttachment.value;
+  });
 
   function syncSavedForm(saved) {
     record.value = saved;
     Object.assign(form, formProcessRecordToForm(saved, templates.value));
+    fileList.value = [];
+    existingAttachment.value = existingFormAttachment(saved);
+    attachmentWasPresent.value = Boolean(existingAttachment.value);
+    removeAttachment.value = false;
+    attachmentDirty.value = false;
     savedSnapshot.value = formSnapshot(form);
   }
 
@@ -62,6 +80,11 @@ export function useFormProcessEditor({ apiFetch, router, recordId = null }) {
         currentStep.value = 2;
       } else {
         Object.assign(form, createFormProcessForm());
+        fileList.value = [];
+        existingAttachment.value = null;
+        attachmentWasPresent.value = false;
+        removeAttachment.value = false;
+        attachmentDirty.value = false;
         savedSnapshot.value = formSnapshot(form);
         currentStep.value = 1;
       }
@@ -116,10 +139,35 @@ export function useFormProcessEditor({ apiFetch, router, recordId = null }) {
     form.notes = value;
   }
 
+  function updateFileList(files) {
+    fileList.value = files.slice(-1);
+    removeAttachment.value = fileList.value.length
+      ? false
+      : attachmentWasPresent.value && !existingAttachment.value;
+    attachmentDirty.value = Boolean(fileList.value.length || removeAttachment.value);
+    const next = { ...validationErrors.value };
+    delete next.attachment;
+    validationErrors.value = next;
+  }
+
+  function markAttachmentForRemoval() {
+    existingAttachment.value = null;
+    fileList.value = [];
+    removeAttachment.value = true;
+    attachmentDirty.value = true;
+  }
+
+  function openAttachment() {
+    if (!existingAttachment.value?.url) return;
+    window.open(existingAttachment.value.url, "_blank", "noopener,noreferrer");
+  }
+
   function validate(requireRequired) {
     validationErrors.value = collectFormProcessErrors(form, templates.value, {
       requireRequired
     });
+    const attachmentError = validateFormAttachment(fileList.value[0]?.file);
+    if (attachmentError) validationErrors.value.attachment = attachmentError;
     if (Object.keys(validationErrors.value).length) {
       error.value = "Formdaki hataları düzelttikten sonra yeniden deneyin.";
       if (validationErrors.value.template_code) currentStep.value = 1;
@@ -144,11 +192,15 @@ export function useFormProcessEditor({ apiFetch, router, recordId = null }) {
     notice.value = "";
     try {
       const isNew = !record.value?.id;
+      const payload = buildFormProcessPayload(form, status);
       const saved = await apiFetch(
         isNew ? "/api/form-processes/" : `/api/form-processes/${record.value.id}/`,
         {
           method: isNew ? "POST" : "PATCH",
-          body: JSON.stringify(buildFormProcessPayload(form, status))
+          body: buildFormProcessRequestBody(payload, {
+            file: fileList.value[0]?.file || null,
+            removeAttachment: removeAttachment.value
+          })
         }
       );
       syncSavedForm(saved);
@@ -204,6 +256,9 @@ export function useFormProcessEditor({ apiFetch, router, recordId = null }) {
     error,
     notice,
     validationErrors,
+    fileList,
+    existingAttachment,
+    reviewAttachment,
     dirty,
     load,
     selectProcess,
@@ -212,6 +267,9 @@ export function useFormProcessEditor({ apiFetch, router, recordId = null }) {
     updateIdentity,
     updateField,
     updateNotes,
+    updateFileList,
+    markAttachmentForRemoval,
+    openAttachment,
     review,
     saveDraft,
     complete,

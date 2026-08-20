@@ -127,9 +127,14 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", leaveWarning));
           :form="editor.form"
           :template="editor.selectedTemplate.value"
           :errors="editor.validationErrors.value"
+          :file-list="editor.fileList.value"
+          :existing-attachment="editor.existingAttachment.value"
           @update-identity="editor.updateIdentity"
           @update-field="editor.updateField"
           @update-notes="editor.updateNotes"
+          @update:file-list="editor.updateFileList"
+          @remove-attachment="editor.markAttachmentForRemoval"
+          @open-attachment="editor.openAttachment"
         />
 
         <FormProcessReviewStep
@@ -137,6 +142,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", leaveWarning));
           :form="editor.form"
           :template="editor.selectedTemplate.value"
           :record="editor.record.value"
+          :attachment="editor.reviewAttachment.value"
         />
 
         <div class="form-process-action-bar">

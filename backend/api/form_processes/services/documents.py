@@ -42,6 +42,9 @@ def _display_value(value, field=None) -> str:
     if isinstance(value, list):
         if not value:
             return "—"
+        if getattr(field, "field_type", "") == "multi_select":
+            labels = dict(getattr(field, "options", ()))
+            return "\n".join(str(labels.get(item, item) or "") for item in value)
         columns = getattr(field, "columns", ())
         return (
             "\n".join(

@@ -26,6 +26,24 @@ const templates = [
         ]
       }
     ]
+  },
+  {
+    code: "fm_qua_0579",
+    fields: [
+      {
+        key: "purpose_of_flight",
+        label: "Uçuş amacı",
+        type: "multi_select",
+        required: false,
+        options: [
+          { value: "option_1", label: "Geliştirme" },
+          { value: "option_6", label: "Müşteri kabulü" }
+        ]
+      },
+      { key: "valid_from", label: "Başlangıç", type: "date", required: true, max_length: 10 },
+      { key: "valid_until", label: "Bitiş", type: "date", required: true, max_length: 10 },
+      { key: "flight_duration", label: "Süre", type: "text", required: false, max_length: 8 }
+    ]
   }
 ];
 
@@ -89,5 +107,24 @@ describe("form process validation", () => {
     expect(validateFormProcessForm(form, templates)).toContain("geçerli bir tarih");
     form.data.issue_records[0].date = "2026-08-17";
     expect(validateFormProcessForm(form, templates)).toBe("");
+  });
+
+  it("validates flight permit choices, period and duration in the shared form model", () => {
+    const form = {
+      template_code: "fm_qua_0579",
+      record_number: "UI-1",
+      title: "Uçuş izni",
+      data: {
+        purpose_of_flight: ["unknown"],
+        valid_from: "2026-09-01",
+        valid_until: "2026-08-01",
+        flight_duration: "0"
+      }
+    };
+
+    const errors = collectFormProcessErrors(form, templates);
+    expect(errors).toHaveProperty("purpose_of_flight");
+    expect(errors).toHaveProperty("valid_until");
+    expect(errors).toHaveProperty("flight_duration");
   });
 });

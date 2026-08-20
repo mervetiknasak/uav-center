@@ -19,7 +19,6 @@ EXPECTED_MODEL_EXPORTS = {
     "Document",
     "DocumentAnalysisRun",
     "DocumentChunk",
-    "FlightPermit",
     "FormProcessRecord",
     "PanelResponsible",
     "Person",
@@ -43,7 +42,6 @@ EXPECTED_SERIALIZER_EXPORTS = {
     "DocumentListSerializer",
     "DocumentRagQuerySerializer",
     "DocumentUploadSerializer",
-    "FlightPermitSerializer",
     "LoginSerializer",
     "OllamaChatMessageSerializer",
     "OllamaChatRequestSerializer",
@@ -78,10 +76,6 @@ EXPECTED_VIEW_EXPORTS = {
     "DocumentListView",
     "DocumentRagQueryView",
     "DocumentUploadView",
-    "FlightPermitDetailView",
-    "FlightPermitDocumentView",
-    "FlightPermitGeneratedDocumentView",
-    "FlightPermitListCreateView",
     "GroupPersonListCreateView",
     "IsActiveAdminUser",
     "IsActiveAuthenticated",
@@ -148,17 +142,11 @@ EXPECTED_NAMED_ROUTES = {
     "ollama-pull": "ai/ollama/pull/",
     "ollama-unload": "ai/ollama/unload/",
     "ollama-chat": "ai/ollama/chat/",
-    "flight-permit-list": "flight-permits/",
-    "flight-permit-templates": "flight-permits/templates/",
-    "flight-permit-detail": "flight-permits/<int:flight_permit_id>/",
-    "flight-permit-document": "flight-permits/<int:flight_permit_id>/document/",
-    "flight-permit-generated-document": (
-        "flight-permits/<int:flight_permit_id>/generated-document/"
-    ),
     "form-process-record-list": "form-processes/",
     "form-process-templates": "form-processes/templates/",
     "form-process-record-detail": "form-processes/<int:record_id>/",
     "form-process-generated-document": ("form-processes/<int:record_id>/generated-document/"),
+    "form-process-attachment": "form-processes/<int:record_id>/attachment/",
     "technical-document-list": "technical-documents/",
     "technical-document-detail": "technical-documents/<int:technical_document_id>/",
     "technical-document-notify": ("technical-documents/<int:technical_document_id>/notify/"),
@@ -236,7 +224,7 @@ class ApiArchitectureTests(SimpleTestCase):
         routes = _named_routes(urlpatterns)
         counts = Counter(name for name, _route in routes)
 
-        self.assertEqual(len(routes), 48)
+        self.assertEqual(len(routes), 44)
         self.assertEqual(
             {name for name, count in counts.items() if count > 1},
             set(),

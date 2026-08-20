@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    FormProcessAttachmentView,
     FormProcessGeneratedDocumentView,
     FormProcessRecordDetailView,
     FormProcessRecordListCreateView,
@@ -17,5 +18,10 @@ urlpatterns = [
         "<int:record_id>/generated-document/",
         FormProcessGeneratedDocumentView.as_view(),
         name="form-process-generated-document",
+    ),
+    path(
+        "<int:record_id>/attachment/",
+        FormProcessAttachmentView.as_view(),
+        name="form-process-attachment",
     ),
 ]

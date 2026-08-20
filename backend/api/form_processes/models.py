@@ -21,6 +21,14 @@ class FormProcessRecord(models.Model):
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_DRAFT)
     data = models.JSONField(default=dict)
     notes = models.TextField(blank=True)
+    attachment = models.FileField(
+        upload_to="form_processes/%Y/%m/",
+        max_length=500,
+        blank=True,
+    )
+    attachment_name = models.CharField(max_length=255, blank=True)
+    attachment_content_type = models.CharField(max_length=120, blank=True)
+    attachment_size = models.PositiveBigIntegerField(default=0)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         related_name="created_form_process_records",

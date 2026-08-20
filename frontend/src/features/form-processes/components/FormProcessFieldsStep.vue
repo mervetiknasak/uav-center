@@ -1,16 +1,27 @@
 <script setup>
 import { computed } from "vue";
+import { ExternalLink, Paperclip } from "@lucide/vue";
 
 import { groupTemplateFields } from "../model/selectors";
+import { FORM_ATTACHMENT_ACCEPT, formatFormAttachmentSize } from "../model/attachment";
 import FormProcessTableField from "./FormProcessTableField.vue";
 
 const props = defineProps({
   form: { type: Object, required: true },
   template: { type: Object, required: true },
-  errors: { type: Object, default: () => ({}) }
+  errors: { type: Object, default: () => ({}) },
+  fileList: { type: Array, required: true },
+  existingAttachment: { type: Object, default: null }
 });
 
-const emit = defineEmits(["update-identity", "update-field", "update-notes"]);
+const emit = defineEmits([
+  "update-identity",
+  "update-field",
+  "update-notes",
+  "update:file-list",
+  "remove-attachment",
+  "open-attachment"
+]);
 const groups = computed(() => groupTemplateFields(props.template.fields || []));
 const errorItems = computed(() => {
   const labels = new Map((props.template.fields || []).map((field) => [field.key, field.label]));
@@ -98,10 +109,11 @@ function focusError(key) {
             @update:formatted-value="emit('update-field', field.key, $event)"
           />
           <n-select
-            v-else-if="field.type === 'select'"
+            v-else-if="['select', 'multi_select'].includes(field.type)"
             :id="`fm-field-${field.key}`"
             :value="form.data[field.key]"
             :options="field.options"
+            :multiple="field.type === 'multi_select'"
             clearable
             @update:value="emit('update-field', field.key, $event)"
           />
@@ -118,6 +130,36 @@ function focusError(key) {
           />
         </n-form-item-gi>
       </n-grid>
+    </n-card>
+
+    <n-card title="Kayıt eki" size="small">
+      <div class="form-process-upload-area">
+        <n-alert v-if="existingAttachment" type="info" :show-icon="false">
+          <n-flex justify="space-between" align="center">
+            <n-button text type="primary" @click="emit('open-attachment')">
+              <template #icon
+                ><n-icon><ExternalLink /></n-icon
+              ></template>
+              {{ existingAttachment.name }} ·
+              {{ formatFormAttachmentSize(existingAttachment.size) }}
+            </n-button>
+            <n-button text type="error" @click="emit('remove-attachment')">Kaldır</n-button>
+          </n-flex>
+        </n-alert>
+        <n-upload
+          :file-list="fileList"
+          :default-upload="false"
+          :max="1"
+          :accept="FORM_ATTACHMENT_ACCEPT"
+          @update:file-list="emit('update:file-list', $event)"
+        >
+          <n-upload-dragger>
+            <n-icon :size="32" :depth="3"><Paperclip /></n-icon>
+            <n-text class="form-process-upload-title"> Dokümanı buraya bırakın veya seçin </n-text>
+            <n-text :depth="3">PDF, DOCX, XLSX veya görsel · en fazla 15 MB</n-text>
+          </n-upload-dragger>
+        </n-upload>
+      </div>
     </n-card>
 
     <n-card title="Kayıt notları" size="small">

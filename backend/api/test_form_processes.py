@@ -1,11 +1,16 @@
+import json
+import tempfile
 from io import BytesIO
+from pathlib import Path
 from zipfile import ZipFile
 
 from django.contrib.auth import get_user_model
-from django.test import SimpleTestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import SimpleTestCase, override_settings
 from docx import Document
 from docx.oxml.ns import qn
 from docxtpl import DocxTemplate
+from pypdf import PdfWriter
 from rest_framework.test import APITestCase
 
 from .form_processes.catalog import (
@@ -17,11 +22,19 @@ from .form_processes.catalog import (
 from .models import FormProcessRecord
 
 
+def valid_pdf_bytes() -> bytes:
+    output = BytesIO()
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.write(output)
+    return output.getvalue()
+
+
 class FormProcessCatalogTests(SimpleTestCase):
     def test_catalog_contains_every_retained_fm_docx(self):
         catalog = form_process_catalog()
 
-        self.assertEqual(len(catalog), 13)
+        self.assertEqual(len(catalog), 14)
         self.assertEqual(len(FORM_TEMPLATES), 35)
         self.assertEqual(len({template.code for template in FORM_TEMPLATES}), 35)
         for template in FORM_TEMPLATES:
@@ -29,6 +42,24 @@ class FormProcessCatalogTests(SimpleTestCase):
                 self.assertTrue(template.document_path.is_file())
                 DocxTemplate(template.document_path)
                 self.assertTrue(template.fields)
+
+    def test_flight_permit_forms_are_owned_by_the_engineering_form_catalog(self):
+        catalog = form_process_catalog()
+        flight_permits = next(process for process in catalog if process["code"] == "flight-permits")
+
+        self.assertEqual(flight_permits["name"], "Uçuş İzinleri")
+        self.assertEqual(
+            {template["code"] for template in flight_permits["templates"]},
+            {"fm_qua_0579", "fm_qua_0580", "fm_qua_0581"},
+        )
+        self.assertFalse(
+            any(
+                template["code"] in {"fm_qua_0579", "fm_qua_0580", "fm_qua_0581"}
+                for process in catalog
+                if process["code"] != "flight-permits"
+                for template in process["templates"]
+            )
+        )
 
     def test_catalog_does_not_request_signatures_or_signature_dates(self):
         banned_terms = ("imza", "signature", "signer")
@@ -145,11 +176,34 @@ class FormProcessApiTests(APITestCase):
         payload.update(overrides)
         return payload
 
+    def flight_permit_payload(self, **overrides):
+        payload = {
+            "template_code": "fm_qua_0579",
+            "record_number": "ui-2026-0042",
+            "title": "SN-104 Özel Uçuş İzni",
+            "status": "approved",
+            "data": {
+                "applicant": "TUSAŞ",
+                "aircraft_owner": "UAV Center",
+                "aircraft_model": "Test Platformu",
+                "serial_number": "SN-104",
+                "purpose_of_flight": ["option_1", "option_6"],
+                "purpose_scope": "Geliştirme ve müşteri kabul uçuşu",
+                "flight_duration": "3",
+                "valid_from": "2026-08-20",
+                "valid_until": "2026-10-20",
+                "is_recommendation": "no",
+            },
+            "notes": "Gündüz VFR operasyonları",
+        }
+        payload.update(overrides)
+        return payload
+
     def test_catalog_requires_active_authentication(self):
         response = self.client.get("/api/form-processes/templates/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 13)
+        self.assertEqual(len(response.data), 14)
         self.assertEqual(
             sum(len(process["templates"]) for process in response.data),
             35,
@@ -158,6 +212,116 @@ class FormProcessApiTests(APITestCase):
         self.client.force_authenticate(user=None)
         unauthorized = self.client.get("/api/form-processes/templates/")
         self.assertIn(unauthorized.status_code, {401, 403})
+
+    def test_creates_flight_permit_as_a_shared_engineering_form_record(self):
+        response = self.client.post(
+            "/api/form-processes/",
+            self.flight_permit_payload(),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["process_code"], "flight-permits")
+        self.assertEqual(response.data["form_number"], "FM.QUA.0579")
+        self.assertEqual(response.data["data"]["purpose_of_flight"], ["option_1", "option_6"])
+        self.assertEqual(FormProcessRecord.objects.get().template_code, "fm_qua_0579")
+
+    def test_rejects_invalid_flight_permit_period_duration_and_purpose(self):
+        invalid = self.client.post(
+            "/api/form-processes/",
+            self.flight_permit_payload(
+                data={
+                    **self.flight_permit_payload()["data"],
+                    "valid_from": "2026-10-20",
+                    "valid_until": "2026-08-20",
+                    "flight_duration": "0",
+                    "purpose_of_flight": ["unknown"],
+                }
+            ),
+            format="json",
+        )
+
+        self.assertEqual(invalid.status_code, 400)
+        self.assertIn("valid_until", invalid.data)
+        self.assertIn("flight_duration", invalid.data)
+        self.assertIn("purpose_of_flight", invalid.data)
+        self.assertFalse(FormProcessRecord.objects.exists())
+
+    def test_uploads_opens_and_deletes_form_attachment(self):
+        with tempfile.TemporaryDirectory(prefix="uav-form-attachment-") as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                payload = self.flight_permit_payload()
+                upload = SimpleUploadedFile(
+                    "ucus-izni.pdf",
+                    valid_pdf_bytes(),
+                    content_type="application/pdf",
+                )
+                response = self.client.post(
+                    "/api/form-processes/",
+                    {
+                        **payload,
+                        "data": json.dumps(payload["data"]),
+                        "attachment": upload,
+                    },
+                    format="multipart",
+                )
+
+                self.assertEqual(response.status_code, 201)
+                self.assertEqual(response.data["attachment_name"], "ucus-izni.pdf")
+                self.assertTrue(response.data["attachment_url"].endswith("/attachment/"))
+                record = FormProcessRecord.objects.get(pk=response.data["id"])
+                stored_path = Path(record.attachment.path)
+                self.assertTrue(stored_path.is_file())
+
+                opened = self.client.get(response.data["attachment_url"])
+                self.assertEqual(opened.status_code, 200)
+                self.assertEqual(opened["Content-Type"], "application/pdf")
+                self.assertEqual(opened["X-Content-Type-Options"], "nosniff")
+                opened.close()
+
+                with self.captureOnCommitCallbacks(execute=True):
+                    deleted = self.client.delete(f"/api/form-processes/{record.pk}/")
+                self.assertEqual(deleted.status_code, 204)
+                self.assertFalse(stored_path.exists())
+
+    def test_replaces_and_removes_form_attachment_with_storage_cleanup(self):
+        with tempfile.TemporaryDirectory(prefix="uav-form-attachment-") as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                payload = self.flight_permit_payload()
+                created = self.client.post(
+                    "/api/form-processes/",
+                    {
+                        **payload,
+                        "data": json.dumps(payload["data"]),
+                        "attachment": SimpleUploadedFile("ilk.pdf", valid_pdf_bytes()),
+                    },
+                    format="multipart",
+                )
+                self.assertEqual(created.status_code, 201)
+                record = FormProcessRecord.objects.get(pk=created.data["id"])
+                first_path = Path(record.attachment.path)
+
+                with self.captureOnCommitCallbacks(execute=True):
+                    replaced = self.client.patch(
+                        f"/api/form-processes/{record.pk}/",
+                        {"attachment": SimpleUploadedFile("yeni.pdf", valid_pdf_bytes())},
+                        format="multipart",
+                    )
+                self.assertEqual(replaced.status_code, 200)
+                record.refresh_from_db()
+                replacement_path = Path(record.attachment.path)
+                self.assertFalse(first_path.exists())
+                self.assertTrue(replacement_path.is_file())
+
+                with self.captureOnCommitCallbacks(execute=True):
+                    removed = self.client.patch(
+                        f"/api/form-processes/{record.pk}/",
+                        {"remove_attachment": "true"},
+                        format="multipart",
+                    )
+                self.assertEqual(removed.status_code, 200)
+                self.assertEqual(removed.data["attachment_url"], "")
+                self.assertFalse(replacement_path.exists())
 
     def test_create_list_update_and_delete_shared_record(self):
         create_response = self.client.post(

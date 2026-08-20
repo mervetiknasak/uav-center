@@ -21,6 +21,24 @@ export function collectFormProcessErrors(form, templates = [], { requireRequired
   }
   if (!String(form.title || "").trim()) errors.title = "Kayıt başlığı zorunludur.";
   for (const field of template?.fields || []) {
+    if (field.type === "multi_select") {
+      const value = form.data?.[field.key];
+      if (!Array.isArray(value)) {
+        errors[field.key] = `${field.label} seçimleri geçersiz.`;
+        continue;
+      }
+      if (requireRequired && field.required && !value.length) {
+        errors[field.key] = `${field.label} zorunludur.`;
+        continue;
+      }
+      const allowedValues = new Set((field.options || []).map((option) => option.value));
+      if (value.some((item) => !allowedValues.has(item))) {
+        errors[field.key] = `${field.label} için geçerli seçimler yapılmalıdır.`;
+      } else if (new Set(value).size !== value.length) {
+        errors[field.key] = `${field.label} aynı seçimi birden fazla içeremez.`;
+      }
+      continue;
+    }
     if (field.type === "table") {
       if (!Array.isArray(form.data?.[field.key])) {
         errors[field.key] = `${field.label} satırları geçersiz.`;
@@ -72,6 +90,21 @@ export function collectFormProcessErrors(form, templates = [], { requireRequired
   ) {
     errors.valid_until = "Geçerlilik bitişi, başlangıç tarihinden önce olamaz.";
   }
+  if (
+    ["fm_qua_0579", "fm_qua_0580", "fm_qua_0581"].includes(template?.code) &&
+    form.data?.valid_from &&
+    form.data?.valid_until &&
+    form.data.valid_from > form.data.valid_until
+  ) {
+    errors.valid_until = "Geçerlilik bitişi, başlangıç tarihinden önce olamaz.";
+  }
+  if (
+    ["fm_qua_0579", "fm_qua_0580", "fm_qua_0581"].includes(template?.code) &&
+    form.data?.flight_duration &&
+    (!/^\d+$/.test(form.data.flight_duration) || Number(form.data.flight_duration) < 1)
+  ) {
+    errors.flight_duration = "Uçuş süresi en az 1 saat olan bir tam sayı olmalıdır.";
+  }
   return errors;
 }
 
@@ -85,6 +118,7 @@ export function apiFormProcessErrors(data, template = null) {
     "template_code",
     "record_number",
     "title",
+    "attachment",
     ...(template?.fields || []).map((field) => field.key)
   ]);
   const errors = {};

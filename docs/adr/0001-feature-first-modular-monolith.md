@@ -2,6 +2,7 @@
 
 - Durum: Kabul edildi
 - Tarih: 2026-08-11
+- Not: Uçuş izinlerinin ayrı feature sahipliği ADR-0002 ile değiştirilmiştir.
 
 ## Bağlam
 
@@ -12,7 +13,7 @@ content-type ve migration app-label değişikliği oluşturacaktır.
 ## Karar
 
 `api` app-label'ı korunacak; kod accounts, documents, jobs, organization,
-technical documents, flight permits, AI ve meeting minutes feature paketlerine
+technical documents, form processes, AI ve meeting minutes feature paketlerine
 ayrılacaktır. Root model/serializer/view dosyaları açık re-export façade olacaktır.
 
 Frontend, uygulama context'i ile feature-owned lazy route controller'larına
@@ -25,4 +26,3 @@ ayrılacak; `App.vue` iş özelliği orkestrasyonu yapmayacaktır.
 - Façade dosyaları geçiş maliyeti getirir fakat yeni kod barındırmaz.
 - Mikroservis operasyon maliyeti oluşmaz; gerektiğinde kararlı port üzerinden
   servis çıkarımı yapılabilir.
-

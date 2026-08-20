@@ -167,6 +167,17 @@
   gap: 16px;
 }
 
+.form-process-upload-area {
+  display: grid;
+  gap: 12px;
+}
+
+.form-process-upload-title {
+  display: block;
+  margin-top: 8px;
+  font-weight: 700;
+}
+
 .form-process-error-links {
   display: grid;
   gap: 4px;

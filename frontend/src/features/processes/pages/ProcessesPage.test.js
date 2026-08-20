@@ -4,10 +4,10 @@ import processesPageSource from "./ProcessesPage.vue?raw";
 import routerSource from "../../../router/index.js?raw";
 
 describe("unified processes application", () => {
-  it("renders engineering forms and flight permits in the same route page", () => {
+  it("renders flight permits through the engineering forms application only", () => {
     expect(processesPageSource).toContain("<FormProcessesScreen");
-    expect(processesPageSource).toContain("<FlightPermitsScreen");
-    expect(processesPageSource).not.toContain("ProcessAppNavigation");
+    expect(processesPageSource).not.toContain("FlightPermitsScreen");
+    expect(processesPageSource).not.toContain("useFlightPermits");
   });
 
   it("keeps legacy form URLs as redirects to the unified processes route", () => {

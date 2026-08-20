@@ -4,27 +4,21 @@ import { Files } from "@lucide/vue";
 import { useRouter } from "vue-router";
 
 import { useAppContext } from "../../../app/bootstrap";
-import FlightPermitsScreen from "../../flight-permits/components/FlightPermitsScreen.vue";
-import { useFlightPermits } from "../../flight-permits/composables/useFlightPermits";
 import FormProcessesScreen from "../../form-processes/components/FormProcessesScreen.vue";
 import { useFormProcesses } from "../../form-processes/composables/useFormProcesses";
 
 const { api } = useAppContext();
 const router = useRouter();
 const formProcesses = useFormProcesses(api.apiFetch);
-const flightPermits = useFlightPermits(api.apiFetch);
 
-onMounted(() => {
-  formProcesses.load();
-  flightPermits.loadPermits();
-});
+onMounted(formProcesses.load);
 </script>
 
 <template>
   <div class="process-app-page">
     <n-page-header
       title="Formlar"
-      subtitle="Mühendislik formlarını ve uçuş izinlerini tek çalışma alanından yönetin."
+      subtitle="Mühendislik formlarını ve uçuş izni kayıtlarını tek katalogdan yönetin."
     >
       <template #header>
         <n-space align="center" :size="6">
@@ -47,18 +41,6 @@ onMounted(() => {
       "
       @status="formProcesses.updateStatus"
       @delete="formProcesses.remove"
-    />
-
-    <FlightPermitsScreen
-      :permits="flightPermits.permits.value"
-      :templates="flightPermits.templates.value"
-      :loading="flightPermits.loading.value"
-      :saving="flightPermits.saving.value"
-      :error="flightPermits.error.value"
-      :notice="flightPermits.notice.value"
-      @refresh="flightPermits.loadPermits"
-      @save="flightPermits.savePermit"
-      @delete="flightPermits.deletePermit"
     />
   </div>
 </template>

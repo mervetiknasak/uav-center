@@ -53,8 +53,7 @@ backend/api/
 ├── ai/                     AI API sözleşmesi ve sağlayıcı sınırı
 ├── organization/           proje, panel, kişi ve gruplar
 ├── technical_documents/   teknik doküman yaşam döngüsü ve bildirim
-├── flight_permits/         uçuş izinleri ve belge üretimi
-├── form_processes/         FM şablon kataloğu, dinamik kayıtlar ve Word üretimi
+├── form_processes/         FM/uçuş izni kataloğu, dinamik kayıtlar, ekler ve Word üretimi
 ├── meeting_minutes/        Word ayrıştırma ve Jira yayın use-case'i
 ├── services/               cross-feature belge/AI/job işleme ve dış adaptör yüzeyleri
 ├── models.py               Django discovery için açık re-export façade
@@ -104,16 +103,15 @@ Kurallar:
 
 Uygulama karma görünürlük modeline sahiptir:
 
-| Kaynak | Görünürlük |
-| --- | --- |
-| Belge | Sahibi; staff tüm kayıtlar ve owner bilgisini denetler |
-| Job ve özel analiz kontrolü | Yalnız sahibi |
-| Belge analiz geçmişi | Sahibi; staff görünür belgelerin tüm geçmişini denetler |
-| Organizasyon ve teknik doküman okuma | Aktif kullanıcılar |
-| Organizasyon ve teknik doküman yazma/bildirim | Staff; bildirim body/alıcı/hata ayrıntısı staff-only |
-| Uçuş izinleri | Paylaşımlı operasyonel veri; backend izni belirleyicidir |
-| Mühendislik form süreçleri | Paylaşımlı operasyonel kayıtlar; şablon kodu ve alan şeması backend tarafından doğrulanır |
-| Jira yayın ve model yönetimi | Staff veya açıkça tanımlı özel izin |
+| Kaynak                                        | Görünürlük                                                                                          |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Belge                                         | Sahibi; staff tüm kayıtlar ve owner bilgisini denetler                                              |
+| Job ve özel analiz kontrolü                   | Yalnız sahibi                                                                                       |
+| Belge analiz geçmişi                          | Sahibi; staff görünür belgelerin tüm geçmişini denetler                                             |
+| Organizasyon ve teknik doküman okuma          | Aktif kullanıcılar                                                                                  |
+| Organizasyon ve teknik doküman yazma/bildirim | Staff; bildirim body/alıcı/hata ayrıntısı staff-only                                                |
+| Mühendislik form süreçleri ve uçuş izinleri   | Paylaşımlı operasyonel kayıtlar; şablon kodu, alan şeması ve ek dosya backend tarafından doğrulanır |
+| Jira yayın ve model yönetimi                  | Staff veya açıkça tanımlı özel izin                                                                 |
 
 Sahiplik uygulanan nesneler görünür queryset üzerinden alınır. Yabancı kimliği
 URL'de bilen kullanıcıya `404` dönülür; frontend gizleme güvenlik sayılmaz.
@@ -149,8 +147,9 @@ veritabanlarında da doğru kalmalıdır.
 Frontend state'in çoğu route ömrüne bağlıdır. Bu nedenle global store yerine tek
 uygulama API/session context'i ve feature-owned page controller'ları kullanılır.
 Bu bölüm hedef yönü ve tamamlanan composition sınırını tanımlar. Organizasyon,
-teknik dokümanlar ve uçuş izinleri feature-owned bileşen/composable'lara tamamen
-ayrılmıştır. Admin, AI Studio, belge işleme, job, sistem ve Word-to-Jira route
+teknik dokümanlar ve mühendislik formları feature-owned bileşen/composable'lara
+ayrılmıştır. Uçuş izni şablonları ayrı bir frontend feature değildir; aynı form
+kataloğu ve editör akışında çalışır. Admin, AI Studio, belge işleme, job, sistem ve Word-to-Jira route
 orkestrasyonu feature page'lerinde olsa da bazı paylaşılan root view/composable
 implementasyonları kademeli taşıma yüzeyi olarak sürmektedir; yeni davranış bu
 legacy yüzeyi büyütmez.

@@ -17,7 +17,6 @@ from .documents.serializers import (
     DocumentRagQuerySerializer,
     DocumentUploadSerializer,
 )
-from .flight_permits.serializers import FlightPermitSerializer
 from .jobs.serializers import AsyncJobSerializer
 from .meeting_minutes.serializers import WordToJiraPublishRequestSerializer
 from .organization.serializers import (
@@ -48,7 +47,6 @@ __all__ = [
     "DocumentListSerializer",
     "DocumentRagQuerySerializer",
     "DocumentUploadSerializer",
-    "FlightPermitSerializer",
     "LoginSerializer",
     "OllamaChatMessageSerializer",
     "OllamaChatRequestSerializer",

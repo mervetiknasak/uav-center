@@ -2,11 +2,13 @@
 import { computed } from "vue";
 
 import { groupTemplateFields } from "../model/selectors";
+import { formatFormAttachmentSize } from "../model/attachment";
 
 const props = defineProps({
   form: { type: Object, required: true },
   template: { type: Object, required: true },
-  record: { type: Object, default: null }
+  record: { type: Object, default: null },
+  attachment: { type: Object, default: null }
 });
 
 const groups = computed(() => groupTemplateFields(props.template.fields || []));
@@ -17,12 +19,18 @@ function displayValue(field) {
   if (field.type === "select") {
     return field.options?.find((option) => option.value === value)?.label || value;
   }
+  if (field.type === "multi_select" && Array.isArray(value)) {
+    const labels = new Map((field.options || []).map((option) => [option.value, option.label]));
+    return value.map((item) => labels.get(item) || item).join(", ") || "—";
+  }
   return value;
 }
 
 function isEmptyRequired(field) {
   const value = props.form.data[field.key];
-  if (field.type === "table") return field.required && (!Array.isArray(value) || !value.length);
+  if (["table", "multi_select"].includes(field.type)) {
+    return field.required && (!Array.isArray(value) || !value.length);
+  }
   return field.required && !value;
 }
 
@@ -52,6 +60,9 @@ function displayCell(column, value) {
           {{ record.status_display }}
         </n-descriptions-item>
       </n-descriptions>
+    </n-card>
+    <n-card v-if="attachment" title="Kayıt eki" size="small">
+      {{ attachment.name }} · {{ formatFormAttachmentSize(attachment.size) }}
     </n-card>
     <n-card v-for="group in groups" :key="group.name" :title="group.name" size="small">
       <dl class="form-process-review-list">

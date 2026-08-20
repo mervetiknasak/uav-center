@@ -3,12 +3,15 @@ export function flattenFormTemplates(processes = []) {
 }
 
 function emptyFieldValue(field) {
-  if (field.type === "table") return [];
+  if (["table", "multi_select"].includes(field.type)) return [];
   return field.type === "date" ? null : "";
 }
 
 function normalizePayloadValue(value) {
   if (Array.isArray(value)) {
+    if (value.every((item) => typeof item === "string")) {
+      return [...new Set(value.filter(Boolean))];
+    }
     return value.filter(
       (row) =>
         row &&
@@ -71,4 +74,21 @@ export function buildFormProcessPayload(form, status = form.status) {
     ),
     notes: String(form.notes || "").trim()
   };
+}
+
+export function buildFormProcessRequestBody(
+  payload,
+  { file = null, removeAttachment = false } = {}
+) {
+  if (!file && !removeAttachment) return JSON.stringify(payload);
+  const body = new FormData();
+  body.append("template_code", payload.template_code);
+  body.append("record_number", payload.record_number);
+  body.append("title", payload.title);
+  body.append("status", payload.status);
+  body.append("data", JSON.stringify(payload.data));
+  body.append("notes", payload.notes);
+  if (file) body.append("attachment", file, file.name);
+  if (removeAttachment) body.append("remove_attachment", "true");
+  return body;
 }

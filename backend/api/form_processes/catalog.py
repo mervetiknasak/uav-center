@@ -124,6 +124,26 @@ def choice(
     return FormField(key, label, "select", group, required, 120, options=options)
 
 
+def multi_choice(
+    key: str,
+    label: str,
+    options: tuple[tuple[str, str], ...],
+    *,
+    group: str = "Genel Bilgiler",
+    required: bool = False,
+) -> FormField:
+    return FormField(
+        key,
+        label,
+        "multi_select",
+        group,
+        required,
+        120,
+        options=options,
+        max_items=len(options),
+    )
+
+
 def table(
     key: str,
     label: str,
@@ -215,16 +235,74 @@ AUTHORIZATION_FIELDS = (
     day("authorization_date", "Yetkilendirme tarihi"),
 )
 
+FLIGHT_PURPOSE_OPTIONS = (
+    ("option_1", "1. Geliştirme"),
+    ("option_2", "2. Düzenlemelere veya sertifikasyon şartnamelerine uygunluğun gösterilmesi"),
+    ("option_3", "3. Tasarım ya da üretim kuruluşlarının personel eğitimi"),
+    ("option_4", "4. Yeni üretilen hava araçlarında üretim uçuş testleri"),
+    ("option_5", "5. Üretim tesisleri arasında hava aracının uçurulması"),
+    ("option_6", "6. Müşteri kabulü için uçurulması"),
+    ("option_7", "7. Uçak teslimatı ve ihracı"),
+    ("option_8", "8. Yetkili makam tarafından kabul uçuşu yapılması"),
+    ("option_9", "9. Pazar araştırması, müşterinin personel eğitimi de dahil"),
+    ("option_10", "10. Sergiler ve hava gösterileri"),
+    (
+        "option_11",
+        "11. Bakım veya uçuşa elverişlilik incelemesi için ya da depolama yerine uçurulması",
+    ),
+    (
+        "option_12",
+        "12. MTOW üzerinde, uygun iniş tesisi veya yakıt bulunmayan bölgelerde aşırı yükle uçuş",
+    ),
+    ("option_13", "13. Rekor kırma, hava yarışı veya benzeri yarışmalar"),
+    (
+        "option_14",
+        "14. Çevresel gereksinimlere uyum sağlamayan hava araçlarının uçurulması",
+    ),
+    (
+        "option_15",
+        "15. Sivil ve kompleks olmayan hava araçlarında ticari olmayan uçuş faaliyetleri",
+    ),
+    (
+        "option_16",
+        "16. Bakım sonrası sistem, parça veya donanım testi ya da sorun giderme uçuşu",
+    ),
+)
+
 PTF_IDENTITY_FIELDS = (
     text("applicant", "Başvuru sahibi", required=True),
     text("application_number", "Başvuru / form numarası"),
     text("aircraft_owner", "Hava aracı sahibi"),
     text("aircraft_model", "Hava aracı modeli / tipi"),
     text("serial_number", "Seri numarası"),
+    text("aircraft_nationality", "Hava aracı uyruğu", group="Hava Aracı Bilgileri"),
+    text("aircraft_id_mark", "Kayıt tanımlaması", group="Hava Aracı Bilgileri"),
+    text("aircraft_manufacturer", "Üretici", group="Hava Aracı Bilgileri"),
     area("aircraft_configuration", "Hava aracı konfigürasyonu", group="Uçuş Bilgileri"),
+    multi_choice(
+        "purpose_of_flight",
+        "Uçuş amacı kategorileri",
+        FLIGHT_PURPOSE_OPTIONS,
+        group="Uçuş Bilgileri",
+    ),
     area("purpose_scope", "Uçuş amacı / kapsamı", group="Uçuş Bilgileri"),
     area("conditions_restrictions", "Koşullar ve kısıtlamalar", group="Uçuş Bilgileri"),
     area("substantiations", "Kanıtlar / dayanaklar", group="Uçuş Bilgileri"),
+    day("intended_flight_date", "Öngörülen uçuş tarihi", group="Uçuş Bilgileri"),
+    text("flight_duration", "Uçuş süresi (saat)", group="Uçuş Bilgileri", max_length=8),
+    day("valid_from", "Geçerlilik başlangıcı", group="Geçerlilik", required=True),
+    day("valid_until", "Geçerlilik bitişi", group="Geçerlilik", required=True),
+    choice(
+        "permit_lifecycle_status",
+        "İzin yaşam döngüsü durumu",
+        (
+            ("draft", "Taslak"),
+            ("approved", "Onaylandı"),
+            ("suspended", "Askıya Alındı"),
+            ("revoked", "İptal Edildi"),
+        ),
+        group="Geçerlilik",
+    ),
     day("issue_date", "Yayın tarihi"),
     text("approver_name", "Onaylayan adı", group="Tarih ve Onay"),
 )
@@ -941,21 +1019,31 @@ FORM_TEMPLATES = (
     ),
     FormTemplate(
         "fm_qua_0579",
-        "others",
-        "Others",
+        "flight-permits",
+        "Uçuş İzinleri",
         "FM.QUA.0579",
         "TUSAŞ Özel Uçuş İzni Başvuru Formu",
         "Özel uçuş izni başvurusu.",
         (
             *PTF_IDENTITY_FIELDS,
-            day("intended_flight_date", "Öngörülen uçuş tarihi", group="Uçuş Bilgileri"),
-            text("flight_duration", "Uçuş süresi", group="Uçuş Bilgileri"),
+            choice(
+                "is_recommendation",
+                "Uçuş izni tavsiyesi",
+                (("yes", "Evet"), ("no", "Hayır")),
+                group="Başvuru Bilgileri",
+            ),
+            text("contract_number", "Sözleşme numarası", group="Başvuru Bilgileri"),
+            text(
+                "flight_test_plan_number",
+                "Uçuş test planı numarası",
+                group="Başvuru Bilgileri",
+            ),
         ),
     ),
     FormTemplate(
         "fm_qua_0580",
-        "others",
-        "Others",
+        "flight-permits",
+        "Uçuş İzinleri",
         "FM.QUA.0580",
         "Uçuş İzni İçin Uçuş Koşulları Onay Formu",
         "Uçuş koşulları onay formu.",
@@ -968,8 +1056,8 @@ FORM_TEMPLATES = (
     ),
     FormTemplate(
         "fm_qua_0581",
-        "others",
-        "Others",
+        "flight-permits",
+        "Uçuş İzinleri",
         "FM.QUA.0581",
         "TUSAŞ Özel Uçuş İzni Onay Formu",
         "Özel uçuş izni onay formu.",
@@ -979,6 +1067,9 @@ FORM_TEMPLATES = (
             text("validity_period", "Geçerlilik süresi", group="Uçuş Bilgileri"),
             text("place_of_issue", "Yayın yeri", group="Tarih ve Onay"),
             text("authority_representative_name", "Otorite yetkilisi", group="Tarih ve Onay"),
+            text("coordination_contact", "Koordinasyon sorumlusu", group="Operasyon"),
+            text("coordination_reference", "Koordinasyon referansı", group="Operasyon"),
+            area("operational_notes", "Kuruma özel operasyon notları", group="Operasyon"),
         ),
     ),
     FormTemplate(
@@ -1208,6 +1299,24 @@ def validate_form_data(
                 errors[key] = row_errors
             cleaned[key] = cleaned_rows
             continue
+        if field.field_type == "multi_select":
+            if value is None:
+                value = []
+            if not isinstance(value, list):
+                errors[key] = ["Seçimler liste biçiminde gönderilmelidir."]
+                cleaned[key] = []
+                continue
+            allowed_values = {item[0] for item in field.options}
+            if len(value) != len(set(value)):
+                errors[key] = ["Aynı seçim birden fazla kez gönderilemez."]
+            elif field.max_items and len(value) > field.max_items:
+                errors[key] = [f"En fazla {field.max_items} seçim yapılabilir."]
+            elif any(not isinstance(item, str) or item not in allowed_values for item in value):
+                errors[key] = ["Geçerli seçimler gönderilmelidir."]
+            elif require_required and field.required and not value:
+                errors[key] = [f"{field.label} zorunludur."]
+            cleaned[key] = value
+            continue
         if field.field_type in {"text", "textarea", "date", "select"}:
             if value is None:
                 value = ""
@@ -1241,6 +1350,20 @@ def validate_form_data(
         and date.fromisoformat(cleaned["valid_from"]) > date.fromisoformat(cleaned["valid_until"])
     ):
         errors["valid_until"] = ["Geçerlilik bitişi, başlangıç tarihinden önce olamaz."]
+
+    if template_code in {"fm_qua_0579", "fm_qua_0580", "fm_qua_0581"}:
+        if (
+            cleaned.get("valid_from")
+            and cleaned.get("valid_until")
+            and "valid_from" not in errors
+            and "valid_until" not in errors
+            and date.fromisoformat(cleaned["valid_from"])
+            > date.fromisoformat(cleaned["valid_until"])
+        ):
+            errors["valid_until"] = ["Geçerlilik bitişi, başlangıç tarihinden önce olamaz."]
+        duration = cleaned.get("flight_duration", "")
+        if duration and (not duration.isdigit() or int(duration) < 1):
+            errors["flight_duration"] = ["Uçuş süresi en az 1 saat olan bir tam sayı olmalıdır."]
 
     if errors:
         raise FormTemplateValidationError(errors)

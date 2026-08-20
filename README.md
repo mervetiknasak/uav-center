@@ -38,8 +38,8 @@ bağımlılık yönü, veri sahipliği ve genişletme kuralları için
 - Doküman durum/revizyon/yayın/termin takibi ve denetlenebilir durum geçmişi
 - Bir teknik dokümanı aynı projedeki birden fazla panelle ilişkilendirme
 - Panel sorumlularına alıcı önizlemeli e-posta bildirimi ve bildirim geçmişi
-- Uçuş izinlerinde geçerlilik takibi, güvenli doküman ekleri ve indirilebilir Word çıktısı
-- Klasör bazlı 13 mühendislik süreci, 35 sürümlü FM Word şablonu ve dinamik form kayıtları
+- Uçuş izni formları dahil klasör bazlı 14 mühendislik süreci ve 35 sürümlü FM Word şablonu
+- Mühendislik form kayıtlarında güvenli doküman eki ve indirilebilir Word çıktısı
 
 ## Backend
 
@@ -104,7 +104,6 @@ http://localhost:8000/api/documents/<id>/rag/query/
 http://localhost:8000/api/documents/<id>/controls/run/
 http://localhost:8000/api/analysis-controls/
 http://localhost:8000/api/jobs/
-http://localhost:8000/api/flight-permits/
 http://localhost:8000/api/form-processes/
 http://localhost:8000/api/organization/projects/
 http://localhost:8000/api/technical-documents/
@@ -126,13 +125,10 @@ DRF yanıt formatı:
 - `GET /api/jobs/`: oturum sahibinin son joblarını listeler; `status` ve `limit` parametrelerini destekler
 - `GET /api/jobs/<uuid>/`: yalnızca oturum sahibinin job detayını döndürür
 - `POST /api/jobs/<uuid>/cancel/`: sırada bekleyen ve oturum sahibine ait jobı iptal eder
-- `GET|POST /api/flight-permits/`: paylaşımlı uçuş izinlerini listeler veya yeni izin oluşturur
-- `GET|PATCH|DELETE /api/flight-permits/<id>/`: uçuş iznini okur, günceller veya siler
-- `GET /api/flight-permits/<id>/document/`: doğrulanmış ek dokümanı sunucu MIME politikasıyla indirir
-- `GET /api/flight-permits/<id>/generated-document/`: kayıt alanlarından Word izin belgesi üretir
 - `GET /api/form-processes/templates/`: süreç, FM şablonu ve dinamik alan kataloğunu döndürür
-- `GET|POST /api/form-processes/`: paylaşımlı mühendislik form kayıtlarını listeler veya oluşturur
+- `GET|POST /api/form-processes/`: uçuş izinleri dahil paylaşımlı mühendislik form kayıtlarını listeler veya oluşturur
 - `GET|PATCH|DELETE /api/form-processes/<id>/`: mühendislik form kaydını okur, günceller veya siler
+- `GET /api/form-processes/<id>/attachment/`: doğrulanmış form ekini sunucu MIME politikasıyla indirir
 - `GET /api/form-processes/<id>/generated-document/`: kaynak FM şablonunu ve doğrulanmış kayıt alanlarını içeren Word çıktısı üretir
 - `GET /api/organization/projects/`: projeleri alt panelleri ve sorumlularıyla listeler
 - Organizasyon API'sindeki `POST`, `PATCH` ve `DELETE` işlemleri yalnızca admin kullanıcılarına açıktır
@@ -167,30 +163,13 @@ process-crash penceresinde mutlak exactly-once garantisi yoktur; `pending` kayı
 `unknown` durumuna alınır ve operasyonel olarak uzlaştırılmadan yeni anahtarla
 tekrar gönderim yapılmamalıdır.
 
-## Formlar ve Uçuş İzinleri
-
-Arayüzde mühendislik formları ile uçuş izinleri, **Süreçler** altında tek bir
-**Formlar** çalışma alanında birlikte yönetilir. A, B ve C Kurumu seçimleri uçuş
-izni formu içinde farklı Word şablonlarını ve kuruma özgü form
-alanlarını kullanır. Seçilen `template_code` ile bu alanların `template_data`
-değerleri kayıtla birlikte saklanır; sunucu, yalnız seçilen şablonun tanımladığı
-alanları kabul eder ve zorunlu alanları doğrular. Uçuş izni tavsiyesi seçeneği
-yalnız A Kurumu şablonuna aittir; diğer kurumlarda değer sunucuda `false` tutulur.
-
-`GET /api/flight-permits/templates/` aktif şablon kataloğunu ve dinamik form alanı
-şemalarını döndürür. Yeni kurum şablonları `api/flight_permits/templates.py`
-kaydına eklenerek genişletilir.
-
-Uçuş izni eklerinde en fazla 15 MB boyutunda, yalnız doğrulanabilir modern
-biçimler kabul edilir: PDF, DOCX, XLSX, JPG/JPEG ve PNG. İstemcinin bildirdiği
-MIME türü güvenilir kabul edilmez; dosya yapısı sunucuda incelenir. Eski ikili
-DOC/XLS biçimleri bu güvenlik sınırının dışındadır.
-
 ## Mühendislik Form Süreçleri
 
-Bu çalışma alanındaki **Mühendislik Formları** bölümü, `Formlar` envanterindeki klasörleri
-süreç ve `FM` ile başlayan DOCX dosyalarını sürümlü şablon olarak sunar. Katalogda
-13 süreç altında 35 şablon bulunur. Her şablon; kaynak formdaki başlık, boş hücre
+**Süreçler → Formlar** çalışma alanı, `Formlar` envanterindeki klasörleri süreç ve
+`FM` ile başlayan DOCX dosyalarını sürümlü şablon olarak sunar. Katalogda uçuş
+izinleri dahil 14 süreç altında 35 şablon bulunur. `FM.QUA.0579`, `FM.QUA.0580`
+ve `FM.QUA.0581` uçuş izni sürecinin şablonlarıdır; kayıtları da diğer formlar
+gibi `FormProcessRecord` içinde tutulur. Her şablon; kaynak formdaki başlık, boş hücre
 ve yer tutuculardan çıkarılan alan şemasına sahiptir. Backend yalnız seçilen
 şablonun alanlarını kabul eder; zorunlu alan, veri tipi, tarih, seçim ve uzunluk
 sınırlarını yan etkiden önce doğrular.
@@ -201,6 +180,11 @@ akışı kaynak DOCX'i docxtpl ile açar, kaynak sayfaları korur ve doğrulanm�
 aynı dokümanın sonuna “Süreç Kayıt Bilgileri” bölümü olarak ekler. Böylece kaynak
 form revizyonu görünür kalırken veri tabanındaki tam kayıt denetlenebilir biçimde
 çıktıya taşınır.
+
+Form eklerinde en fazla 15 MB boyutunda PDF, DOCX, XLSX, JPG/JPEG ve PNG kabul
+edilir. İstemcinin bildirdiği MIME türü güvenilir sayılmaz; dosya yapısı sunucuda
+incelenir. Eski ayrı uçuş izni kayıtları ileri yönlü migration ile karşılık gelen
+FM şablonlarına ve aynı form eki alanına taşınır.
 
 SessionAuthentication kullanan komut satırı istemcisi önce `/api/auth/csrf/`
 yanıtındaki `csrfToken` değerini `CSRF_TOKEN` olarak almalı, aynı `cookies.txt`

@@ -1,13 +1,30 @@
+import json
+from pathlib import Path
+
 from rest_framework import serializers
 
+from ..services.document_limits import DocumentPreflightError, preflight_document
 from .catalog import (
     FORM_TEMPLATES,
     FormTemplateValidationError,
     get_form_template,
     validate_form_data,
 )
+from .file_policy import FORM_ATTACHMENT_EXTENSIONS, FORM_ATTACHMENT_MAX_SIZE
 from .models import FormProcessRecord
 from .services.lifecycle import create_form_process_record, update_form_process_record
+
+
+class MultipartJSONField(serializers.JSONField):
+    def to_internal_value(self, data):
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError as exc:
+                raise serializers.ValidationError(
+                    "Geçerli bir JSON nesnesi gönderilmelidir."
+                ) from exc
+        return super().to_internal_value(data)
 
 
 class FormProcessRecordSerializer(serializers.ModelSerializer):
@@ -21,6 +38,9 @@ class FormProcessRecordSerializer(serializers.ModelSerializer):
     generated_document_url = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source="created_by.username", read_only=True)
     updated_by_name = serializers.CharField(source="updated_by.username", read_only=True)
+    data = MultipartJSONField(required=False)
+    attachment_url = serializers.SerializerMethodField()
+    remove_attachment = serializers.BooleanField(write_only=True, required=False, default=False)
 
     class Meta:
         model = FormProcessRecord
@@ -37,6 +57,12 @@ class FormProcessRecordSerializer(serializers.ModelSerializer):
             "status_display",
             "data",
             "notes",
+            "attachment",
+            "attachment_name",
+            "attachment_content_type",
+            "attachment_size",
+            "attachment_url",
+            "remove_attachment",
             "generated_document_url",
             "created_by_name",
             "updated_by_name",
@@ -45,9 +71,13 @@ class FormProcessRecordSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "process_code",
+            "attachment_name",
+            "attachment_content_type",
+            "attachment_size",
             "created_at",
             "updated_at",
         ]
+        extra_kwargs = {"attachment": {"write_only": True, "required": False}}
 
     def validate_record_number(self, value):
         value = value.strip().upper()
@@ -60,6 +90,21 @@ class FormProcessRecordSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("Kayıt başlığı zorunludur.")
         return value
+
+    def validate_attachment(self, uploaded_file):
+        suffix = Path(uploaded_file.name).suffix.lower()
+        if suffix not in FORM_ATTACHMENT_EXTENSIONS:
+            allowed = ", ".join(sorted(FORM_ATTACHMENT_EXTENSIONS))
+            raise serializers.ValidationError(
+                f"Desteklenmeyen doküman tipi. Desteklenenler: {allowed}"
+            )
+        if uploaded_file.size > FORM_ATTACHMENT_MAX_SIZE:
+            raise serializers.ValidationError("Doküman boyutu 15 MB'dan büyük olamaz.")
+        try:
+            preflight_document(uploaded_file, suffix)
+        except DocumentPreflightError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+        return uploaded_file
 
     def validate(self, attrs):
         template_code = attrs.get("template_code", getattr(self.instance, "template_code", ""))
@@ -116,6 +161,11 @@ class FormProcessRecordSerializer(serializers.ModelSerializer):
 
     def get_generated_document_url(self, record):
         return f"/api/form-processes/{record.pk}/generated-document/"
+
+    def get_attachment_url(self, record):
+        if not record.attachment:
+            return ""
+        return f"/api/form-processes/{record.pk}/attachment/"
 
     def create(self, validated_data):
         return create_form_process_record(

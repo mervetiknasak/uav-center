@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildFormProcessPayload,
+  buildFormProcessRequestBody,
   createFormProcessForm,
   flattenFormTemplates,
   formProcessRecordToForm
@@ -15,7 +16,8 @@ const template = {
     { key: "panel_name", type: "text" },
     { key: "declaration", type: "textarea" },
     { key: "declaration_date", type: "date" },
-    { key: "issue_records", type: "table" }
+    { key: "issue_records", type: "table" },
+    { key: "purpose_of_flight", type: "multi_select" }
   ]
 };
 
@@ -24,7 +26,13 @@ describe("form process form model", () => {
     expect(createFormProcessForm(template)).toMatchObject({
       process_code: "panel-declaration",
       template_code: "fm_dsg_0200t",
-      data: { panel_name: "", declaration: "", declaration_date: null, issue_records: [] }
+      data: {
+        panel_name: "",
+        declaration: "",
+        declaration_date: null,
+        issue_records: [],
+        purpose_of_flight: []
+      }
     });
   });
 
@@ -80,5 +88,17 @@ describe("form process form model", () => {
         description: "İlk yayın"
       }
     ]);
+  });
+
+  it("keeps unique multi-select values and builds multipart removal requests", () => {
+    const form = createFormProcessForm(template);
+    form.data.purpose_of_flight = ["option_1", "option_1", "option_6"];
+    const payload = buildFormProcessPayload(form);
+
+    expect(payload.data.purpose_of_flight).toEqual(["option_1", "option_6"]);
+    const body = buildFormProcessRequestBody(payload, { removeAttachment: true });
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.get("remove_attachment")).toBe("true");
+    expect(JSON.parse(body.get("data")).purpose_of_flight).toEqual(["option_1", "option_6"]);
   });
 });

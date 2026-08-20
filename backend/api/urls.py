@@ -15,7 +15,6 @@ urlpatterns = [
     path("analysis-controls/", include("api.documents.control_urls")),
     path("jobs/", include("api.jobs.urls")),
     path("ai/ollama/", include("api.ai.urls")),
-    path("flight-permits/", include("api.flight_permits.urls")),
     path("form-processes/", include("api.form_processes.urls")),
     path("technical-documents/", include("api.technical_documents.urls")),
     path("word-to-jira/", include("api.meeting_minutes.urls")),

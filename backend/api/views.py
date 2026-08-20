@@ -23,12 +23,6 @@ from .documents.views import (
     DocumentRagQueryView,
     DocumentUploadView,
 )
-from .flight_permits.views import (
-    FlightPermitDetailView,
-    FlightPermitDocumentView,
-    FlightPermitGeneratedDocumentView,
-    FlightPermitListCreateView,
-)
 from .jobs.views import AsyncJobCancelView, AsyncJobDetailView, AsyncJobListView
 from .meeting_minutes.views import WordTableParseView, WordToJiraPublishView
 from .organization.permissions import IsOrganizationReaderOrAdmin
@@ -68,10 +62,6 @@ __all__ = [
     "DocumentListView",
     "DocumentRagQueryView",
     "DocumentUploadView",
-    "FlightPermitDetailView",
-    "FlightPermitDocumentView",
-    "FlightPermitGeneratedDocumentView",
-    "FlightPermitListCreateView",
     "GroupPersonListCreateView",
     "IsActiveAdminUser",
     "IsActiveAuthenticated",
