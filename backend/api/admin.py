@@ -448,23 +448,26 @@ class FormProcessRecordAdmin(ReadOnlyAdmin):
 class EDKApplicationAdmin(ReadOnlyAdmin):
     list_display = (
         "id",
-        "meeting_title",
+        "aircraft_name",
         "applicant",
-        "project_name",
-        "requested_date",
+        "tail_number",
+        "project",
+        "scheduled_at",
         "status",
         "reviewed_by",
         "created_at",
     )
-    list_filter = ("status", "requested_date", "created_at")
+    list_filter = ("status", "scheduled_at", "project", "created_at")
     search_fields = (
-        "meeting_title",
-        "project_name",
-        "location",
+        "aircraft_name",
+        "tail_number",
+        "project__name",
+        "project__code",
+        "scope",
         "applicant__username",
         "applicant__email",
     )
-    date_hierarchy = "requested_date"
+    date_hierarchy = "scheduled_at"
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("applicant", "reviewed_by")
+        return super().get_queryset(request).select_related("applicant", "project", "reviewed_by")

@@ -29,7 +29,7 @@ const filteredApplications = computed(() => filterEdkApplications(props.applicat
 const columns = [
   {
     title: "Başvuru",
-    key: "meeting_title",
+    key: "aircraft_name",
     minWidth: 260,
     render: (application) =>
       h(
@@ -38,14 +38,20 @@ const columns = [
         {
           default: () => [
             h(NText, { strong: true, type: "primary" }, { default: () => `EDK-${application.id}` }),
-            h(NText, null, { default: () => application.meeting_title })
+            h(NText, null, { default: () => application.aircraft_name })
           ]
         }
       )
   },
-  { title: "Proje", key: "project_name", minWidth: 170 },
+  { title: "Kuyruk No", key: "tail_number", minWidth: 130 },
+  { title: "Proje", key: "project_display", minWidth: 170 },
   { title: "Başvuru Sahibi", key: "applicant_name", minWidth: 150 },
-  { title: "Planlanan Tarih", key: "requested_date", width: 145 },
+  {
+    title: "Tarih ve Saat",
+    key: "scheduled_at",
+    width: 160,
+    render: (application) => formatEdkDateTime(application.scheduled_at)
+  },
   {
     title: "Durum",
     key: "status",
@@ -88,7 +94,7 @@ function rowProps(application) {
         <n-input
           v-model:value="filters.search"
           clearable
-          placeholder="EDK no, konu, proje veya yer ara…"
+          placeholder="EDK no, uçak, kuyruk no, proje veya scope ara…"
         >
           <template #prefix
             ><n-icon><Search /></n-icon
@@ -120,7 +126,7 @@ function rowProps(application) {
       :pagination="{ pageSize: 10, showSizePicker: true, pageSizes: [10, 20, 50] }"
       :row-key="(application) => application.id"
       :row-props="rowProps"
-      :scroll-x="1080"
+      :scroll-x="1220"
     >
       <template #empty>
         <n-empty description="Bu filtrelere uygun EDK başvurusu bulunamadı" />

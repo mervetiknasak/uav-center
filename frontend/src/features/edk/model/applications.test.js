@@ -5,18 +5,20 @@ import { filterEdkApplications } from "./applications";
 const applications = [
   {
     id: 11,
-    meeting_title: "Uçuş Emniyeti",
-    project_name: "UAV Merkezi",
+    aircraft_name: "Hürkuş",
+    tail_number: "TC-UAV",
+    project_display: "UAV — UAV Merkezi",
     applicant_name: "ayse",
-    location: "Hangar",
+    scope: "Uçuş emniyeti",
     status: "approved"
   },
   {
     id: 12,
-    meeting_title: "Kalite Değerlendirmesi",
-    project_name: "Atlas",
+    aircraft_name: "Gökbey",
+    tail_number: "TC-GBY",
+    project_display: "ATL — Atlas",
     applicant_name: "mehmet",
-    location: "Toplantı Odası",
+    scope: "Kalite değerlendirmesi",
     status: "pending"
   }
 ];
@@ -24,7 +26,8 @@ const applications = [
 describe("filterEdkApplications", () => {
   it("searches EDK number and Turkish application fields", () => {
     expect(filterEdkApplications(applications, { search: "edk-11" })).toEqual([applications[0]]);
-    expect(filterEdkApplications(applications, { search: "uçuş" })).toEqual([applications[0]]);
+    expect(filterEdkApplications(applications, { search: "hürkuş" })).toEqual([applications[0]]);
+    expect(filterEdkApplications(applications, { search: "tc-uav" })).toEqual([applications[0]]);
   });
 
   it("combines status and applicant filters", () => {

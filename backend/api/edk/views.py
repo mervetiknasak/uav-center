@@ -1,9 +1,11 @@
 import logging
+from pathlib import Path
 
+from django.http import FileResponse
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import get_object_or_404
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -15,6 +17,7 @@ from ..services.document_limits import (
     validate_upload_size,
 )
 from ..services.jira_connector import JiraConnector, JiraConnectorError
+from .file_policy import presentation_content_type
 from .jira import build_jira_draft, publish_jira_draft
 from .minutes_parser import EDKMinutesParseError, parse_minutes_document
 from .models import EDKApplication
@@ -93,6 +96,7 @@ def _parse_minutes_upload(request, application):
 
 class EDKApplicationListCreateView(APIView):
     permission_classes = [IsActiveAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get(self, request):
         if not any(
@@ -144,6 +148,37 @@ class EDKApplicationDetailView(APIView):
                 context={"request": request},
             ).data
         )
+
+
+class EDKApplicationPresentationView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def get(self, request, application_id):
+        if not any(
+            user_has_edk_role(request.user, role)
+            for role in (EDK_ROLE_APPLICANT, EDK_ROLE_APPROVER)
+        ):
+            raise PermissionDenied("EDK rolünüz bulunmuyor.")
+        application = get_object_or_404(
+            edk_applications_visible_to(request.user),
+            pk=application_id,
+        )
+        if not application.presentation:
+            return Response(
+                {"detail": "Bu başvuruya sunum eklenmemiş."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        filename = application.presentation_file_name or Path(application.presentation.name).name
+        response = FileResponse(
+            application.presentation.open("rb"),
+            as_attachment=True,
+            filename=filename,
+            content_type=(
+                application.presentation_content_type or presentation_content_type(filename)
+            ),
+        )
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
 
 
 class EDKApplicationDecisionView(APIView):

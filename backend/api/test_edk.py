@@ -1,19 +1,28 @@
+import shutil
+import tempfile
+from datetime import datetime, time, timedelta
 from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from .edk.models import EDKApplication
 from .edk.roles import EDK_ROLE_GROUPS
+from .organization.models import Project
 
 
 class EDKApplicationApiTests(TestCase):
     def setUp(self):
+        self.media_root = tempfile.mkdtemp()
+        self.media_override = override_settings(MEDIA_ROOT=self.media_root)
+        self.media_override.enable()
+        self.addCleanup(self.media_override.disable)
+        self.addCleanup(shutil.rmtree, self.media_root, True)
         user_model = get_user_model()
         self.applicant = user_model.objects.create_user(
             username="edk-applicant",
@@ -40,21 +49,30 @@ class EDKApplicationApiTests(TestCase):
         approver_group = Group.objects.get(name=EDK_ROLE_GROUPS["approver"])
         applicant_group.user_set.add(self.applicant, self.other_applicant)
         approver_group.user_set.add(self.approver)
+        self.project = Project.objects.create(name="UAV Merkezi", code="UAV", is_active=True)
         self.payload = {
-            "meeting_title": "Uçuş hazırlık değerlendirmesi",
-            "project_name": "UAV Merkezi",
-            "requested_date": "2026-09-10",
-            "location": "Hangar toplantı odası",
-            "participants": "Uçuş ekibi, kalite temsilcisi",
-            "purpose": "Uçuş öncesi uygunluk kararını hazırlamak",
-            "agenda": "Riskler, aksiyonlar ve sorumlular",
+            "aircraft_name": "Hürkuş",
+            "tail_number": "TC-UAV",
+            "scope": "Uçuş öncesi uygunluk değerlendirmesi",
+            "project": self.project.id,
+            "scheduled_at": self.scheduled_at(days=8).isoformat(),
         }
 
     def create_application(self, *, applicant=None, status=EDKApplication.STATUS_PENDING):
         return EDKApplication.objects.create(
             applicant=applicant or self.applicant,
             status=status,
-            **self.payload,
+            aircraft_name=self.payload["aircraft_name"],
+            tail_number=self.payload["tail_number"],
+            scope=self.payload["scope"],
+            project=self.project,
+            scheduled_at=self.scheduled_at(days=8),
+        )
+
+    @staticmethod
+    def scheduled_at(*, days):
+        return timezone.make_aware(
+            datetime.combine(timezone.localdate() + timedelta(days=days), time(hour=10))
         )
 
     @staticmethod
@@ -85,6 +103,11 @@ class EDKApplicationApiTests(TestCase):
         self.assertEqual(created.status_code, 201)
         self.assertEqual(created.json()["status"], "pending")
         self.assertEqual(created.json()["applicant_name"], self.applicant.username)
+        self.assertEqual(created.json()["aircraft_name"], "Hürkuş")
+        self.assertEqual(created.json()["project_display"], "UAV — UAV Merkezi")
+        self.assertNotIn("meeting_title", created.json())
+        self.assertNotIn("project_name", created.json())
+        self.assertNotIn("requested_date", created.json())
         self.assertNotIn(foreign.id, [item["id"] for item in listed.json()])
 
     def test_user_without_role_cannot_create_application(self):
@@ -134,18 +157,83 @@ class EDKApplicationApiTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_application_rejects_blank_and_oversized_form_values(self):
+    def test_application_rejects_blank_aircraft_name_and_oversized_scope(self):
         self.client.force_login(self.applicant)
 
         response = self.client.post(
             reverse("edk-application-list"),
-            data={**self.payload, "purpose": " ", "participants": "A" * 2001},
+            data={**self.payload, "aircraft_name": " ", "scope": "A" * 5001},
             content_type="application/json",
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("purpose", response.json())
-        self.assertIn("participants", response.json())
+        self.assertIn("aircraft_name", response.json())
+        self.assertIn("scope", response.json())
+
+    def test_application_rejects_date_less_than_seven_days_from_today(self):
+        self.client.force_login(self.applicant)
+
+        too_early = self.client.post(
+            reverse("edk-application-list"),
+            data={**self.payload, "scheduled_at": self.scheduled_at(days=6).isoformat()},
+            content_type="application/json",
+        )
+        boundary = self.client.post(
+            reverse("edk-application-list"),
+            data={**self.payload, "scheduled_at": self.scheduled_at(days=7).isoformat()},
+            content_type="application/json",
+        )
+
+        self.assertEqual(too_early.status_code, 400)
+        self.assertIn("scheduled_at", too_early.json())
+        self.assertEqual(boundary.status_code, 201)
+
+    def test_project_selection_only_accepts_active_organization_projects(self):
+        inactive_project = Project.objects.create(
+            name="Eski Proje",
+            code="OLD",
+            is_active=False,
+        )
+        self.client.force_login(self.applicant)
+
+        response = self.client.post(
+            reverse("edk-application-list"),
+            data={**self.payload, "project": inactive_project.id},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("project", response.json())
+
+    def test_presentation_is_uploaded_and_only_visible_users_can_download_it(self):
+        self.client.force_login(self.applicant)
+        created = self.client.post(
+            reverse("edk-application-list"),
+            data={
+                **self.payload,
+                "presentation": SimpleUploadedFile(
+                    "sunum.txt",
+                    b"EDK sunum icerigi",
+                    content_type="text/plain",
+                ),
+            },
+        )
+        application = EDKApplication.objects.get(pk=created.json()["id"])
+        download_url = reverse(
+            "edk-application-presentation",
+            kwargs={"application_id": application.id},
+        )
+        owner_download = self.client.get(download_url)
+        self.client.force_login(self.other_applicant)
+        foreign_download = self.client.get(download_url)
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()["presentation_file_name"], "sunum.txt")
+        self.assertEqual(created.json()["presentation_url"], download_url)
+        self.assertTrue(application.presentation.name.startswith("edk/presentations/"))
+        self.assertEqual(owner_download.status_code, 200)
+        self.assertEqual(owner_download["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(foreign_download.status_code, 404)
 
     def test_approver_sees_all_applications_and_can_approve(self):
         application = self.create_application()

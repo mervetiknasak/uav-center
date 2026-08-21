@@ -153,13 +153,9 @@ class EDKMinutesParseApiTests(TestCase):
         Group.objects.get_or_create(name=EDK_ROLE_GROUPS["applicant"])[0].user_set.add(user)
         self.application = EDKApplication.objects.create(
             applicant=user,
-            meeting_title="Uçuş hazırlığı",
-            project_name="UAV",
-            requested_date=timezone.localdate(),
-            location="Hangar",
-            participants="Uçuş ekibi",
-            purpose="Uçuş hazırlığını değerlendirmek",
-            agenda="Hazırlık kontrolleri",
+            aircraft_name="Hürkuş",
+            tail_number="TC-UAV",
+            scope="Uçuş hazırlığı değerlendirmesi",
             status=EDKApplication.STATUS_APPROVED,
         )
         self.client.force_login(user)

@@ -22,10 +22,11 @@ export function filterEdkApplications(applications, filters) {
 
     return [
       `EDK-${application.id}`,
-      application.meeting_title,
-      application.project_name,
+      application.aircraft_name,
+      application.tail_number,
+      application.project_display,
       application.applicant_name,
-      application.location
+      application.scope
     ].some((value) =>
       String(value || "")
         .toLocaleLowerCase("tr-TR")

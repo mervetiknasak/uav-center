@@ -4,6 +4,7 @@ from .views import (
     EDKApplicationDecisionView,
     EDKApplicationDetailView,
     EDKApplicationListCreateView,
+    EDKApplicationPresentationView,
     EDKJiraPublishView,
     EDKMeetingMinutesParseView,
 )
@@ -19,6 +20,11 @@ urlpatterns = [
         "applications/<int:application_id>/decision/",
         EDKApplicationDecisionView.as_view(),
         name="edk-application-decision",
+    ),
+    path(
+        "applications/<int:application_id>/presentation/",
+        EDKApplicationPresentationView.as_view(),
+        name="edk-application-presentation",
     ),
     path(
         "applications/<int:application_id>/minutes/parse/",

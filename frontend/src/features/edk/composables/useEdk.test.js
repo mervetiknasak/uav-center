@@ -12,7 +12,11 @@ describe("useEdk", () => {
     const edk = useEdk(apiFetch);
 
     await edk.loadApplications();
-    await edk.createApplication({ meeting_title: "Uçuş" });
+    await edk.createApplication({
+      aircraft_name: "Hürkuş",
+      project: 4,
+      presentation: new File(["sunum"], "sunum.txt", { type: "text/plain" })
+    });
     await edk.decide({ id: 1 }, "approved", "Uygundur");
 
     expect(apiFetch).toHaveBeenNthCalledWith(1, "/api/edk/applications/");
@@ -21,6 +25,11 @@ describe("useEdk", () => {
       "/api/edk/applications/",
       expect.objectContaining({ method: "POST" })
     );
+    const createBody = apiFetch.mock.calls[1][1].body;
+    expect(createBody).toBeInstanceOf(FormData);
+    expect(createBody.get("aircraft_name")).toBe("Hürkuş");
+    expect(createBody.get("project")).toBe("4");
+    expect(createBody.get("presentation")).toBeInstanceOf(File);
     expect(apiFetch).toHaveBeenNthCalledWith(
       3,
       "/api/edk/applications/1/decision/",

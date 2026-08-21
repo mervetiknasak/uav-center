@@ -1,30 +1,52 @@
 """Request DTOs for meeting-minutes HTTP use cases."""
 
 from collections.abc import Mapping
+from datetime import timedelta
+from pathlib import Path
 
+from django.utils import timezone
 from rest_framework import serializers
 
+from ..organization.models import Project
+from ..services.document_limits import (
+    DocumentPreflightError,
+    preflight_document,
+    validate_upload_size,
+)
+from .file_policy import EDK_PRESENTATION_EXTENSIONS
 from .models import EDKApplication
+from .services import create_edk_application
 
 
 class EDKApplicationSerializer(serializers.ModelSerializer):
     applicant_name = serializers.CharField(source="applicant.username", read_only=True)
+    project = serializers.PrimaryKeyRelatedField(
+        queryset=Project.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+    )
+    project_display = serializers.SerializerMethodField()
     reviewed_by_name = serializers.CharField(source="reviewed_by.username", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     can_upload_minutes = serializers.SerializerMethodField()
+    presentation_url = serializers.SerializerMethodField()
 
     class Meta:
         model = EDKApplication
         fields = [
             "id",
             "applicant_name",
-            "meeting_title",
-            "project_name",
-            "requested_date",
-            "location",
-            "participants",
-            "purpose",
-            "agenda",
+            "aircraft_name",
+            "tail_number",
+            "scope",
+            "project",
+            "project_display",
+            "presentation",
+            "presentation_file_name",
+            "presentation_content_type",
+            "presentation_size",
+            "presentation_url",
+            "scheduled_at",
             "status",
             "status_display",
             "decision_note",
@@ -36,11 +58,18 @@ class EDKApplicationSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+        extra_kwargs = {
+            "presentation": {"write_only": True, "required": False},
+        }
         read_only_fields = [
             "status",
             "decision_note",
             "reviewed_by_name",
             "reviewed_at",
+            "presentation_file_name",
+            "presentation_content_type",
+            "presentation_size",
+            "presentation_url",
             "minutes_file_name",
             "minutes_uploaded_at",
             "created_at",
@@ -55,27 +84,53 @@ class EDKApplicationSerializer(serializers.ModelSerializer):
             and application.status == EDKApplication.STATUS_APPROVED
         )
 
-    def validate(self, attrs):
-        for field in (
-            "meeting_title",
-            "project_name",
-            "location",
-            "participants",
-            "purpose",
-            "agenda",
-        ):
-            value = attrs.get(field)
-            if isinstance(value, str):
-                value = value.strip()
-                if not value:
-                    raise serializers.ValidationError({field: ["Bu alan zorunludur."]})
-                attrs[field] = value
-        return attrs
+    def get_presentation_url(self, application):
+        if not application.presentation:
+            return ""
+        return f"/api/edk/applications/{application.pk}/presentation/"
+
+    def get_project_display(self, application):
+        if not application.project:
+            return ""
+        return f"{application.project.code} — {application.project.name}"
+
+    def validate_aircraft_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Bu alan zorunludur.")
+        return value
+
+    def validate_tail_number(self, value):
+        return value.strip()
+
+    def validate_scope(self, value):
+        return value.strip()
+
+    def validate_presentation(self, uploaded_file):
+        suffix = Path(uploaded_file.name).suffix.lower()
+        if suffix not in EDK_PRESENTATION_EXTENSIONS:
+            allowed = ", ".join(sorted(EDK_PRESENTATION_EXTENSIONS))
+            raise serializers.ValidationError(
+                f"Desteklenmeyen dosya tipi. Desteklenenler: {allowed}"
+            )
+        try:
+            validate_upload_size(uploaded_file.size)
+            preflight_document(uploaded_file, suffix)
+        except DocumentPreflightError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+        return uploaded_file
+
+    def validate_scheduled_at(self, value):
+        local_date = timezone.localtime(value).date()
+        minimum_date = timezone.localdate() + timedelta(days=7)
+        if local_date < minimum_date:
+            raise serializers.ValidationError("Tarih bugünden en az 7 gün sonrası olmalıdır.")
+        return value
 
     def create(self, validated_data):
-        return EDKApplication.objects.create(
+        return create_edk_application(
+            validated_data=validated_data,
             applicant=self.context["request"].user,
-            **validated_data,
         )
 
 

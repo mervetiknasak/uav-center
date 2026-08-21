@@ -17,13 +17,25 @@ class EDKApplication(models.Model):
         related_name="edk_applications",
         on_delete=models.PROTECT,
     )
-    meeting_title = models.CharField(max_length=240)
-    project_name = models.CharField(max_length=160)
-    requested_date = models.DateField()
-    location = models.CharField(max_length=200)
-    participants = models.TextField(max_length=2000)
-    purpose = models.TextField(max_length=3000)
-    agenda = models.TextField(max_length=5000)
+    aircraft_name = models.CharField(max_length=160)
+    tail_number = models.CharField(max_length=80, blank=True)
+    scope = models.TextField(max_length=5000, blank=True)
+    project = models.ForeignKey(
+        "api.Project",
+        related_name="edk_applications",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+    )
+    presentation = models.FileField(
+        upload_to="edk/presentations/%Y/%m/",
+        max_length=500,
+        blank=True,
+    )
+    presentation_file_name = models.CharField(max_length=255, blank=True)
+    presentation_content_type = models.CharField(max_length=120, blank=True)
+    presentation_size = models.PositiveBigIntegerField(default=0)
+    scheduled_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
         max_length=16,
         choices=STATUS_CHOICES,
@@ -57,4 +69,4 @@ class EDKApplication(models.Model):
         ]
 
     def __str__(self):
-        return f"EDK-{self.pk or 'yeni'} — {self.meeting_title}"
+        return f"EDK-{self.pk or 'yeni'} — {self.aircraft_name}"

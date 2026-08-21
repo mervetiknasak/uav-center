@@ -7,6 +7,8 @@ const props = defineProps({
   applications: { type: Array, default: () => [] },
   applicationsLoading: Boolean,
   applicationSubmitting: Boolean,
+  projects: { type: Array, default: () => [] },
+  projectsLoading: Boolean,
   edkRoles: { type: Array, default: () => [] },
   error: { type: String, default: "" }
 });
@@ -14,50 +16,57 @@ const props = defineProps({
 const emit = defineEmits(["create-application", "select-application"]);
 
 function initialApplication() {
-  const requestedDate = new Date();
-  requestedDate.setDate(requestedDate.getDate() + 7);
+  const scheduledAt = new Date();
+  scheduledAt.setDate(scheduledAt.getDate() + 7);
+  scheduledAt.setSeconds(0, 0);
   return {
-    meeting_title: "",
-    project_name: "",
-    requested_date: requestedDate.getTime(),
-    location: "",
-    participants: "",
-    purpose: "",
-    agenda: ""
+    aircraft_name: "",
+    tail_number: "",
+    scope: "",
+    project: null,
+    scheduled_at: scheduledAt.getTime()
   };
 }
 
 const applicationForm = ref(initialApplication());
+const presentationFiles = ref([]);
 const isApplicant = computed(() => props.edkRoles.includes("applicant"));
 const isApprover = computed(() => props.edkRoles.includes("approver"));
 const hasEDKRole = computed(() => isApplicant.value || isApprover.value);
-const formReady = computed(() =>
-  [
-    applicationForm.value.meeting_title,
-    applicationForm.value.project_name,
-    applicationForm.value.location,
-    applicationForm.value.participants,
-    applicationForm.value.purpose,
-    applicationForm.value.agenda
-  ].every((value) => value.trim())
+const formReady = computed(() => applicationForm.value.aircraft_name.trim());
+const projectOptions = computed(() =>
+  props.projects
+    .filter((project) => project.is_active)
+    .map((project) => ({
+      label: `${project.code} — ${project.name}`,
+      value: project.id
+    }))
 );
 
-function dateOnly(timestamp) {
-  const date = new Date(timestamp);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
+function minimumScheduledDate() {
+  const minimum = new Date();
+  minimum.setHours(0, 0, 0, 0);
+  minimum.setDate(minimum.getDate() + 7);
+  return minimum;
+}
+
+function isDateDisabled(timestamp) {
+  return timestamp < minimumScheduledDate().getTime();
 }
 
 function submitApplication() {
-  if (!formReady.value || !applicationForm.value.requested_date) return;
+  if (!formReady.value) return;
   emit("create-application", {
     application: {
       ...applicationForm.value,
-      requested_date: dateOnly(applicationForm.value.requested_date)
+      scheduled_at: applicationForm.value.scheduled_at
+        ? new Date(applicationForm.value.scheduled_at).toISOString()
+        : null,
+      presentation: presentationFiles.value[0]?.file || null
     },
     onSuccess: () => {
       applicationForm.value = initialApplication();
+      presentationFiles.value = [];
     }
   });
 }
@@ -87,52 +96,71 @@ function submitApplication() {
     <n-card v-if="isApplicant" title="Yeni EDK Başvurusu" size="small">
       <n-form label-placement="top">
         <n-grid cols="1 720:2" :x-gap="16">
-          <n-form-item-gi label="Toplantı / EDK Konusu" required>
+          <n-form-item-gi label="Uçak İsmi" required>
             <n-input
-              v-model:value="applicationForm.meeting_title"
-              maxlength="240"
+              v-model:value="applicationForm.aircraft_name"
+              maxlength="160"
               show-count
-              placeholder="Örn. Uçuşa hazırlık değerlendirmesi"
+              placeholder="Örn. Hürkuş"
             />
           </n-form-item-gi>
-          <n-form-item-gi label="Proje" required>
-            <n-input v-model:value="applicationForm.project_name" placeholder="Örn. UAV Merkezi" />
+          <n-form-item-gi label="Kuyruk Numarası">
+            <n-input
+              v-model:value="applicationForm.tail_number"
+              maxlength="80"
+              show-count
+              placeholder="Örn. TC-UAV"
+            />
           </n-form-item-gi>
-          <n-form-item-gi label="Planlanan Toplantı Tarihi" required>
+          <n-form-item-gi label="Proje">
+            <n-select
+              v-model:value="applicationForm.project"
+              :options="projectOptions"
+              :loading="projectsLoading"
+              clearable
+              filterable
+              placeholder="Organizasyon projesi seçin"
+            />
+          </n-form-item-gi>
+          <n-form-item-gi label="Tarih ve Saat">
             <n-date-picker
-              v-model:value="applicationForm.requested_date"
-              type="date"
+              v-model:value="applicationForm.scheduled_at"
+              type="datetime"
+              :is-date-disabled="isDateDisabled"
               clearable
               style="width: 100%"
             />
           </n-form-item-gi>
-          <n-form-item-gi label="Toplantı Yeri" required>
-            <n-input
-              v-model:value="applicationForm.location"
-              placeholder="Örn. Hangar toplantı odası"
-            />
-          </n-form-item-gi>
         </n-grid>
-        <n-form-item label="Katılımcılar" required>
+        <n-form-item label="Scope">
           <n-input
-            v-model:value="applicationForm.participants"
+            v-model:value="applicationForm.scope"
             type="textarea"
-            placeholder="Katılması planlanan kişi veya ekipler"
+            maxlength="5000"
+            show-count
+            placeholder="Talebin kapsamını yazın"
           />
         </n-form-item>
-        <n-grid cols="1 720:2" :x-gap="16">
-          <n-form-item-gi label="Başvuru Amacı" required>
-            <n-input v-model:value="applicationForm.purpose" type="textarea" />
-          </n-form-item-gi>
-          <n-form-item-gi label="Gündem" required>
-            <n-input v-model:value="applicationForm.agenda" type="textarea" />
-          </n-form-item-gi>
-        </n-grid>
+        <n-form-item label="Sunum">
+          <n-upload
+            v-model:file-list="presentationFiles"
+            :default-upload="false"
+            :max="1"
+            accept=".pdf,.docx,.xlsx,.pptx,.txt,.csv,.md,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff"
+          >
+            <n-upload-dragger>
+              <div class="upload-title">Sunum dosyasını buraya bırakın veya seçin</div>
+              <div class="upload-subtitle">
+                Desteklenen doküman ve görsel biçimleri · en fazla 25 MB
+              </div>
+            </n-upload-dragger>
+          </n-upload>
+        </n-form-item>
         <n-space justify="end">
           <n-button
             type="primary"
             :loading="applicationSubmitting"
-            :disabled="!formReady || !applicationForm.requested_date"
+            :disabled="!formReady"
             @click="submitApplication"
           >
             Başvuruyu Onaya Gönder

@@ -80,7 +80,7 @@ function publish() {
         <n-card size="small" class="edk-detail-summary">
           <template #header>
             <n-space align="center">
-              <strong>EDK-{{ application.id }} · {{ application.meeting_title }}</strong>
+              <strong>EDK-{{ application.id }} · {{ application.aircraft_name }}</strong>
               <n-tag
                 :type="EDK_STATUS_TAG_TYPES[application.status]"
                 :bordered="false"
@@ -95,21 +95,26 @@ function publish() {
             <n-descriptions-item label="Başvuru Sahibi">
               {{ application.applicant_name }}
             </n-descriptions-item>
-            <n-descriptions-item label="Proje">{{ application.project_name }}</n-descriptions-item>
-            <n-descriptions-item label="Planlanan Toplantı Tarihi">
-              {{ application.requested_date }}
+            <n-descriptions-item label="Uçak İsmi">
+              {{ application.aircraft_name }}
             </n-descriptions-item>
-            <n-descriptions-item label="Toplantı Yeri">
-              {{ application.location }}
+            <n-descriptions-item label="Kuyruk Numarası">
+              {{ application.tail_number || "—" }}
             </n-descriptions-item>
-            <n-descriptions-item label="Katılımcılar" :span="2">
-              <span class="edk-multiline">{{ application.participants }}</span>
+            <n-descriptions-item label="Proje">
+              {{ application.project_display || "—" }}
             </n-descriptions-item>
-            <n-descriptions-item label="Başvuru Amacı" :span="2">
-              <span class="edk-multiline">{{ application.purpose }}</span>
+            <n-descriptions-item label="Tarih ve Saat">
+              {{ formatEdkDateTime(application.scheduled_at) }}
             </n-descriptions-item>
-            <n-descriptions-item label="Gündem" :span="2">
-              <span class="edk-multiline">{{ application.agenda }}</span>
+            <n-descriptions-item label="Scope" :span="2">
+              <span class="edk-multiline">{{ application.scope || "—" }}</span>
+            </n-descriptions-item>
+            <n-descriptions-item label="Sunum" :span="2">
+              <a v-if="application.presentation_url" :href="application.presentation_url">
+                {{ application.presentation_file_name }}
+              </a>
+              <span v-else>—</span>
             </n-descriptions-item>
             <n-descriptions-item label="Oluşturulma">
               {{ formatEdkDateTime(application.created_at) }}

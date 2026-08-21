@@ -141,7 +141,8 @@ DRF yanıt formatı:
 - `GET|POST /api/technical-documents/`: teknik doküman listesi ve admin oluşturma işlemi
 - `GET|PATCH|DELETE /api/technical-documents/<id>/`: detay, statü dahil güncelleme ve silme
 - `POST /api/technical-documents/<id>/notify/`: staff kullanıcının bağlı panel sorumlularına, zorunlu ve istek başına benzersiz `Idempotency-Key` başlığıyla bildirim göndermesi
-- `GET|POST /api/edk/applications/`: EDK rollerine göre başvuru listesi ve Başvuru Sahibi rolüyle yeni başvuru oluşturma
+- `GET|POST /api/edk/applications/`: EDK rollerine göre başvuru listesi ve Başvuru Sahibi rolüyle `aircraft_name`, opsiyonel `tail_number`, `scope`, aktif organizasyon `project` seçimi, `presentation` dosyası ve en erken bugünden 7 gün sonrası olan `scheduled_at` alanlarıyla yeni başvuru oluşturma
+- `GET /api/edk/applications/<id>/presentation/`: yalnız başvuruyu görebilen EDK kullanıcısına doğrulanmış sunum dosyasını indirir
 - `POST /api/edk/applications/<id>/decision/`: Onaylayıcı rolüyle bekleyen başvuruyu onaylama veya gerekçeli reddetme
 - `POST /api/edk/applications/<id>/minutes/parse/`: yalnız başvuru sahibi ve onaylanmış EDK kaydı için `.docx` toplantı tutanağını okuma
 - `POST /api/edk/jira/publish/`: staff kullanıcının düzenlenen toplantı taslağından bir Jira Task ve ona bağlı Sub-task kayıtları oluşturması

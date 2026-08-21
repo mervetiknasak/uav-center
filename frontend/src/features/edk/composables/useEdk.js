@@ -28,11 +28,14 @@ export function useEdk(apiFetch) {
   async function createApplication(application) {
     applicationSubmitting.value = true;
     error.value = "";
+    const formData = new FormData();
+    Object.entries(application).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== "") formData.append(key, value);
+    });
     try {
       const created = await apiFetch("/api/edk/applications/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(application)
+        body: formData
       });
       applications.value = [created, ...applications.value];
       return true;
