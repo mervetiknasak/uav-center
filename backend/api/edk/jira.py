@@ -12,7 +12,7 @@ from django.conf import settings
 
 from ..common.redaction import safe_exception_message
 from ..organization.models import PanelResponsible
-from .jira_connector import JiraConnectorError
+from ..services.jira_connector import JiraConnectorError
 
 MEETING_FIELDS = (
     ("project", "Proje"),

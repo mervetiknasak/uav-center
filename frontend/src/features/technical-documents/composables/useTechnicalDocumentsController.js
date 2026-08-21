@@ -21,6 +21,11 @@ import {
 export function useTechnicalDocumentsController({
   projects,
   documents,
+  deepLinkReady,
+  deepLinkRequested,
+  deepLinkDocumentId,
+  deepLinkAction,
+  canNotify,
   onSave,
   onDelete,
   onNotify
@@ -39,10 +44,12 @@ export function useTechnicalDocumentsController({
   const editingId = ref(null);
   const detailDocument = ref(null);
   const notifyDocument = ref(null);
+  const deepLinkWarning = ref("");
   const formError = ref("");
   const notifyForm = reactive({ subject: "", message: "" });
   const form = reactive(createTechnicalDocumentForm());
   const today = isoDateKey();
+  let handledDeepLink = "";
 
   watch(
     () => unref(projects),
@@ -150,6 +157,58 @@ export function useTechnicalDocumentsController({
     });
   }
 
+  watch(
+    () => [
+      Boolean(unref(deepLinkReady)),
+      Boolean(unref(deepLinkRequested)),
+      unref(deepLinkDocumentId),
+      unref(deepLinkAction),
+      Boolean(unref(canNotify)),
+      unref(documents),
+      unref(projects)
+    ],
+    ([ready, requested, documentId, action, notificationAllowed]) => {
+      if (!requested) {
+        handledDeepLink = "";
+        deepLinkWarning.value = "";
+        return;
+      }
+      if (!ready) {
+        handledDeepLink = "";
+        return;
+      }
+
+      const deepLinkKey = `${documentId || "invalid"}:${action}`;
+      if (handledDeepLink === deepLinkKey) return;
+      handledDeepLink = deepLinkKey;
+      deepLinkWarning.value = "";
+
+      if (!documentId) {
+        deepLinkWarning.value = "Teknik doküman bağlantısı geçersiz. Kayıt listesi gösteriliyor.";
+        return;
+      }
+      const document = unref(documents).find((item) => item.id === documentId);
+      if (!document) {
+        deepLinkWarning.value =
+          "İstenen teknik doküman bulunamadı veya bu kaydı görüntüleme yetkiniz yok. Kayıt listesi gösteriliyor.";
+        return;
+      }
+
+      selectProject(document.project);
+      if (action === "notify") {
+        if (!notificationAllowed) {
+          deepLinkWarning.value =
+            "Bu teknik doküman için bildirim hazırlama yetkiniz yok. Kayıt listesi gösteriliyor.";
+          return;
+        }
+        openNotification(document);
+        return;
+      }
+      openDetails(document);
+    },
+    { immediate: true }
+  );
+
   return {
     activeProjectId,
     filters,
@@ -159,6 +218,7 @@ export function useTechnicalDocumentsController({
     editingId,
     detailDocument,
     notifyDocument,
+    deepLinkWarning,
     formError,
     notifyForm,
     form,

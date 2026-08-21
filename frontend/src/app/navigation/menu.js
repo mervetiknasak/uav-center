@@ -22,13 +22,16 @@ export const menuSections = [
       { label: "Belge İşleme", key: "documents" },
       { label: "AI Sonuçları", key: "results" },
       { label: "Gemma 4 Studio", key: "ai-studio" },
-      { label: "Toplantı Tutanağı Okuyucu", key: "word-to-jira" }
+      { label: "EDK", key: "edk" }
     ]
   },
   {
     label: "İşlemler",
     key: "operations",
-    children: [{ label: "Joblarım", key: "jobs" }]
+    children: [
+      { label: "Operasyonel Takvim", key: "operational-calendar" },
+      { label: "Joblarım", key: "jobs" }
+    ]
   },
   {
     label: "Sistem",

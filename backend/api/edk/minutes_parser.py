@@ -3,17 +3,17 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from ..common.redaction import safe_exception_message
-from .document_limits import DocumentPreflightError, validate_office_archive
+from ..services.document_limits import DocumentPreflightError, validate_office_archive
 
 logger = logging.getLogger(__name__)
 
 
-class WordTableParseError(ValueError):
+class EDKMinutesParseError(ValueError):
     pass
 
 
 @dataclass(frozen=True)
-class WordTableCell:
+class EDKMinutesCell:
     index: int
     table_index: int
     row_index: int
@@ -95,29 +95,29 @@ def _extract_mapped_data(cells):
     }
 
 
-def parse_word_table(file_path):
+def parse_minutes_document(file_path):
     """Return every visible DOCX table cell in deterministic document order."""
     from docx import Document
 
     path = Path(file_path)
     if path.suffix.lower() != ".docx":
-        raise WordTableParseError("Yalnızca .docx uzantılı Word dosyaları destekleniyor.")
+        raise EDKMinutesParseError("Yalnızca .docx uzantılı Word dosyaları destekleniyor.")
 
     try:
         validate_office_archive(path, ".docx")
         document = Document(str(path))
     except DocumentPreflightError as exc:
-        raise WordTableParseError(str(exc)) from exc
+        raise EDKMinutesParseError(str(exc)) from exc
     except Exception as exc:
         logger.warning(
             "Word document open failed: %s",
             safe_exception_message(exc),
             extra={"event": "word_document_open_failed"},
         )
-        raise WordTableParseError("Word dosyası açılamadı.") from exc
+        raise EDKMinutesParseError("Word dosyası açılamadı.") from exc
 
     if not document.tables:
-        raise WordTableParseError("Word dosyasında tablo bulunamadı.")
+        raise EDKMinutesParseError("Word dosyasında tablo bulunamadı.")
 
     cells = []
     seen_cells = set()
@@ -130,7 +130,7 @@ def parse_word_table(file_path):
                 seen_cells.add(cell._tc)
 
                 text = "\n".join(line.strip() for line in cell.text.splitlines() if line.strip())
-                parsed_cell = WordTableCell(
+                parsed_cell = EDKMinutesCell(
                     index=global_index,
                     table_index=table_index,
                     row_index=row_index,

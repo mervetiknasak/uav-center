@@ -19,5 +19,6 @@ onMounted(() => adminUsers.loadUsersIfAdmin(auth.currentUser.value));
     :updating-user-id="adminUsers.updatingUserId.value"
     @refresh="adminUsers.loadUsers"
     @update-status="adminUsers.updateUserStatus"
+    @update-edk-roles="adminUsers.updateUserEDKRoles"
   />
 </template>

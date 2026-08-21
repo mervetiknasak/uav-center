@@ -10,4 +10,19 @@ describe("application menu", () => {
     expect(menuSections.some((section) => section.key === "form-processes")).toBe(false);
     expect(menuSections.some((section) => section.key === "flight-permits")).toBe(false);
   });
+
+  it("exposes the operational calendar under Operations", () => {
+    const operations = menuSections.find((section) => section.key === "operations");
+
+    expect(operations.children).toContainEqual({
+      label: "Operasyonel Takvim",
+      key: "operational-calendar"
+    });
+  });
+
+  it("renames the meeting-minutes tool as EDK", () => {
+    const tools = menuSections.find((section) => section.key === "tools");
+
+    expect(tools.children).toContainEqual({ label: "EDK", key: "edk" });
+  });
 });

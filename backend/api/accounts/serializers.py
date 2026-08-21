@@ -2,14 +2,25 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
+from ..edk.roles import (
+    EDK_ROLE_GROUPS,
+    edk_roles_for_user,
+    replace_edk_roles,
+)
+
 User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
+    edk_roles = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "username", "email", "is_active", "is_staff"]
+        fields = ["id", "username", "email", "is_active", "is_staff", "edk_roles"]
         read_only_fields = fields
+
+    def get_edk_roles(self, user):
+        return edk_roles_for_user(user)
 
 
 class LoginSerializer(serializers.Serializer):
@@ -84,10 +95,24 @@ class RegisterSerializer(serializers.Serializer):
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
+    edk_roles = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "username", "email", "is_active", "is_staff", "date_joined", "last_login"]
+        fields = [
+            "id",
+            "username",
+            "email",
+            "is_active",
+            "is_staff",
+            "edk_roles",
+            "date_joined",
+            "last_login",
+        ]
         read_only_fields = fields
+
+    def get_edk_roles(self, user):
+        return edk_roles_for_user(user)
 
 
 class AdminUserStatusSerializer(serializers.Serializer):
@@ -96,4 +121,15 @@ class AdminUserStatusSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         instance.is_active = validated_data["is_active"]
         instance.save(update_fields=["is_active"])
+        return instance
+
+
+class AdminUserEDKRolesSerializer(serializers.Serializer):
+    edk_roles = serializers.MultipleChoiceField(
+        choices=list(EDK_ROLE_GROUPS),
+        allow_empty=True,
+    )
+
+    def update(self, instance, validated_data):
+        replace_edk_roles(instance, validated_data["edk_roles"])
         return instance

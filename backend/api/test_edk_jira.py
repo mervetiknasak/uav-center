@@ -4,16 +4,16 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
+from .edk.jira import build_jira_draft, publish_jira_draft
 from .models import PanelResponsible, Project, ProjectPanel
 from .services.jira_connector import JiraConnectorError
-from .services.word_to_jira import build_jira_draft, publish_jira_draft
 
 
 @override_settings(
     JIRA_SERVER="http://jira.local",
     JIRA_PERSONAL_ACCESS_TOKEN="test-token",
 )
-class WordToJiraTests(TestCase):
+class EDKJiraTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
             username="jira-user",
@@ -104,7 +104,7 @@ class WordToJiraTests(TestCase):
         )
         self.assertNotIn("jira.internal", str(result))
 
-    @patch("api.meeting_minutes.views.publish_jira_draft")
+    @patch("api.edk.views.publish_jira_draft")
     def test_publish_endpoint_requires_staff(self, publish):
         publish.return_value = {
             "status": "created",
@@ -118,13 +118,13 @@ class WordToJiraTests(TestCase):
         }
         self.client.force_login(self.user)
         denied = self.client.post(
-            reverse("word-to-jira-publish"),
+            reverse("edk-jira-publish"),
             data=payload,
             content_type="application/json",
         )
         self.client.force_login(self.admin)
         allowed = self.client.post(
-            reverse("word-to-jira-publish"),
+            reverse("edk-jira-publish"),
             data=payload,
             content_type="application/json",
         )
@@ -134,12 +134,12 @@ class WordToJiraTests(TestCase):
         publish.assert_called_once()
         self.assertEqual(publish.call_args.args[0], payload)
 
-    @patch("api.meeting_minutes.views.publish_jira_draft")
+    @patch("api.edk.views.publish_jira_draft")
     def test_publish_endpoint_rejects_enabled_subtask_without_summary(self, publish):
         self.client.force_login(self.admin)
 
         response = self.client.post(
-            reverse("word-to-jira-publish"),
+            reverse("edk-jira-publish"),
             data={
                 "task": {"project_key": "UAV", "summary": "Uçuş hazırlığı"},
                 "subtasks": [{"enabled": True, "summary": "   "}],
@@ -154,7 +154,7 @@ class WordToJiraTests(TestCase):
         )
         publish.assert_not_called()
 
-    @patch("api.meeting_minutes.views.publish_jira_draft")
+    @patch("api.edk.views.publish_jira_draft")
     def test_publish_endpoint_does_not_echo_jira_provider_detail(self, publish):
         publish.side_effect = JiraConnectorError(
             "token=secret http://jira.internal/rest /private/cert.pem"
@@ -162,7 +162,7 @@ class WordToJiraTests(TestCase):
         self.client.force_login(self.admin)
 
         response = self.client.post(
-            reverse("word-to-jira-publish"),
+            reverse("edk-jira-publish"),
             data={
                 "task": {"project_key": "UAV", "summary": "Uçuş hazırlığı"},
                 "subtasks": [],

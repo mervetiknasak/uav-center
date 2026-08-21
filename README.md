@@ -38,6 +38,8 @@ bağımlılık yönü, veri sahipliği ve genişletme kuralları için
 - Doküman durum/revizyon/yayın/termin takibi ve denetlenebilir durum geçmişi
 - Bir teknik dokümanı aynı projedeki birden fazla panelle ilişkilendirme
 - Panel sorumlularına alıcı önizlemeli e-posta bildirimi ve bildirim geçmişi
+- Teknik doküman termin/inceleme tarihleri, bekleyen iş akışları ve uçuş izni
+  geçerliliklerini birleştiren Operasyonel Takvim
 - Uçuş izni formları dahil klasör bazlı 14 mühendislik süreci ve 35 sürümlü FM Word şablonu
 - Mühendislik form kayıtlarında güvenli doküman eki ve indirilebilir Word çıktısı
 
@@ -104,10 +106,11 @@ http://localhost:8000/api/documents/<id>/rag/query/
 http://localhost:8000/api/documents/<id>/controls/run/
 http://localhost:8000/api/analysis-controls/
 http://localhost:8000/api/jobs/
+http://localhost:8000/api/operational-alerts/
 http://localhost:8000/api/form-processes/
 http://localhost:8000/api/organization/projects/
 http://localhost:8000/api/technical-documents/
-http://localhost:8000/api/word-to-jira/parse/
+http://localhost:8000/api/edk/applications/
 http://localhost:8000/api/ai/ollama/status/
 http://localhost:8000/api/ai/ollama/chat/
 ```
@@ -125,6 +128,9 @@ DRF yanıt formatı:
 - `GET /api/jobs/`: oturum sahibinin son joblarını listeler; `status` ve `limit` parametrelerini destekler
 - `GET /api/jobs/<uuid>/`: yalnızca oturum sahibinin job detayını döndürür
 - `POST /api/jobs/<uuid>/cancel/`: sırada bekleyen ve oturum sahibine ait jobı iptal eder
+- `GET /api/operational-alerts/`: aktif kullanıcıya teknik doküman termin/inceleme,
+  14 günü dolduran inceleme/revizyon ve onaylı uçuş izni geçerlilik uyarılarını;
+  gecikmiş, 7 gün içinde ve 30 gün içinde özetleriyle döndürür
 - `GET /api/form-processes/templates/`: süreç, FM şablonu ve dinamik alan kataloğunu döndürür
 - `GET|POST /api/form-processes/`: uçuş izinleri dahil paylaşımlı mühendislik form kayıtlarını listeler veya oluşturur
 - `GET|PATCH|DELETE /api/form-processes/<id>/`: mühendislik form kaydını okur, günceller veya siler
@@ -135,8 +141,10 @@ DRF yanıt formatı:
 - `GET|POST /api/technical-documents/`: teknik doküman listesi ve admin oluşturma işlemi
 - `GET|PATCH|DELETE /api/technical-documents/<id>/`: detay, statü dahil güncelleme ve silme
 - `POST /api/technical-documents/<id>/notify/`: staff kullanıcının bağlı panel sorumlularına, zorunlu ve istek başına benzersiz `Idempotency-Key` başlığıyla bildirim göndermesi
-- `POST /api/word-to-jira/parse/`: `.docx` tablo hücrelerini 0 tabanlı global, tablo, satır ve sütun indeksleriyle okuma
-- `POST /api/word-to-jira/publish/`: staff kullanıcının düzenlenen toplantı taslağından bir Jira Task ve ona bağlı Sub-task kayıtları oluşturması
+- `GET|POST /api/edk/applications/`: EDK rollerine göre başvuru listesi ve Başvuru Sahibi rolüyle yeni başvuru oluşturma
+- `POST /api/edk/applications/<id>/decision/`: Onaylayıcı rolüyle bekleyen başvuruyu onaylama veya gerekçeli reddetme
+- `POST /api/edk/applications/<id>/minutes/parse/`: yalnız başvuru sahibi ve onaylanmış EDK kaydı için `.docx` toplantı tutanağını okuma
+- `POST /api/edk/jira/publish/`: staff kullanıcının düzenlenen toplantı taslağından bir Jira Task ve ona bağlı Sub-task kayıtları oluşturması
 
 Yerel demo dokümanlarını mevcut projelere idempotent olarak eklemek için:
 
@@ -162,6 +170,21 @@ process-crash penceresinde mutlak exactly-once garantisi yoktur; `pending` kayı
 `TECHNICAL_NOTIFICATION_PENDING_TIMEOUT` (varsayılan 300 saniye) sonrasında
 `unknown` durumuna alınır ve operasyonel olarak uzlaştırılmadan yeni anahtarla
 tekrar gönderim yapılmamalıdır.
+
+## Operasyonel Takvim
+
+**İşlemler → Operasyonel Takvim** ekranı teknik doküman `due_date` ve
+`review_date` alanlarını, inceleme/revizyon durumunda geçirilen süreyi ve onaylı
+uçuş izinlerinin `valid_until` tarihini tek salt-okunur görünümde birleştirir.
+Tarih değerlendirmesi `Europe/Istanbul` yerel gününe göre yapılır; bugün dahil
+7 günlük kayıtlar kritik, sonraki 23 günlük kayıtlar yaklaşan, tarihi geçenler
+gecikmiş olarak gösterilir. `in_review` veya `changes_requested` durumunda 14 günü
+tamamlayan teknik dokümanlar ayrıca bekleyen iş akışı uyarısı üretir.
+
+Bu endpoint otomatik e-posta göndermez ve kalıcı uyarı kaydı oluşturmaz. Staff
+kullanıcı “Bildirim hazırla” eylemiyle teknik doküman ekranındaki mevcut alıcı
+önizlemeli ve idempotent bildirim akışına yönlendirilir. Diğer kullanıcılar aynı
+paylaşımlı operasyonel kayıtları görebilir, ancak bildirim gönderemez.
 
 ## Mühendislik Form Süreçleri
 

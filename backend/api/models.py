@@ -6,6 +6,7 @@ label used by historical migrations.
 """
 
 from .documents.models import AnalysisControl, Document, DocumentAnalysisRun, DocumentChunk
+from .edk.models import EDKApplication
 from .form_processes.models import FormProcessRecord
 from .jobs.models import AsyncJob
 from .organization.models import PanelResponsible, Person, PersonGroup, Project, ProjectPanel
@@ -23,6 +24,7 @@ __all__ = [
     "Document",
     "DocumentAnalysisRun",
     "DocumentChunk",
+    "EDKApplication",
     "FormProcessRecord",
     "PanelResponsible",
     "Person",

@@ -53,8 +53,9 @@ backend/api/
 ├── ai/                     AI API sözleşmesi ve sağlayıcı sınırı
 ├── organization/           proje, panel, kişi ve gruplar
 ├── technical_documents/   teknik doküman yaşam döngüsü ve bildirim
+├── operational_alerts/    teknik doküman ve uçuş izni salt-okunur uyarı projeksiyonu
 ├── form_processes/         FM/uçuş izni kataloğu, dinamik kayıtlar, ekler ve Word üretimi
-├── meeting_minutes/        Word ayrıştırma ve Jira yayın use-case'i
+├── edk/                    EDK başvuru, onay, tutanak ayrıştırma ve Jira yayın akışı
 ├── services/               cross-feature belge/AI/job işleme ve dış adaptör yüzeyleri
 ├── models.py               Django discovery için açık re-export façade
 ├── serializers.py          açık re-export façade
@@ -66,11 +67,12 @@ Façade dosyaları yeni iş kuralı barındırmaz. Yeni kod doğrudan ait olduğ
 paketine eklenir.
 
 İzin verilen cross-feature yönleri `documents → jobs`,
-`technical_documents → organization` ve `meeting_minutes → organization`dır.
-Bunlar ingestion/job response, kurumsal read-model ve sorumlu eşleme use-case'leri
-için dar public model/selector/service yüzeyleriyle kullanılır; ters bağımlılık veya
-döngü kurulmaz. Root compatibility façade'ları production kodunun bağımlılığı
-değildir ve bu kural mimari testle korunur.
+`technical_documents → organization`, `edk → organization` ve
+`operational_alerts → technical_documents/form_processes` yönleridir. Bunlar
+ingestion/job response, kurumsal read-model, sorumlu eşleme ve salt-okunur uyarı
+projeksiyonu use-case'leri için dar public model/selector/service yüzeyleriyle
+kullanılır; ters bağımlılık veya döngü kurulmaz. Root compatibility façade'ları
+production kodunun bağımlılığı değildir ve bu kural mimari testle korunur.
 
 ### 3.1 Bağımlılık yönü
 
@@ -111,6 +113,7 @@ Uygulama karma görünürlük modeline sahiptir:
 | Organizasyon ve teknik doküman okuma          | Aktif kullanıcılar                                                                                  |
 | Organizasyon ve teknik doküman yazma/bildirim | Staff; bildirim body/alıcı/hata ayrıntısı staff-only                                                |
 | Mühendislik form süreçleri ve uçuş izinleri   | Paylaşımlı operasyonel kayıtlar; şablon kodu, alan şeması ve ek dosya backend tarafından doğrulanır |
+| Operasyonel uyarı projeksiyonu                | Aktif kullanıcılar; bildirim eylemi ve alıcı bilgileri mevcut staff sınırında kalır                 |
 | Jira yayın ve model yönetimi                  | Staff veya açıkça tanımlı özel izin                                                                 |
 
 Sahiplik uygulanan nesneler görünür queryset üzerinden alınır. Yabancı kimliği

@@ -17,7 +17,11 @@ const props = defineProps({
   notifyingId: { type: Number, default: null },
   error: { type: String, default: "" },
   notice: { type: String, default: "" },
-  canEdit: { type: Boolean, default: false }
+  canEdit: { type: Boolean, default: false },
+  deepLinkReady: { type: Boolean, default: false },
+  deepLinkRequested: { type: Boolean, default: false },
+  deepLinkDocumentId: { type: Number, default: null },
+  deepLinkAction: { type: String, default: "detail" }
 });
 
 const emit = defineEmits(["refresh", "save", "delete", "notify"]);
@@ -47,10 +51,16 @@ const {
   openDetails,
   openNotification,
   submitNotification,
-  updateStatus
+  updateStatus,
+  deepLinkWarning
 } = useTechnicalDocumentsController({
   projects: toRef(props, "projects"),
   documents: toRef(props, "documents"),
+  deepLinkReady: toRef(props, "deepLinkReady"),
+  deepLinkRequested: toRef(props, "deepLinkRequested"),
+  deepLinkDocumentId: toRef(props, "deepLinkDocumentId"),
+  deepLinkAction: toRef(props, "deepLinkAction"),
+  canNotify: toRef(props, "canEdit"),
   onSave: (payload) => emit("save", payload),
   onDelete: (document) => emit("delete", document),
   onNotify: (payload) => emit("notify", payload)
@@ -90,6 +100,9 @@ const {
 
     <n-alert v-if="error" type="error" title="Teknik dokümanlar alınamadı">{{ error }}</n-alert>
     <n-alert v-if="notice" type="success" :show-icon="true">{{ notice }}</n-alert>
+    <n-alert v-if="deepLinkWarning" type="warning" title="Kayıt açılamadı">
+      {{ deepLinkWarning }}
+    </n-alert>
 
     <n-empty
       v-if="!projects.length"

@@ -2,12 +2,13 @@
 @import "./styles/app-shell.css";
 @import "./styles/features/management.css";
 @import "./styles/features/document-processing.css";
-@import "./styles/features/word-to-jira.css";
+@import "./styles/features/edk.css";
 @import "./styles/features/ai-studio.css";
 @import "./styles/responsive-compact-fields.css";
 @import "./styles/features/technical-documents.css";
 @import "./styles/features/form-processes.css";
 @import "./styles/features/processes.css";
+@import "./styles/features/operational-calendar.css";
 @import "./styles/features/document-controls.css";
 @import "./styles/features/jobs.css";
 @import "./styles/responsive.css";

@@ -10,7 +10,8 @@ const props = defineProps({
   processes: { type: Array, required: true },
   loading: { type: Boolean, required: true },
   error: { type: String, default: "" },
-  notice: { type: String, default: "" }
+  notice: { type: String, default: "" },
+  deepLinkError: { type: String, default: "" }
 });
 
 const emit = defineEmits(["refresh", "create", "edit", "status", "delete"]);
@@ -24,7 +25,7 @@ const controller = useFormProcessController({
 </script>
 
 <template>
-  <section class="form-processes-view">
+  <section id="flight-permits" class="form-processes-view">
     <header class="process-section-header">
       <div>
         <n-space align="center" :size="6">
@@ -57,6 +58,9 @@ const controller = useFormProcessController({
 
     <n-alert v-if="error" type="error" title="İşlem tamamlanamadı">{{ error }}</n-alert>
     <n-alert v-if="notice" type="success">{{ notice }}</n-alert>
+    <n-alert v-if="deepLinkError" type="warning" title="Kayıt açılamadı">
+      {{ deepLinkError }}
+    </n-alert>
 
     <n-grid cols="1 s:2 l:4" responsive="screen" :x-gap="12" :y-gap="12">
       <n-grid-item>

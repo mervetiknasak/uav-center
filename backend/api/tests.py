@@ -3,14 +3,18 @@ from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
+from .edk.minutes_parser import EDKMinutesParseError
+from .edk.roles import EDK_ROLE_GROUPS
 from .models import (
     CoverPage,
+    EDKApplication,
     PanelResponsible,
     Person,
     PersonGroup,
@@ -20,7 +24,6 @@ from .models import (
     TechnicalDocumentNotification,
     TechnicalDocumentStatusHistory,
 )
-from .services.word_table_parser import WordTableParseError
 
 
 class AuthApiTests(TestCase):
@@ -141,13 +144,29 @@ class AuthApiTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
 
-class WordTableParseApiTests(TestCase):
+class EDKMinutesParseApiTests(TestCase):
     def setUp(self):
         user = get_user_model().objects.create_user(
-            username="word-reader",
+            username="edk-reader",
             password="StrongPass123!",
         )
+        Group.objects.get_or_create(name=EDK_ROLE_GROUPS["applicant"])[0].user_set.add(user)
+        self.application = EDKApplication.objects.create(
+            applicant=user,
+            meeting_title="Uçuş hazırlığı",
+            project_name="UAV",
+            requested_date=timezone.localdate(),
+            location="Hangar",
+            participants="Uçuş ekibi",
+            purpose="Uçuş hazırlığını değerlendirmek",
+            agenda="Hazırlık kontrolleri",
+            status=EDKApplication.STATUS_APPROVED,
+        )
         self.client.force_login(user)
+        self.parse_url = reverse(
+            "edk-minutes-parse",
+            kwargs={"application_id": self.application.id},
+        )
 
     @staticmethod
     def word_file():
@@ -170,7 +189,7 @@ class WordTableParseApiTests(TestCase):
 
     def test_parse_returns_zero_based_cell_coordinates(self):
         response = self.client.post(
-            reverse("word-table-parse"),
+            self.parse_url,
             data={"file": self.word_file()},
         )
 
@@ -193,28 +212,28 @@ class WordTableParseApiTests(TestCase):
 
     def test_parse_rejects_non_docx_file(self):
         response = self.client.post(
-            reverse("word-table-parse"),
+            self.parse_url,
             data={"file": SimpleUploadedFile("notlar.txt", b"test")},
         )
 
         self.assertEqual(response.status_code, 400)
 
     @override_settings(DOCUMENT_MAX_UPLOAD_SIZE=4)
-    @patch("api.meeting_minutes.views.parse_word_table")
-    def test_parse_rejects_oversized_docx_before_temporary_write(self, parse_word_table):
+    @patch("api.edk.views.parse_minutes_document")
+    def test_parse_rejects_oversized_docx_before_temporary_write(self, parse_minutes_document):
         response = self.client.post(
-            reverse("word-table-parse"),
+            self.parse_url,
             data={"file": self.word_file()},
         )
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("file", response.json())
-        parse_word_table.assert_not_called()
+        parse_minutes_document.assert_not_called()
 
-    @patch("api.meeting_minutes.views.parse_word_table")
-    def test_parse_rejects_invalid_ooxml_before_temporary_write(self, parse_word_table):
+    @patch("api.edk.views.parse_minutes_document")
+    def test_parse_rejects_invalid_ooxml_before_temporary_write(self, parse_minutes_document):
         response = self.client.post(
-            reverse("word-table-parse"),
+            self.parse_url,
             data={
                 "file": SimpleUploadedFile(
                     "invalid.docx",
@@ -228,16 +247,16 @@ class WordTableParseApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("file", response.json())
-        parse_word_table.assert_not_called()
+        parse_minutes_document.assert_not_called()
 
-    @patch("api.meeting_minutes.views.parse_word_table")
-    def test_parse_error_does_not_echo_temporary_path(self, parse_word_table):
-        parse_word_table.side_effect = WordTableParseError(
+    @patch("api.edk.views.parse_minutes_document")
+    def test_parse_error_does_not_echo_temporary_path(self, parse_minutes_document):
+        parse_minutes_document.side_effect = EDKMinutesParseError(
             "invalid /private/tmp/upload-secret.docx pilot@example.com"
         )
 
         response = self.client.post(
-            reverse("word-table-parse"),
+            self.parse_url,
             data={"file": self.word_file()},
         )
 
@@ -263,7 +282,7 @@ class WordTableParseApiTests(TestCase):
         )
 
         response = self.client.post(
-            reverse("word-table-parse"),
+            self.parse_url,
             data={"file": upload},
         )
 
@@ -303,7 +322,7 @@ class WordTableParseApiTests(TestCase):
         )
 
         response = self.client.post(
-            reverse("word-table-parse"),
+            self.parse_url,
             data={"file": upload},
         )
 

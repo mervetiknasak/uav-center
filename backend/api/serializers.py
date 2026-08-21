@@ -18,7 +18,6 @@ from .documents.serializers import (
     DocumentUploadSerializer,
 )
 from .jobs.serializers import AsyncJobSerializer
-from .meeting_minutes.serializers import WordToJiraPublishRequestSerializer
 from .organization.serializers import (
     PanelResponsibleSerializer,
     PersonGroupSerializer,
@@ -62,5 +61,4 @@ __all__ = [
     "TechnicalDocumentSerializer",
     "TechnicalDocumentStatusHistorySerializer",
     "UserSerializer",
-    "WordToJiraPublishRequestSerializer",
 ]

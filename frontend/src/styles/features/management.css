@@ -180,3 +180,7 @@
   gap: 8px;
   justify-content: flex-end;
 }
+
+.user-edk-role-select {
+  width: min(300px, 40vw);
+}

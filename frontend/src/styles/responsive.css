@@ -62,4 +62,12 @@
   .user-actions {
     justify-content: flex-start;
   }
+
+  .user-edk-role-select {
+    width: 100%;
+  }
+
+  .edk-decision-row {
+    grid-template-columns: 1fr;
+  }
 }

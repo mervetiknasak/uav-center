@@ -1,13 +1,50 @@
-.word-jira-view {
+.edk-view {
   display: grid;
   gap: 18px;
 }
 
-.word-jira-view .page-heading span {
+.edk-view .page-heading span {
   display: block;
   margin-top: 8px;
   color: #64748b;
   line-height: 1.6;
+}
+
+.edk-heading {
+  padding: 22px 24px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #eff6ff 100%);
+  border: 1px solid #cfe7df;
+  border-radius: 12px;
+}
+
+.edk-role-tags {
+  margin-top: 14px;
+}
+
+.edk-application-list {
+  display: grid;
+  gap: 14px;
+}
+
+.edk-application-card {
+  border-left: 4px solid #0f766e;
+}
+
+.edk-application-card .n-alert,
+.edk-minutes-upload {
+  margin-top: 14px;
+}
+
+.edk-decision-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.edk-minutes-upload .n-upload-dragger {
+  background: #f0fdfa;
+  border-color: #5eead4;
 }
 
 .word-cell-table-wrap {

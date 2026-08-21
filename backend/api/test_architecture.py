@@ -19,6 +19,7 @@ EXPECTED_MODEL_EXPORTS = {
     "Document",
     "DocumentAnalysisRun",
     "DocumentChunk",
+    "EDKApplication",
     "FormProcessRecord",
     "PanelResponsible",
     "Person",
@@ -57,7 +58,6 @@ EXPECTED_SERIALIZER_EXPORTS = {
     "TechnicalDocumentSerializer",
     "TechnicalDocumentStatusHistorySerializer",
     "UserSerializer",
-    "WordToJiraPublishRequestSerializer",
 }
 
 EXPECTED_VIEW_EXPORTS = {
@@ -99,8 +99,6 @@ EXPECTED_VIEW_EXPORTS = {
     "TechnicalDocumentDetailView",
     "TechnicalDocumentListCreateView",
     "TechnicalDocumentNotifyView",
-    "WordTableParseView",
-    "WordToJiraPublishView",
     "health_check",
     "process_document_text",
     "readiness_check",
@@ -117,6 +115,7 @@ EXPECTED_NAMED_ROUTES = {
     "register": "auth/register/",
     "admin-user-list": "admin/users/",
     "admin-user-status": "admin/users/<int:user_id>/status/",
+    "admin-user-edk-roles": "admin/users/<int:user_id>/edk-roles/",
     "project-list": "organization/projects/",
     "project-detail": "organization/projects/<int:project_id>/",
     "project-panel-list": "organization/projects/<int:project_id>/panels/",
@@ -147,11 +146,14 @@ EXPECTED_NAMED_ROUTES = {
     "form-process-record-detail": "form-processes/<int:record_id>/",
     "form-process-generated-document": ("form-processes/<int:record_id>/generated-document/"),
     "form-process-attachment": "form-processes/<int:record_id>/attachment/",
+    "operational-alert-list": "operational-alerts/",
     "technical-document-list": "technical-documents/",
     "technical-document-detail": "technical-documents/<int:technical_document_id>/",
     "technical-document-notify": ("technical-documents/<int:technical_document_id>/notify/"),
-    "word-table-parse": "word-to-jira/parse/",
-    "word-to-jira-publish": "word-to-jira/publish/",
+    "edk-application-list": "edk/applications/",
+    "edk-application-decision": "edk/applications/<int:application_id>/decision/",
+    "edk-minutes-parse": "edk/applications/<int:application_id>/minutes/parse/",
+    "edk-jira-publish": "edk/jira/publish/",
 }
 
 FORBIDDEN_FACADE_MODULES = {"api.models", "api.serializers", "api.views"}
@@ -224,7 +226,7 @@ class ApiArchitectureTests(SimpleTestCase):
         routes = _named_routes(urlpatterns)
         counts = Counter(name for name, _route in routes)
 
-        self.assertEqual(len(routes), 44)
+        self.assertEqual(len(routes), 48)
         self.assertEqual(
             {name for name, count in counts.items() if count > 1},
             set(),

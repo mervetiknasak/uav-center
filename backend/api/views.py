@@ -24,7 +24,6 @@ from .documents.views import (
     DocumentUploadView,
 )
 from .jobs.views import AsyncJobCancelView, AsyncJobDetailView, AsyncJobListView
-from .meeting_minutes.views import WordTableParseView, WordToJiraPublishView
 from .organization.permissions import IsOrganizationReaderOrAdmin
 from .organization.views import (
     GroupPersonListCreateView,
@@ -85,8 +84,6 @@ __all__ = [
     "TechnicalDocumentDetailView",
     "TechnicalDocumentListCreateView",
     "TechnicalDocumentNotifyView",
-    "WordTableParseView",
-    "WordToJiraPublishView",
     "health_check",
     "readiness_check",
     "process_document_text",

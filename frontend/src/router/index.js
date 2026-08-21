@@ -52,6 +52,12 @@ const routes = [
     meta: { menuKey: "jobs" }
   },
   {
+    path: "/operational-calendar",
+    name: "operational-calendar",
+    component: () => import("../features/operational-calendar/pages/OperationalCalendarPage.vue"),
+    meta: { menuKey: "operational-calendar" }
+  },
+  {
     path: "/organization",
     name: "organization-projects",
     component: () => import("../features/organization/pages/OrganizationPage.vue"),
@@ -70,10 +76,10 @@ const routes = [
     meta: { menuKey: "results", anchor: "#ai-results" }
   },
   {
-    path: "/tools/word-to-jira",
-    name: "word-to-jira",
-    component: () => import("../features/word-to-jira/pages/WordToJiraPage.vue"),
-    meta: { menuKey: "word-to-jira" }
+    path: "/edk",
+    name: "edk",
+    component: () => import("../features/edk/pages/EDKPage.vue"),
+    meta: { menuKey: "edk" }
   },
   {
     path: "/tools/ai-studio",

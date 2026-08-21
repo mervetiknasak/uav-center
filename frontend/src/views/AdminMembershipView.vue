@@ -18,7 +18,12 @@ defineProps({
   }
 });
 
-const emit = defineEmits(["refresh", "update-status"]);
+const emit = defineEmits(["refresh", "update-status", "update-edk-roles"]);
+
+const edkRoleOptions = [
+  { label: "Başvuru Sahibi", value: "applicant" },
+  { label: "Onaylayıcı", value: "approver" }
+];
 </script>
 
 <template>
@@ -47,6 +52,16 @@ const emit = defineEmits(["refresh", "update-status"]);
               <div class="user-row">
                 <n-thing :title="user.username" :description="user.email || 'E-posta yok'" />
                 <div class="user-actions">
+                  <n-select
+                    class="user-edk-role-select"
+                    multiple
+                    size="small"
+                    placeholder="EDK rolü yok"
+                    :options="edkRoleOptions"
+                    :value="user.edk_roles || []"
+                    :disabled="!user.is_active || updatingUserId === user.id"
+                    @update:value="emit('update-edk-roles', user, $event)"
+                  />
                   <n-tag :type="user.is_active ? 'success' : 'warning'">
                     {{ user.is_active ? "Aktif" : "Pending" }}
                   </n-tag>

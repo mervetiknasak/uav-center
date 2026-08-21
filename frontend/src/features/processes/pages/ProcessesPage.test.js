@@ -19,4 +19,11 @@ describe("unified processes application", () => {
     expect(routerSource).not.toContain("FlightPermitsPage.vue");
     expect(routerSource).not.toContain("FormProcessesPage.vue");
   });
+
+  it("validates flight permit query links before opening the shared form editor", () => {
+    expect(processesPageSource).toContain("resolveFlightPermitDeepLink");
+    expect(processesPageSource).toContain("route.query.flightPermit");
+    expect(processesPageSource).toContain('name: "form-process-edit"');
+    expect(processesPageSource).toContain(':deep-link-error="deepLinkError"');
+  });
 });

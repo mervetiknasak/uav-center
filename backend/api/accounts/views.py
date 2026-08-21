@@ -8,7 +8,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ..common.permissions import IsActiveAdminUser
+from ..edk.roles import ensure_default_edk_role
 from .serializers import (
+    AdminUserEDKRolesSerializer,
     AdminUserSerializer,
     AdminUserStatusSerializer,
     LoginSerializer,
@@ -89,7 +91,7 @@ class AdminUserListView(generics.ListAPIView):
     serializer_class = AdminUserSerializer
 
     def get_queryset(self):
-        return User.objects.order_by("is_active", "-date_joined")
+        return User.objects.prefetch_related("groups").order_by("is_active", "-date_joined")
 
 
 class AdminUserStatusView(APIView):
@@ -98,6 +100,19 @@ class AdminUserStatusView(APIView):
     def patch(self, request, user_id):
         user = generics.get_object_or_404(User, pk=user_id)
         serializer = AdminUserStatusSerializer(user, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        if user.is_active:
+            ensure_default_edk_role(user)
+        return Response(AdminUserSerializer(user).data)
+
+
+class AdminUserEDKRolesView(APIView):
+    permission_classes = [IsActiveAdminUser]
+
+    def patch(self, request, user_id):
+        user = generics.get_object_or_404(User, pk=user_id)
+        serializer = AdminUserEDKRolesSerializer(user, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(AdminUserSerializer(user).data)

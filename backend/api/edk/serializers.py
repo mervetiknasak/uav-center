@@ -4,6 +4,94 @@ from collections.abc import Mapping
 
 from rest_framework import serializers
 
+from .models import EDKApplication
+
+
+class EDKApplicationSerializer(serializers.ModelSerializer):
+    applicant_name = serializers.CharField(source="applicant.username", read_only=True)
+    reviewed_by_name = serializers.CharField(source="reviewed_by.username", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    can_upload_minutes = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EDKApplication
+        fields = [
+            "id",
+            "applicant_name",
+            "meeting_title",
+            "project_name",
+            "requested_date",
+            "location",
+            "participants",
+            "purpose",
+            "agenda",
+            "status",
+            "status_display",
+            "decision_note",
+            "reviewed_by_name",
+            "reviewed_at",
+            "minutes_file_name",
+            "minutes_uploaded_at",
+            "can_upload_minutes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "status",
+            "decision_note",
+            "reviewed_by_name",
+            "reviewed_at",
+            "minutes_file_name",
+            "minutes_uploaded_at",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_can_upload_minutes(self, application):
+        request = self.context.get("request")
+        return bool(
+            request
+            and request.user.id == application.applicant_id
+            and application.status == EDKApplication.STATUS_APPROVED
+        )
+
+    def validate(self, attrs):
+        for field in (
+            "meeting_title",
+            "project_name",
+            "location",
+            "participants",
+            "purpose",
+            "agenda",
+        ):
+            value = attrs.get(field)
+            if isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    raise serializers.ValidationError({field: ["Bu alan zorunludur."]})
+                attrs[field] = value
+        return attrs
+
+    def create(self, validated_data):
+        return EDKApplication.objects.create(
+            applicant=self.context["request"].user,
+            **validated_data,
+        )
+
+
+class EDKApplicationDecisionSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=[EDKApplication.STATUS_APPROVED, EDKApplication.STATUS_REJECTED]
+    )
+    decision_note = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+
+    def validate(self, attrs):
+        note = attrs.get("decision_note", "").strip()
+        if attrs["status"] == EDKApplication.STATUS_REJECTED and not note:
+            raise serializers.ValidationError({"decision_note": ["Reddetme gerekçesi zorunludur."]})
+        attrs["decision_note"] = note
+        return attrs
+
 
 class JiraMeetingFieldSerializer(serializers.Serializer):
     key = serializers.CharField(required=False, allow_blank=True)
@@ -33,7 +121,7 @@ class JiraSubtaskSerializer(serializers.Serializer):
     due_date = serializers.CharField(required=False, allow_blank=True)
 
 
-class WordToJiraPublishRequestSerializer(serializers.Serializer):
+class EDKJiraPublishRequestSerializer(serializers.Serializer):
     """Validate the editable Jira draft while retaining the legacy error contract."""
 
     task = JiraTaskSerializer()

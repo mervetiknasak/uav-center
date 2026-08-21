@@ -1,0 +1,75 @@
+.operational-calendar-view {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.operational-summary-card {
+  height: 112px;
+  border-top: 3px solid #64748b;
+}
+
+.operational-summary-card.is-danger {
+  border-top-color: #dc2626;
+  background: #fef2f2;
+}
+
+.operational-summary-card.is-warning {
+  border-top-color: #d97706;
+  background: #fffbeb;
+}
+
+.operational-summary-card.is-info {
+  border-top-color: #0284c7;
+  background: #f0f9ff;
+}
+
+.operational-alerts-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.operational-alert-filters {
+  padding: 16px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.operational-alerts-summary {
+  padding: 11px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.operational-alerts-card > .n-spin-container,
+.operational-alerts-card > .n-spin-container > .n-spin-content {
+  width: 100%;
+  min-width: 0;
+}
+
+.operational-alerts-data-table .n-data-table-th {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.operational-alerts-data-table .n-data-table-td {
+  color: #334155;
+  font-size: 12px;
+}
+
+.operational-alerts-data-table .n-data-table-empty {
+  padding: 56px 20px;
+}
+
+.operational-alerts-data-table .n-data-table__pagination {
+  padding: 14px 16px;
+  border-top: 1px solid #eef2f6;
+}
+
+@media (max-width: 720px) {
+  .operational-calendar-view .n-page-header__extra {
+    margin-top: 12px;
+  }
+}

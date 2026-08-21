@@ -41,6 +41,23 @@ export function useAdminUsers(apiFetch) {
     }
   }
 
+  async function updateUserEDKRoles(user, edkRoles) {
+    updatingUserId.value = user.id;
+    error.value = "";
+    try {
+      const updatedUser = await apiFetch(`/api/admin/users/${user.id}/edk-roles/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ edk_roles: edkRoles })
+      });
+      users.value = users.value.map((item) => (item.id === updatedUser.id ? updatedUser : item));
+    } catch (err) {
+      error.value = errorMessage(err, "EDK rolleri güncellenemedi");
+    } finally {
+      updatingUserId.value = null;
+    }
+  }
+
   function resetUsers() {
     users.value = [];
     error.value = "";
@@ -55,6 +72,7 @@ export function useAdminUsers(apiFetch) {
     loadUsers,
     loadUsersIfAdmin,
     updateUserStatus,
+    updateUserEDKRoles,
     resetUsers
   };
 }
