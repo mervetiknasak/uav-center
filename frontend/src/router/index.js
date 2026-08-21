@@ -82,6 +82,12 @@ const routes = [
     meta: { menuKey: "edk" }
   },
   {
+    path: "/edk/applications/:applicationId(\\d+)",
+    name: "edk-application-detail",
+    component: () => import("../features/edk/pages/EDKApplicationDetailPage.vue"),
+    meta: { menuKey: "edk" }
+  },
+  {
     path: "/tools/ai-studio",
     name: "ai-studio",
     component: () => import("../features/ai-studio/pages/AIStudioPage.vue"),

@@ -99,6 +99,34 @@ class EDKApplicationApiTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(EDKApplication.objects.exists())
 
+    def test_applicant_can_open_own_application_detail_but_not_another_applicants(self):
+        own_application = self.create_application(status=EDKApplication.STATUS_APPROVED)
+        foreign_application = self.create_application(applicant=self.other_applicant)
+        self.client.force_login(self.applicant)
+
+        own_response = self.client.get(
+            reverse("edk-application-detail", kwargs={"application_id": own_application.id})
+        )
+        foreign_response = self.client.get(
+            reverse("edk-application-detail", kwargs={"application_id": foreign_application.id})
+        )
+
+        self.assertEqual(own_response.status_code, 200)
+        self.assertTrue(own_response.json()["can_upload_minutes"])
+        self.assertEqual(foreign_response.status_code, 404)
+
+    def test_approver_can_open_any_application_detail_without_upload_permission(self):
+        application = self.create_application(status=EDKApplication.STATUS_APPROVED)
+        self.client.force_login(self.approver)
+
+        response = self.client.get(
+            reverse("edk-application-detail", kwargs={"application_id": application.id})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["id"], application.id)
+        self.assertFalse(response.json()["can_upload_minutes"])
+
     def test_removed_legacy_word_to_jira_route_returns_not_found(self):
         self.client.force_login(self.applicant)
 

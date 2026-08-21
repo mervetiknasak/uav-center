@@ -151,6 +151,7 @@ EXPECTED_NAMED_ROUTES = {
     "technical-document-detail": "technical-documents/<int:technical_document_id>/",
     "technical-document-notify": ("technical-documents/<int:technical_document_id>/notify/"),
     "edk-application-list": "edk/applications/",
+    "edk-application-detail": "edk/applications/<int:application_id>/",
     "edk-application-decision": "edk/applications/<int:application_id>/decision/",
     "edk-minutes-parse": "edk/applications/<int:application_id>/minutes/parse/",
     "edk-jira-publish": "edk/jira/publish/",
@@ -226,7 +227,7 @@ class ApiArchitectureTests(SimpleTestCase):
         routes = _named_routes(urlpatterns)
         counts = Counter(name for name, _route in routes)
 
-        self.assertEqual(len(routes), 48)
+        self.assertEqual(len(routes), 49)
         self.assertEqual(
             {name for name, count in counts.items() if count > 1},
             set(),

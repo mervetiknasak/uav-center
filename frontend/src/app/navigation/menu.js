@@ -6,6 +6,10 @@ export const menuSections = [
     key: "processes"
   },
   {
+    label: "EDK",
+    key: "edk"
+  },
+  {
     label: "Doküman Yönetimi",
     key: "document-management",
     children: [{ label: "Teknik Dokümanlar", key: "technical-documents" }]
@@ -21,8 +25,7 @@ export const menuSections = [
     children: [
       { label: "Belge İşleme", key: "documents" },
       { label: "AI Sonuçları", key: "results" },
-      { label: "Gemma 4 Studio", key: "ai-studio" },
-      { label: "EDK", key: "edk" }
+      { label: "Gemma 4 Studio", key: "ai-studio" }
     ]
   },
   {

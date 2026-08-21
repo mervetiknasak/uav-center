@@ -21,18 +21,36 @@
   margin-top: 14px;
 }
 
-.edk-application-list {
-  display: grid;
-  gap: 14px;
+.edk-table-filters {
+  padding: 14px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.edk-application-card {
+.edk-table-row {
+  cursor: pointer;
+}
+
+.edk-table-row:focus-visible td {
+  outline: 2px solid #0f766e;
+  outline-offset: -2px;
+}
+
+.edk-detail-summary {
   border-left: 4px solid #0f766e;
 }
 
-.edk-application-card .n-alert,
-.edk-minutes-upload {
-  margin-top: 14px;
+.edk-detail-view .n-spin-content {
+  display: grid;
+  gap: 18px;
+}
+
+.edk-multiline {
+  white-space: pre-line;
+}
+
+.edk-review-meta {
+  margin-top: 6px;
+  color: #64748b;
 }
 
 .edk-decision-row {
@@ -43,6 +61,7 @@
 }
 
 .edk-minutes-upload .n-upload-dragger {
+  margin-top: 14px;
   background: #f0fdfa;
   border-color: #5eead4;
 }

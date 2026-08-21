@@ -20,9 +20,7 @@ describe("application menu", () => {
     });
   });
 
-  it("renames the meeting-minutes tool as EDK", () => {
-    const tools = menuSections.find((section) => section.key === "tools");
-
-    expect(tools.children).toContainEqual({ label: "EDK", key: "edk" });
+  it("exposes EDK as a top-level application", () => {
+    expect(menuSections).toContainEqual({ label: "EDK", key: "edk" });
   });
 });

@@ -125,6 +125,27 @@ class EDKApplicationListCreateView(APIView):
         )
 
 
+class EDKApplicationDetailView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def get(self, request, application_id):
+        if not any(
+            user_has_edk_role(request.user, role)
+            for role in (EDK_ROLE_APPLICANT, EDK_ROLE_APPROVER)
+        ):
+            raise PermissionDenied("EDK rolünüz bulunmuyor.")
+        application = get_object_or_404(
+            edk_applications_visible_to(request.user),
+            pk=application_id,
+        )
+        return Response(
+            EDKApplicationSerializer(
+                application,
+                context={"request": request},
+            ).data
+        )
+
+
 class EDKApplicationDecisionView(APIView):
     permission_classes = [IsActiveAuthenticated]
 

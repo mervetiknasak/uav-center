@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     EDKApplicationDecisionView,
+    EDKApplicationDetailView,
     EDKApplicationListCreateView,
     EDKJiraPublishView,
     EDKMeetingMinutesParseView,
@@ -9,6 +10,11 @@ from .views import (
 
 urlpatterns = [
     path("applications/", EDKApplicationListCreateView.as_view(), name="edk-application-list"),
+    path(
+        "applications/<int:application_id>/",
+        EDKApplicationDetailView.as_view(),
+        name="edk-application-detail",
+    ),
     path(
         "applications/<int:application_id>/decision/",
         EDKApplicationDecisionView.as_view(),

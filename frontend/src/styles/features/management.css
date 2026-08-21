@@ -157,30 +157,468 @@
   width: min(560px, calc(100vw - 32px));
 }
 
-.admin-membership-toolbar {
+.membership-page-heading {
   display: flex;
-  justify-content: flex-end;
+  gap: 24px;
+  align-items: flex-end;
+  justify-content: space-between;
 }
 
-.user-row {
+.membership-page-heading span {
+  display: block;
+  margin-top: 6px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.membership-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.membership-metric {
   display: flex;
   gap: 12px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgb(15 23 42 / 4%);
+}
+
+.membership-metric-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  color: #475569;
+  border-radius: 10px;
+  background: #f1f5f9;
+  place-items: center;
+}
+
+.membership-metric-active .membership-metric-icon {
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.membership-metric-assigned .membership-metric-icon {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.membership-metric div,
+.membership-user-copy,
+.membership-role-copy,
+.membership-permissions-heading > div {
+  display: grid;
+}
+
+.membership-metric strong {
+  color: #0f172a;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.membership-metric div span {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.membership-card > .n-card__content {
+  display: grid;
+  gap: 18px;
+}
+
+.membership-role-guide {
+  display: flex;
+  gap: 13px;
+  align-items: flex-start;
+  padding: 15px 16px;
+  color: #1e3a8a;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+}
+
+.membership-role-guide-icon {
+  display: grid;
+  flex: 0 0 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: #dbeafe;
+  place-items: center;
+}
+
+.membership-role-guide p {
+  margin: 4px 0 0;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.membership-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 220px) minmax(220px, 260px);
+  gap: 10px;
+}
+
+.membership-list-heading,
+.membership-permissions-heading,
+.membership-user-name,
+.membership-account-action {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.membership-list-heading {
+  padding-top: 2px;
+}
+
+.membership-list-heading > div {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.membership-list-heading span,
+.membership-permissions-heading span,
+.membership-account-action > span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.membership-user-list {
+  display: grid;
+  gap: 12px;
+}
+
+.membership-user-card {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.7fr) minmax(430px, 1.8fr) auto;
+  gap: 20px;
+  align-items: center;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.membership-user-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 6px 18px rgb(15 23 42 / 6%);
+}
+
+.membership-user-identity {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.membership-avatar {
+  display: grid;
+  flex: 0 0 42px;
+  height: 42px;
+  color: #1e40af;
+  font-size: 13px;
+  font-weight: 800;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  place-items: center;
+}
+
+.membership-user-copy {
+  min-width: 0;
+  gap: 4px;
+}
+
+.membership-user-name {
+  justify-content: flex-start;
+}
+
+.membership-user-name strong,
+.membership-user-copy > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.membership-user-copy > span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.membership-permissions {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.membership-permissions-heading > div {
+  gap: 2px;
+}
+
+.membership-saving {
+  color: #2563eb !important;
+  font-weight: 700;
+}
+
+.membership-role-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 24px;
+}
+
+.membership-role-summary .n-tag {
+  color: #1e40af;
+  background: #eff6ff;
+}
+
+.membership-role-empty {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 24px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.membership-edit-roles-button {
+  justify-self: start;
+}
+
+.membership-edit-roles-button .lucide {
+  margin-left: 3px;
+}
+
+.membership-account-action {
+  display: grid;
+  justify-items: end;
+  min-width: 138px;
+}
+
+.membership-role-editor {
+  display: grid;
+  gap: 18px;
+}
+
+.membership-editor-user {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.membership-editor-user > div:nth-child(2) {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.membership-editor-user > div:nth-child(2) span {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.membership-editor-intro {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  color: #1d4ed8;
+  border-radius: 9px;
+  background: #eff6ff;
+}
+
+.membership-editor-intro svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.membership-editor-intro p {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.membership-role-groups {
+  display: grid;
+  gap: 22px;
+}
+
+.membership-role-group {
+  display: grid;
+  gap: 10px;
+}
+
+.membership-role-group-heading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.membership-role-group-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.membership-role-group-heading span,
+.membership-role-picker-copy small {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.membership-role-picker-list {
+  display: grid;
+  gap: 8px;
+}
+
+.membership-role-picker-list .membership-role-picker-option {
+  display: flex;
+  align-items: flex-start;
+  padding: 13px 14px;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.membership-role-picker-option:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 3px 10px rgb(37 99 235 / 7%);
+}
+
+.membership-role-picker-option-selected {
+  border-color: #93c5fd !important;
+  background: #eff6ff !important;
+}
+
+.membership-role-picker-option .n-checkbox__label {
+  flex: 1;
+  min-width: 0;
+  padding-left: 11px;
+  white-space: normal;
+}
+
+.membership-role-picker-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.membership-role-picker-copy > span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.membership-role-picker-copy strong {
+  color: #1e293b;
+  font-size: 14px;
+}
+
+.membership-role-picker-copy small {
+  margin-top: 3px;
+}
+
+.membership-editor-footer {
+  display: flex;
+  gap: 20px;
   align-items: center;
   justify-content: space-between;
   width: 100%;
 }
 
-.user-row .n-thing {
-  min-width: 0;
+.membership-editor-footer > div {
+  display: grid;
+  gap: 2px;
 }
 
-.user-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
+.membership-editor-footer span {
+  color: #64748b;
+  font-size: 11px;
 }
 
-.user-edk-role-select {
-  width: min(300px, 40vw);
+@media (max-width: 1180px) {
+  .membership-user-card {
+    grid-template-columns: minmax(200px, 0.65fr) minmax(430px, 1.35fr);
+  }
+
+  .membership-account-action {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 820px) {
+  .membership-page-heading,
+  .membership-user-card {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .membership-page-heading .n-button {
+    justify-self: start;
+  }
+
+  .membership-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .membership-account-action {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .membership-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .membership-list-heading,
+  .membership-permissions-heading {
+    align-items: flex-start;
+  }
+
+  .membership-list-heading > div {
+    display: grid;
+    gap: 2px;
+  }
+
+  .membership-editor-user {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .membership-editor-user .n-tag {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .membership-editor-footer {
+    display: grid;
+  }
 }
