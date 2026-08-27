@@ -161,6 +161,13 @@ Naive UI global registry'si yalnız template'lerde gerçekten kullanılan
 bileşenleri içerir; registry ile `<n-*>` kullanımlarının birebir eşleşmesi Vitest
 ile korunur. Böylece tüm UI kütüphanesi başlangıç bundle'ına taşınmaz.
 
+Uygulama-seviyesi PWA davranışı `app/pwa/` sınırındadır. Manifest ve service
+worker sabit ad gerektirdiği için Vite `public/` varlıkları olarak tutulur. Service
+worker yalnız aynı origin'deki uygulama kabuğunu ve statik varlıkları cache'ler;
+kimlik/session ve kullanıcı verisi taşıyan `/api/` isteklerini ele almaz. Kurulum
+önerisi yalnız tarayıcı kurulabilirlik olayını verdiğinde veya iOS için manuel
+kurulum yönergesi gösterilebildiğinde görünür, standalone çalışmada gizlenir.
+
 ```text
 frontend/src/
 ├── app/               bootstrap, context, shell ve navigation

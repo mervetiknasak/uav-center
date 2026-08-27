@@ -6,6 +6,10 @@ const EDITOR_LABELS = Object.freeze({
   person: "Kişi"
 });
 
+export const ORGANIZATION_TITLE_OPTIONS = Object.freeze(
+  ["CVE", "AS", "PSK", "Şef", "IPT"].map((title) => ({ label: title, value: title }))
+);
+
 export function createOrganizationEditorForm(type, item = null) {
   if (type === "project") {
     return {
@@ -19,7 +23,7 @@ export function createOrganizationEditorForm(type, item = null) {
   if (type === "responsible" || type === "person") {
     return {
       name: item?.name ?? "",
-      title: item?.title ?? "",
+      titles: Array.isArray(item?.titles) ? [...item.titles] : [],
       email: item?.email ?? "",
       username: item?.username ?? ""
     };

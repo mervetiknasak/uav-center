@@ -1,6 +1,8 @@
 <script setup>
 import { Save } from "@lucide/vue";
 
+import { ORGANIZATION_TITLE_OPTIONS } from "../model/editor";
+
 defineProps({
   show: { type: Boolean, required: true },
   title: { type: String, required: true },
@@ -63,7 +65,14 @@ const emit = defineEmits(["update:show", "update-field", "submit"]);
       </template>
       <template v-else>
         <n-form-item label="Görev / Ünvan">
-          <n-input :value="form.title" @update:value="emit('update-field', 'title', $event)" />
+          <n-select
+            :value="form.titles"
+            :options="ORGANIZATION_TITLE_OPTIONS"
+            multiple
+            clearable
+            placeholder="Görev / ünvan seçin"
+            @update:value="emit('update-field', 'titles', $event)"
+          />
         </n-form-item>
         <n-form-item label="E-posta">
           <n-input

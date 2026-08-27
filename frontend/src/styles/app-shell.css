@@ -138,3 +138,52 @@
   font-size: 32px;
   line-height: 1.2;
 }
+
+.pwa-install-prompt {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1000;
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  width: min(620px, calc(100vw - 48px));
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 18px 45px rgb(15 23 42 / 18%);
+}
+
+.pwa-install-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  color: #ffffff;
+  background: #0f766e;
+  border-radius: 9px;
+  place-items: center;
+}
+
+.pwa-install-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pwa-install-copy strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.pwa-install-copy span,
+.pwa-install-copy small {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.pwa-install-copy small {
+  color: #b91c1c;
+}

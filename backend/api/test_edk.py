@@ -35,6 +35,8 @@ class EDKApplicationApiTests(TestCase):
         self.approver = user_model.objects.create_user(
             username="edk-approver",
             password="StrongPass123!",
+            first_name="Selin",
+            last_name="Demir",
         )
         self.unassigned = user_model.objects.create_user(
             username="unassigned",
@@ -250,7 +252,10 @@ class EDKApplicationApiTests(TestCase):
         self.assertEqual(len(listed.json()), 2)
         self.assertEqual(approved.status_code, 200)
         self.assertEqual(approved.json()["status"], "approved")
-        self.assertEqual(approved.json()["reviewed_by_name"], self.approver.username)
+        self.assertEqual(
+            approved.json()["reviewed_by_name"],
+            "Selin Demir (edk-approver)",
+        )
 
     def test_rejection_requires_reason_and_terminal_decision_returns_conflict(self):
         application = self.create_application()

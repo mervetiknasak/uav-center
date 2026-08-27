@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 
 import { useAppContext } from "./app/bootstrap";
 import { DEFAULT_ROUTE_NAME, menuSections } from "./app/navigation/menu";
+import PwaInstallPrompt from "./app/components/PwaInstallPrompt.vue";
 import AppSidebar from "./components/AppSidebar.vue";
 import AuthPanel from "./components/AuthPanel.vue";
 
@@ -69,6 +70,8 @@ onMounted(auth.loadSession);
             <router-view v-if="canRenderRoute" />
           </section>
         </main>
+
+        <PwaInstallPrompt />
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>

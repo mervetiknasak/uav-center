@@ -7,6 +7,7 @@ from pathlib import Path
 from django.utils import timezone
 from rest_framework import serializers
 
+from ..common.serializer_fields import UserDisplayNameField
 from ..organization.models import Project
 from ..services.document_limits import (
     DocumentPreflightError,
@@ -26,7 +27,7 @@ class EDKApplicationSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     project_display = serializers.SerializerMethodField()
-    reviewed_by_name = serializers.CharField(source="reviewed_by.username", read_only=True)
+    reviewed_by_name = UserDisplayNameField(source="reviewed_by")
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     can_upload_minutes = serializers.SerializerMethodField()
     presentation_url = serializers.SerializerMethodField()

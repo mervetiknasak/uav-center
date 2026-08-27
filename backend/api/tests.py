@@ -406,11 +406,17 @@ class OrganizationApiTests(TestCase):
 
         responsible_response = self.client.post(
             reverse("panel-responsible-list", kwargs={"panel_id": panel_response.json()["id"]}),
-            data={"name": "Deniz Kaya", "email": "deniz@example.com"},
+            data={
+                "name": "Deniz Kaya",
+                "titles": ["CVE", "IPT"],
+                "email": "deniz@example.com",
+            },
             content_type="application/json",
         )
         self.assertEqual(responsible_response.status_code, 201)
         self.assertEqual(responsible_response.json()["order"], 0)
+        self.assertEqual(responsible_response.json()["title"], "CVE, IPT")
+        self.assertEqual(responsible_response.json()["titles"], ["CVE", "IPT"])
 
         second_responsible_response = self.client.post(
             reverse("panel-responsible-list", kwargs={"panel_id": panel_response.json()["id"]}),
@@ -457,18 +463,33 @@ class OrganizationApiTests(TestCase):
             reverse("group-person-list", kwargs={"group_id": group_response.json()["id"]}),
             data={
                 "name": "Mert Can",
-                "title": "Kalite Mühendisi",
+                "titles": ["PSK", "Şef"],
                 "email": "mert@example.com",
             },
             content_type="application/json",
         )
         self.assertEqual(person_response.status_code, 201)
+        self.assertEqual(person_response.json()["title"], "PSK, Şef")
+        self.assertEqual(person_response.json()["titles"], ["PSK", "Şef"])
         self.assertEqual(person_response.json()["groups"], [group_response.json()["id"]])
         self.assertTrue(
             PersonGroup.objects.get(pk=group_response.json()["id"])
             .people.filter(pk=person_response.json()["id"])
             .exists()
         )
+
+    def test_admin_cannot_assign_unknown_organization_title(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse("panel-responsible-list", kwargs={"panel_id": self.panel.id}),
+            data={"name": "Geçersiz Rol", "titles": ["Pilot"]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("titles", response.json())
+        self.assertFalse(PanelResponsible.objects.filter(name="Geçersiz Rol").exists())
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
@@ -480,6 +501,8 @@ class TechnicalDocumentApiTests(TestCase):
             username="document-admin",
             password="StrongPass123!",
             is_staff=True,
+            first_name="Ayşe",
+            last_name="Yılmaz",
         )
         self.project = Project.objects.create(name="TULPAR", code="TPL")
         self.panel = ProjectPanel.objects.create(project=self.project, name="Aviyonik")
@@ -530,6 +553,8 @@ class TechnicalDocumentApiTests(TestCase):
         self.assertEqual(document.panels.count(), 2)
         self.assertEqual(document.status_history.count(), 1)
         self.assertEqual(document.created_by, self.admin)
+        self.assertEqual(response.json()["created_by_name"], "Ayşe Yılmaz (document-admin)")
+        self.assertEqual(response.json()["updated_by_name"], "Ayşe Yılmaz (document-admin)")
 
     def test_document_rejects_panel_from_another_project(self):
         self.client.force_login(self.admin)
@@ -611,6 +636,10 @@ class TechnicalDocumentApiTests(TestCase):
         self.assertEqual(history.from_status, "in_review")
         self.assertEqual(history.to_status, "approved")
         self.assertEqual(history.changed_by, self.admin)
+        self.assertEqual(
+            response.json()["status_history"][0]["changed_by_name"],
+            "Ayşe Yılmaz (document-admin)",
+        )
 
     def test_status_transition_requires_a_non_blank_audit_note(self):
         document = self.create_document()
@@ -808,12 +837,14 @@ class TechnicalDocumentApiTests(TestCase):
         reader_payload = self.client.get(detail_url).json()
         reader_audit = reader_payload["notifications"][0]
         self.assertEqual(reader_payload["notification_recipients"], [])
+        self.assertEqual(reader_audit["sent_by_name"], "Ayşe Yılmaz (document-admin)")
         for sensitive_field in ("subject", "message", "recipients", "error_message"):
             self.assertNotIn(sensitive_field, reader_audit)
 
         self.client.force_login(self.admin)
         staff_payload = self.client.get(detail_url).json()
         staff_audit = staff_payload["notifications"][0]
+        self.assertEqual(staff_audit["sent_by_name"], "Ayşe Yılmaz (document-admin)")
         self.assertEqual(staff_audit["message"], "Gizli bildirim gövdesi")
         self.assertEqual(staff_audit["recipients"], ["ada@example.com"])
         self.assertEqual(staff_audit["error_message"], "SMTP iç hata ayrıntısı")

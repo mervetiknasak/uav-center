@@ -42,6 +42,7 @@ bağımlılık yönü, veri sahipliği ve genişletme kuralları için
   geçerliliklerini birleştiren Operasyonel Takvim
 - Uçuş izni formları dahil klasör bazlı 14 mühendislik süreci ve 35 sürümlü FM Word şablonu
 - Mühendislik form kayıtlarında güvenli doküman eki ve indirilebilir Word çıktısı
+- Manifest, güvenli uygulama-kabuğu önbelleği ve arayüz içi kurulum seçeneğiyle kurulabilir PWA
 
 ## Backend
 
@@ -483,6 +484,22 @@ http://localhost:5173
 ```
 
 Frontend, geliştirme modunda Django API'ye `/api` proxy'si üzerinden bağlanır.
+
+Production build bir web app manifest, 192/512 px uygulama ikonları ve service
+worker içerir. Kurulumu destekleyen tarayıcı `beforeinstallprompt` olayını
+ürettiğinde arayüzde “Uygulamayı yükle” kartı gösterilir; kurulu/standalone
+çalışmada kart gizlenir. iOS Safari'de tarayıcı olayı bulunmadığından Paylaş →
+Ana Ekrana Ekle yönergesi sunulur. Service worker yalnız uygulama kabuğu ve statik
+varlıkları önbelleğe alır; session, kullanıcı veya doküman verisi içerebilen
+`/api/` yanıtları önbelleğe alınmaz. Localhost dışındaki kurulum ve service worker
+akışı güvenli origin (HTTPS) gerektirir.
+
+PWA ikonları güncellendiğinde sürümlenen yüksek çözünürlüklü PNG kaynaklarından
+uygulama boyutlarını yeniden üretmek için:
+
+```bash
+backend/.venv/bin/python frontend/scripts/generate_pwa_icons.py
+```
 
 ## Kalite kapıları
 

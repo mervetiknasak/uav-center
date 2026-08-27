@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from ..common.serializer_fields import UserDisplayNameField
 from ..organization.models import ProjectPanel
 from .models import (
     CoverPage,
@@ -19,7 +20,7 @@ class TechnicalDocumentPanelSerializer(serializers.ModelSerializer):
 
 
 class TechnicalDocumentStatusHistorySerializer(serializers.ModelSerializer):
-    changed_by_name = serializers.CharField(source="changed_by.username", read_only=True)
+    changed_by_name = UserDisplayNameField(source="changed_by")
     from_status_display = serializers.CharField(source="get_from_status_display", read_only=True)
     to_status_display = serializers.CharField(source="get_to_status_display", read_only=True)
 
@@ -38,7 +39,7 @@ class TechnicalDocumentStatusHistorySerializer(serializers.ModelSerializer):
 
 
 class TechnicalDocumentNotificationSerializer(serializers.ModelSerializer):
-    sent_by_name = serializers.CharField(source="sent_by.username", read_only=True)
+    sent_by_name = UserDisplayNameField(source="sent_by")
 
     class Meta:
         model = TechnicalDocumentNotification
@@ -59,7 +60,7 @@ class TechnicalDocumentNotificationSerializer(serializers.ModelSerializer):
 class TechnicalDocumentNotificationSummarySerializer(serializers.ModelSerializer):
     """Non-sensitive notification audit projection for non-staff readers."""
 
-    sent_by_name = serializers.CharField(source="sent_by.username", read_only=True)
+    sent_by_name = UserDisplayNameField(source="sent_by")
 
     class Meta:
         model = TechnicalDocumentNotification
@@ -100,8 +101,8 @@ class TechnicalDocumentSerializer(serializers.ModelSerializer):
     notification_recipients = serializers.SerializerMethodField()
     status_history = TechnicalDocumentStatusHistorySerializer(many=True, read_only=True)
     notifications = serializers.SerializerMethodField()
-    created_by_name = serializers.CharField(source="created_by.username", read_only=True)
-    updated_by_name = serializers.CharField(source="updated_by.username", read_only=True)
+    created_by_name = UserDisplayNameField(source="created_by")
+    updated_by_name = UserDisplayNameField(source="updated_by")
     cover_page = CoverPageSerializer(required=False, allow_null=True)
     status_note = serializers.CharField(
         required=False,

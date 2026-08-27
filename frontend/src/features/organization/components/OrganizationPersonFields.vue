@@ -1,5 +1,12 @@
 <script setup>
-defineProps({ person: { type: Object, required: true } });
+import { computed } from "vue";
+
+const props = defineProps({ person: { type: Object, required: true } });
+
+const titles = computed(() => {
+  if (Array.isArray(props.person.titles) && props.person.titles.length) return props.person.titles;
+  return props.person.title ? [props.person.title] : [];
+});
 </script>
 
 <template>
@@ -21,9 +28,10 @@ defineProps({ person: { type: Object, required: true } });
       <strong :title="person.name">{{ person.name }}</strong>
     </n-grid-item>
     <n-grid-item span="12 m:3" class="responsible-cell">
-      <span :title="person.title || 'Görev bilgisi yok'">
-        {{ person.title || "Görev bilgisi yok" }}
-      </span>
+      <n-space v-if="titles.length" size="small">
+        <n-tag v-for="title in titles" :key="title" size="small">{{ title }}</n-tag>
+      </n-space>
+      <span v-else>Görev bilgisi yok</span>
     </n-grid-item>
     <n-grid-item span="12 m:4" class="responsible-cell">
       <a v-if="person.email" :href="`mailto:${person.email}`" :title="person.email">

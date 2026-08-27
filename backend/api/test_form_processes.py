@@ -104,6 +104,8 @@ class FormProcessApiTests(APITestCase):
             username="form-process-user",
             password="test-password",
             is_active=True,
+            first_name="Mehmet",
+            last_name="Kaya",
         )
         self.client.force_authenticate(self.user)
 
@@ -335,6 +337,14 @@ class FormProcessApiTests(APITestCase):
         self.assertEqual(create_response.data["record_number"], "PANEL-2026-001")
         self.assertEqual(create_response.data["process_name"], "Panel Uyum Beyanı")
         self.assertEqual(create_response.data["form_number"], "FM.DSG.0200T")
+        self.assertEqual(
+            create_response.data["created_by_name"],
+            "Mehmet Kaya (form-process-user)",
+        )
+        self.assertEqual(
+            create_response.data["updated_by_name"],
+            "Mehmet Kaya (form-process-user)",
+        )
         self.assertEqual(FormProcessRecord.objects.get().created_by, self.user)
 
         update_response = self.client.patch(

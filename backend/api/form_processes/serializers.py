@@ -3,6 +3,7 @@ from pathlib import Path
 
 from rest_framework import serializers
 
+from ..common.serializer_fields import UserDisplayNameField
 from ..services.document_limits import DocumentPreflightError, preflight_document
 from .catalog import (
     FORM_TEMPLATES,
@@ -36,8 +37,8 @@ class FormProcessRecordSerializer(serializers.ModelSerializer):
     form_number = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     generated_document_url = serializers.SerializerMethodField()
-    created_by_name = serializers.CharField(source="created_by.username", read_only=True)
-    updated_by_name = serializers.CharField(source="updated_by.username", read_only=True)
+    created_by_name = UserDisplayNameField(source="created_by")
+    updated_by_name = UserDisplayNameField(source="updated_by")
     data = MultipartJSONField(required=False)
     attachment_url = serializers.SerializerMethodField()
     remove_attachment = serializers.BooleanField(write_only=True, required=False, default=False)

@@ -2,12 +2,56 @@ from django.db.models import Max
 from rest_framework import serializers
 
 from .models import PanelResponsible, Person, PersonGroup, Project, ProjectPanel
+from .titles import (
+    ORGANIZATION_TITLES,
+    format_organization_titles,
+    normalize_organization_titles,
+    parse_organization_title,
+)
 
 
-class PanelResponsibleSerializer(serializers.ModelSerializer):
+class OrganizationMemberSerializer(serializers.ModelSerializer):
+    titles = serializers.ListField(
+        child=serializers.ChoiceField(
+            choices=ORGANIZATION_TITLES,
+            error_messages={"invalid_choice": "Geçersiz görev/ünvan seçimi: {input}."},
+        ),
+        required=False,
+        write_only=True,
+    )
+
+    def validate_titles(self, value):
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError("Aynı görev/ünvan birden fazla kez seçilemez.")
+        return normalize_organization_titles(value)
+
+    def validate_title(self, value):
+        if not value:
+            return ""
+        titles = parse_organization_title(value)
+        if not titles:
+            choices = ", ".join(ORGANIZATION_TITLES)
+            raise serializers.ValidationError(
+                f"Görev/ünvan yalnızca şu seçeneklerden oluşabilir: {choices}."
+            )
+        return format_organization_titles(titles)
+
+    def validate(self, attrs):
+        titles = attrs.pop("titles", None)
+        if titles is not None:
+            attrs["title"] = format_organization_titles(titles)
+        return attrs
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation["titles"] = parse_organization_title(instance.title)
+        return representation
+
+
+class PanelResponsibleSerializer(OrganizationMemberSerializer):
     class Meta:
         model = PanelResponsible
-        fields = ["id", "panel", "name", "title", "email", "username", "order"]
+        fields = ["id", "panel", "name", "title", "titles", "email", "username", "order"]
         read_only_fields = ["panel"]
 
     def create(self, validated_data):
@@ -45,7 +89,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "updated_at"]
 
 
-class PersonSerializer(serializers.ModelSerializer):
+class PersonSerializer(OrganizationMemberSerializer):
     groups = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 
     class Meta:
@@ -54,6 +98,7 @@ class PersonSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "title",
+            "titles",
             "email",
             "username",
             "groups",

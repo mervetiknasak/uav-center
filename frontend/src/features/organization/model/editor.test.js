@@ -22,13 +22,14 @@ describe("organization editor model", () => {
     expect(
       createOrganizationEditorForm("person", {
         name: "Ada",
-        title: "Engineer",
+        title: "CVE, AS",
+        titles: ["CVE", "AS"],
         email: "ada@example.com",
         username: "ada"
       })
     ).toEqual({
       name: "Ada",
-      title: "Engineer",
+      titles: ["CVE", "AS"],
       email: "ada@example.com",
       username: "ada"
     });

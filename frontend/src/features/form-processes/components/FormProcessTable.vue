@@ -78,7 +78,7 @@ const columns = [
   {
     title: "Güncelleyen",
     key: "updated_by_name",
-    width: 160,
+    width: 220,
     render: (record) => h(NText, { depth: 2 }, { default: () => record.updated_by_name || "—" })
   },
   {

@@ -16,6 +16,17 @@
     padding: 20px;
   }
 
+  .pwa-install-prompt {
+    right: 12px;
+    bottom: 12px;
+    grid-template-columns: auto 1fr auto;
+    width: calc(100vw - 24px);
+  }
+
+  .pwa-install-prompt > .n-button:not([aria-label]) {
+    grid-column: 1 / -1;
+  }
+
   .system-grid,
   .document-layout,
   .ai-studio-layout {
