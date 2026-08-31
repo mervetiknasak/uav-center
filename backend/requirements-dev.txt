@@ -1,5 +1,5 @@
 # Development-only quality and security tools. Runtime dependencies remain in requirements.txt.
-mypy==2.3.0
+mypy==2.3.1
 pip-audit==2.10.1
-ruff==0.15.22
+ruff==0.16.5
 
