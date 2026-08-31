@@ -1,5 +1,6 @@
 from datetime import timedelta
 from io import BytesIO
+from pathlib import Path
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -259,6 +260,40 @@ class EDKMinutesParseApiTests(TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["detail"], "Word dosyası işlenemedi.")
         self.assertNotIn("/private/tmp", response.content.decode())
+
+    @patch("api.edk.views.parse_minutes_document")
+    def test_parse_closes_temporary_file_before_opening_it_for_read(
+        self,
+        parse_minutes_document,
+    ):
+        opened_writers = []
+        original_open = Path.open
+
+        def track_open(path, *args, **kwargs):
+            stream = original_open(path, *args, **kwargs)
+            if args and args[0] == "wb":
+                opened_writers.append(stream)
+            return stream
+
+        def assert_writer_closed(_file_path):
+            self.assertEqual(len(opened_writers), 1)
+            self.assertTrue(opened_writers[0].closed)
+            return {
+                "table_count": 1,
+                "cell_count": 0,
+                "cells": [],
+                "extracted_data": {"action_items": []},
+            }
+
+        parse_minutes_document.side_effect = assert_writer_closed
+
+        with patch("api.edk.views.Path.open", new=track_open):
+            response = self.client.post(
+                self.parse_url,
+                data={"file": self.word_file()},
+            )
+
+        self.assertEqual(response.status_code, 200)
 
     def test_parse_keeps_all_distinct_cells(self):
         from docx import Document

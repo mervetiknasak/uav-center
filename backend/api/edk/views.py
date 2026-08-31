@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from django.http import FileResponse
 from rest_framework import status
@@ -63,14 +64,14 @@ def _parse_minutes_upload(request, application):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    from tempfile import NamedTemporaryFile
-
     try:
-        with NamedTemporaryFile(suffix=".docx") as temporary_file:
-            for chunk in upload.chunks():
-                temporary_file.write(chunk)
-            temporary_file.flush()
-            result = parse_minutes_document(temporary_file.name)
+        with TemporaryDirectory() as temporary_directory:
+            temporary_path = Path(temporary_directory) / "minutes.docx"
+            with temporary_path.open("wb") as temporary_file:
+                for chunk in upload.chunks():
+                    temporary_file.write(chunk)
+
+            result = parse_minutes_document(temporary_path)
     except EDKMinutesParseError as exc:
         logger.warning(
             "Word table parsing failed: %s",
