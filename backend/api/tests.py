@@ -383,6 +383,30 @@ class EDKMinutesParseApiTests(TestCase):
         self.assertTrue(extracted["action_item_list_found"])
         self.assertTrue(extracted["attachments_found"])
 
+    def test_mapped_field_falls_back_to_first_value_in_coordinate_row(self):
+        from docx import Document
+
+        document = Document()
+        table = document.add_table(rows=3, cols=4)
+        table.cell(1, 0).text = "Satırdaki ilk proje değeri"
+        table.cell(2, 0).text = "Bu değer seçilmemeli"
+        table.cell(2, 2).text = "Koordinattaki konu değeri"
+
+        content = BytesIO()
+        document.save(content)
+        upload = SimpleUploadedFile(
+            "koordinat-fallback.docx",
+            content.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        response = self.client.post(self.parse_url, data={"file": upload})
+
+        self.assertEqual(response.status_code, 200)
+        extracted = response.json()["extracted_data"]
+        self.assertEqual(extracted["project"], "Satırdaki ilk proje değeri")
+        self.assertEqual(extracted["subject"], "Koordinattaki konu değeri")
+
     def test_extracts_discussions_across_continuation_table_until_action_items(self):
         from docx import Document
 

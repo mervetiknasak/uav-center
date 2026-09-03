@@ -121,13 +121,29 @@ def _extract_section(cells, *, start_headings, end_index):
     return "\n".join(values)
 
 
+def _extract_coordinate_value(cells, coordinates, field_coordinates):
+    value = coordinates.get(field_coordinates, "")
+    if value:
+        return value
+
+    table_index, row_index, _column_index = field_coordinates
+    return next(
+        (
+            cell.text
+            for cell in cells
+            if cell.table_index == table_index and cell.row_index == row_index and cell.text
+        ),
+        "",
+    )
+
+
 def _extract_mapped_data(cells, content_blocks=None):
     content_blocks = cells if content_blocks is None else content_blocks
     coordinates = {
         (cell.table_index, cell.row_index, cell.column_index): cell.text for cell in cells
     }
     fields = {
-        field_name: coordinates.get(field_coordinates, "")
+        field_name: _extract_coordinate_value(cells, coordinates, field_coordinates)
         for field_name, field_coordinates in FIELD_COORDINATES.items()
     }
 
