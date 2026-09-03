@@ -40,7 +40,7 @@ bağımlılık yönü, veri sahipliği ve genişletme kuralları için
 - Panel sorumlularına alıcı önizlemeli e-posta bildirimi ve bildirim geçmişi
 - Teknik doküman termin/inceleme tarihleri, bekleyen iş akışları ve uçuş izni
   geçerliliklerini birleştiren Operasyonel Takvim
-- Uçuş izni formları dahil klasör bazlı 14 mühendislik süreci ve 35 sürümlü FM Word şablonu
+- Uçuş izni formları dahil 6 mühendislik süreci ve 36 sürümlü Word şablonu
 - Mühendislik form kayıtlarında güvenli doküman eki ve indirilebilir Word çıktısı
 - Manifest, güvenli uygulama-kabuğu önbelleği ve arayüz içi kurulum seçeneğiyle kurulabilir PWA
 
@@ -146,7 +146,8 @@ DRF yanıt formatı:
 - `GET /api/edk/applications/<id>/presentation/`: yalnız başvuruyu görebilen EDK kullanıcısına doğrulanmış sunum dosyasını indirir
 - `POST /api/edk/applications/<id>/decision/`: Onaylayıcı rolüyle bekleyen başvuruyu onaylama veya gerekçeli reddetme
 - `POST /api/edk/applications/<id>/minutes/parse/`: yalnız başvuru sahibi ve onaylanmış EDK kaydı için `.docx` toplantı tutanağını okuma
-- `POST /api/edk/jira/publish/`: staff kullanıcının düzenlenen toplantı taslağından bir Jira Task ve ona bağlı Sub-task kayıtları oluşturması
+- `POST /api/edk/jira/publish/`: staff kullanıcının zorunlu, geçici `jsession` değeriyle kendi Jira oturumu adına düzenlenen toplantı taslağından bir Jira Task ve ona bağlı Sub-task kayıtları oluşturması
+- `POST /api/edk/applications/<id>/jira/publish/`: adminin veya EDK talebini açan kişinin zorunlu, geçici `jsession` değeriyle Task ve Sub-task kayıtlarını oluşturup ana Task'ı EDK'ya bağlaması
 
 Yerel demo dokümanlarını mevcut projelere idempotent olarak eklemek için:
 
@@ -191,11 +192,12 @@ paylaşımlı operasyonel kayıtları görebilir, ancak bildirim gönderemez.
 ## Mühendislik Form Süreçleri
 
 **Süreçler → Formlar** çalışma alanı, `Formlar` envanterindeki klasörleri süreç ve
-`FM` ile başlayan DOCX dosyalarını sürümlü şablon olarak sunar. Katalogda uçuş
-izinleri dahil 14 süreç altında 35 şablon bulunur. `FM.QUA.0579`, `FM.QUA.0580`
-ve `FM.QUA.0581` uçuş izni sürecinin şablonlarıdır; kayıtları da diğer formlar
-gibi `FormProcessRecord` içinde tutulur. Her şablon; kaynak formdaki başlık, boş hücre
-ve yer tutuculardan çıkarılan alan şemasına sahiptir. Backend yalnız seçilen
+DOCX dosyalarını sürümlü şablon olarak sunar. Katalogda uçuş izinleri dahil 6 süreç
+altında 36 şablon bulunur. `FM.DSG.0327`, `PR.DSG.20.034E`, `PR.QUA.20.104E`,
+`FM.QUA.0579`, `FM.QUA.0580` ve `FM.QUA.0581` uçuş izni sürecinin şablonlarıdır;
+kayıtları da diğer formlar gibi `FormProcessRecord` içinde tutulur. Her şablon;
+kaynak formdaki başlık, boş hücre ve yer tutuculardan çıkarılan alan şemasına
+sahiptir. Backend yalnız seçilen
 şablonun alanlarını kabul eder; zorunlu alan, veri tipi, tarih, seçim ve uzunluk
 sınırlarını yan etkiden önce doğrular.
 
@@ -453,6 +455,13 @@ bağlanır. EDK sahibi ile onaylayıcılar takip kartını Jira'dan yenileyerek 
 koşulu, en az bir Sub-task bulunması ve Sub-task'ların tamamının Jira durum
 kategorisinde `done` olmasıdır; gerçek Jira okuması yalnız kullanıcı yenileme
 işlemiyle ve yapılandırılmış timeout üzerinden yapılır.
+
+Jira yayın istekleri `jsession` alanında JSESSIONID çerezinin yalnızca değerini
+zorunlu olarak alır. Değer veritabanına veya uygulama ayarlarına kaydedilmez ve
+yanıta eklenmez; yalnız o istekte oluşturulan Jira istemcisinin `JSESSIONID`
+çerezi olarak kullanılır. EDK'ya bağlı yayın işlemini staff kullanıcıların yanında
+doğrudan talebi açan kullanıcı da yapabilir; diğer kullanıcılar kayıt için `404`
+alır.
 
 ## IBM DOORS 9.7.0 Connector
 

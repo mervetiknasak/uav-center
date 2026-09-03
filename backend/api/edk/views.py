@@ -27,7 +27,10 @@ from .roles import (
     EDK_ROLE_APPROVER,
     user_has_edk_role,
 )
-from .selectors import edk_applications_visible_to
+from .selectors import (
+    edk_applications_publishable_to_jira_by,
+    edk_applications_visible_to,
+)
 from .serializers import (
     EDKApplicationDecisionSerializer,
     EDKApplicationSerializer,
@@ -240,10 +243,12 @@ class EDKJiraPublishView(APIView):
     def post(self, request):
         serializer = EDKJiraPublishRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        payload = dict(serializer.validated_data)
+        jsession = payload.pop("jsession")
         try:
             result = publish_jira_draft(
-                serializer.validated_data,
-                jira=JiraConnector(),
+                payload,
+                jira=JiraConnector(jsession=jsession),
             )
         except JiraConnectorError as exc:
             logger.error(
@@ -266,10 +271,13 @@ class EDKJiraPublishView(APIView):
 class EDKApplicationJiraPublishView(APIView):
     """Publish a draft and durably bind the resulting parent Task to one EDK."""
 
-    permission_classes = [IsActiveAdminUser]
+    permission_classes = [IsActiveAuthenticated]
 
     def post(self, request, application_id):
-        application = get_object_or_404(EDKApplication, pk=application_id)
+        application = get_object_or_404(
+            edk_applications_publishable_to_jira_by(request.user),
+            pk=application_id,
+        )
         if (
             application.status != EDKApplication.STATUS_APPROVED
             or not application.minutes_file_name
@@ -285,9 +293,11 @@ class EDKApplicationJiraPublishView(APIView):
             )
         serializer = EDKJiraPublishRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        payload = dict(serializer.validated_data)
+        jsession = payload.pop("jsession")
         try:
-            jira = JiraConnector()
-            result = publish_jira_draft(serializer.validated_data, jira=jira)
+            jira = JiraConnector(jsession=jsession)
+            result = publish_jira_draft(payload, jira=jira)
             application = link_edk_jira_issue(
                 application=application,
                 issue_key=result["task"]["key"],

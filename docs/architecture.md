@@ -114,7 +114,8 @@ Uygulama karma görünürlük modeline sahiptir:
 | Organizasyon ve teknik doküman yazma/bildirim | Staff; bildirim body/alıcı/hata ayrıntısı staff-only                                                |
 | Mühendislik form süreçleri ve uçuş izinleri   | Paylaşımlı operasyonel kayıtlar; şablon kodu, alan şeması ve ek dosya backend tarafından doğrulanır |
 | Operasyonel uyarı projeksiyonu                | Aktif kullanıcılar; bildirim eylemi ve alıcı bilgileri mevcut staff sınırında kalır                 |
-| Jira yayın ve model yönetimi                  | Staff veya açıkça tanımlı özel izin                                                                 |
+| Jira yayın                                    | Staff veya EDK talebinin sahibi; geçici kullanıcı JSESSIONID değeriyle                             |
+| Model yönetimi                                | Staff                                                                                                |
 
 Sahiplik uygulanan nesneler görünür queryset üzerinden alınır. Yabancı kimliği
 URL'de bilen kullanıcıya `404` dönülür; frontend gizleme güvenlik sayılmaz.

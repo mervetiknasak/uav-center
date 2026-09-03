@@ -11,7 +11,10 @@ from typing import Any, Protocol
 from django.conf import settings
 
 from ..common.redaction import safe_exception_message
-from ..organization.models import PanelResponsible
+from ..organization.person_matching import (
+    match_registered_person_username,
+    registered_person_username_index,
+)
 from ..services.jira_connector import JiraConnectorError
 
 MEETING_FIELDS = (
@@ -88,8 +91,7 @@ def _slug(value: str) -> str:
 
 
 def build_jira_draft(extracted: dict[str, Any]) -> dict[str, Any]:
-    people = list(PanelResponsible.objects.exclude(username=""))
-    by_name = {person.name.casefold().strip(): person.username for person in people}
+    username_index = registered_person_username_index()
     subject = (extracted.get("subject") or "").strip()
     mom_no = (extracted.get("mom_no") or "").strip()
     fingerprint_source = "|".join(str(extracted.get(key) or "") for key, _label in MEETING_FIELDS)
@@ -117,7 +119,7 @@ def build_jira_draft(extracted: dict[str, Any]) -> dict[str, Any]:
                 "summary": (item.get("action_item") or "").strip(),
                 "description": f"Toplantı aksiyon no: {item.get('no') or index + 1}",
                 "responsible": responsible,
-                "username": by_name.get(responsible.casefold()),
+                "username": match_registered_person_username(responsible, username_index),
                 "due_date": (item.get("due_date") or "").strip(),
             }
         )

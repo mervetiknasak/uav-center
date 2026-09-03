@@ -23,6 +23,7 @@ const emit = defineEmits(["back", "decide", "parse", "publish", "refresh-jira"])
 const decisionNote = ref("");
 const selectedFileName = ref("");
 const draft = ref(null);
+const jiraSession = ref("");
 
 const isApprover = computed(() => props.edkRoles.includes("approver"));
 const canDecide = computed(
@@ -67,7 +68,12 @@ function setAllMeetingFields(enabled) {
 }
 
 function publish() {
-  if (props.canPublish) emit("publish", JSON.parse(JSON.stringify(draft.value)));
+  if (!props.canPublish || !jiraSession.value.trim()) return;
+  emit("publish", {
+    ...JSON.parse(JSON.stringify(draft.value)),
+    jsession: jiraSession.value.trim()
+  });
+  jiraSession.value = "";
 }
 </script>
 
@@ -427,11 +433,27 @@ function publish() {
         </n-collapse>
       </n-card>
 
+      <n-card v-if="canPublish && !jiraTracking" title="Jira Kullanıcı Oturumu" size="small">
+        <n-form-item label="JSESSIONID değeri" required>
+          <n-input
+            v-model:value="jiraSession"
+            type="password"
+            show-password-on="click"
+            autocomplete="off"
+            maxlength="4096"
+            placeholder="JSESSIONID çerezinin yalnızca değerini girin"
+          />
+        </n-form-item>
+        <n-alert type="info" :show-icon="false">
+          Bu değer yalnızca bu Jira aktarımında sizin adınıza işlem yapmak için kullanılır ve
+          kaydedilmez.
+        </n-alert>
+      </n-card>
       <n-space v-if="canPublish && !jiraTracking" justify="end">
         <n-button
           type="primary"
           :loading="publishing"
-          :disabled="!draft.task.project_key || !draft.task.summary"
+          :disabled="!draft.task.project_key || !draft.task.summary || !jiraSession.trim()"
           @click="publish"
         >
           Task ve {{ enabledSubtasks }} Sub-task Oluştur
@@ -442,7 +464,8 @@ function publish() {
         yenileyebilirsiniz.
       </n-alert>
       <n-alert v-else type="info" title="Jira yayınlama yetkisi">
-        Jira'da Task ve Sub-task oluşturma yalnızca admin kullanıcılarına açıktır.
+        Jira'da Task ve Sub-task oluşturma yalnızca adminlere ve bu EDK talebini açan kişiye
+        açıktır.
       </n-alert>
       <n-alert
         v-if="publishResult"

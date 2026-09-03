@@ -8,7 +8,14 @@ from django.urls import reverse
 from .edk.jira import build_jira_draft, fetch_jira_tracking, publish_jira_draft
 from .edk.roles import EDK_ROLE_GROUPS
 from .edk.services import EDKJiraConflict, link_edk_jira_issue
-from .models import EDKApplication, PanelResponsible, Project, ProjectPanel
+from .models import (
+    EDKApplication,
+    PanelResponsible,
+    Person,
+    PersonGroup,
+    Project,
+    ProjectPanel,
+)
 from .services.jira_connector import JiraConnectorError
 
 
@@ -68,6 +75,51 @@ class EDKJiraTests(TestCase):
         self.assertEqual(draft["task"]["summary"], "Uçuş hazırlığı")
         self.assertEqual(len(draft["task"]["meeting_fields"]), 8)
         self.assertEqual(draft["subtasks"][0]["username"], "ada.local")
+
+    def test_matches_action_responsibles_from_every_registered_person_source(self):
+        application_member = get_user_model().objects.create_user(
+            username="selin.jira",
+            first_name="Selin",
+            last_name="Arslan",
+        )
+        group = PersonGroup.objects.create(name="Uçuş Emniyeti")
+        group_person = Person.objects.create(name="Mert Kaya", username="mert.jira")
+        group.people.add(group_person)
+        extracted = {
+            **self.extracted,
+            "action_items": [
+                {"action_item": "Üye aksiyonu", "responsible": " Selin   Arslan "},
+                {"action_item": "Grup aksiyonu", "responsible": "MERT KAYA"},
+                {"action_item": "Panel aksiyonu", "responsible": "Ada"},
+            ],
+        }
+
+        draft = build_jira_draft(extracted)
+
+        self.assertIsNotNone(application_member.pk)
+        self.assertEqual(
+            [item["username"] for item in draft["subtasks"]],
+            ["selin.jira", "mert.jira", "ada.local"],
+        )
+        self.assertEqual(draft["warnings"], [])
+
+    def test_does_not_assign_an_ambiguous_name_to_a_username(self):
+        group = PersonGroup.objects.create(name="Aviyonik")
+        group.people.add(Person.objects.create(name="Ada", username="other.ada"))
+
+        draft = build_jira_draft(self.extracted)
+
+        self.assertIsNone(draft["subtasks"][0]["username"])
+        self.assertEqual(
+            draft["warnings"],
+            ["Bazı sorumlular için username eşleşmesi bulunamadı."],
+        )
+
+    def jira_payload(self):
+        return {
+            **build_jira_draft(self.extracted),
+            "jsession": "user-session-123",
+        }
 
     def test_publishes_parent_before_subtask(self):
         jira = Mock()
@@ -167,14 +219,14 @@ class EDKJiraTests(TestCase):
             if jql.startswith("project =")
             else [self.jira_issue("UAV-11", "Motor kontrolü", "Açık", "new")]
         )
-        self.client.force_login(self.admin)
+        self.client.force_login(self.user)
 
         response = self.client.post(
             reverse(
                 "edk-application-jira-publish",
                 kwargs={"application_id": self.application.id},
             ),
-            data=build_jira_draft(self.extracted),
+            data=self.jira_payload(),
             content_type="application/json",
         )
 
@@ -185,6 +237,7 @@ class EDKJiraTests(TestCase):
         self.assertEqual(self.application.jira_summary, "Uçuş hazırlığı")
         self.assertEqual(response.json()["tracking"]["subtask_total"], 1)
         self.assertFalse(response.json()["tracking"]["all_subtasks_closed"])
+        connector.assert_called_once_with(jsession="user-session-123")
 
     @patch("api.edk.views.JiraConnector")
     def test_application_publish_keeps_link_when_initial_tracking_refresh_fails(self, connector):
@@ -200,7 +253,7 @@ class EDKJiraTests(TestCase):
                 "edk-application-jira-publish",
                 kwargs={"application_id": self.application.id},
             ),
-            data=build_jira_draft(self.extracted),
+            data=self.jira_payload(),
             content_type="application/json",
         )
 
@@ -211,20 +264,26 @@ class EDKJiraTests(TestCase):
         self.assertIn("daha sonra yenilenmelidir", response.json()["message"])
 
     @patch("api.edk.views.JiraConnector")
-    def test_application_publish_requires_admin_and_an_approved_minutes_upload(self, connector):
+    def test_application_publish_hides_other_users_edk_and_requires_approved_minutes(
+        self, connector
+    ):
         url = reverse(
             "edk-application-jira-publish",
             kwargs={"application_id": self.application.id},
         )
-        draft = build_jira_draft(self.extracted)
-        self.client.force_login(self.user)
+        draft = self.jira_payload()
+        foreign_user = get_user_model().objects.create_user(
+            username="foreign-publisher",
+            password="StrongPass123!",
+        )
+        self.client.force_login(foreign_user)
         denied = self.client.post(url, data=draft, content_type="application/json")
         self.application.minutes_file_name = ""
         self.application.save(update_fields=["minutes_file_name"])
         self.client.force_login(self.admin)
         invalid_state = self.client.post(url, data=draft, content_type="application/json")
 
-        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(denied.status_code, 404)
         self.assertEqual(invalid_state.status_code, 409)
         connector.assert_not_called()
 
@@ -348,16 +407,17 @@ class EDKJiraTests(TestCase):
             "task": {"project_key": "UAV", "summary": "Uçuş hazırlığı"},
             "subtasks": [],
         }
+        request_payload = {**payload, "jsession": "admin-session-123"}
         self.client.force_login(self.user)
         denied = self.client.post(
             reverse("edk-jira-publish"),
-            data=payload,
+            data=request_payload,
             content_type="application/json",
         )
         self.client.force_login(self.admin)
         allowed = self.client.post(
             reverse("edk-jira-publish"),
-            data=payload,
+            data=request_payload,
             content_type="application/json",
         )
 
@@ -375,6 +435,7 @@ class EDKJiraTests(TestCase):
             data={
                 "task": {"project_key": "UAV", "summary": "Uçuş hazırlığı"},
                 "subtasks": [{"enabled": True, "summary": "   "}],
+                "jsession": "admin-session-123",
             },
             content_type="application/json",
         )
@@ -385,6 +446,31 @@ class EDKJiraTests(TestCase):
             {"subtasks": ["Dahil edilen her alt görev için özet zorunludur."]},
         )
         publish.assert_not_called()
+
+    @patch("api.edk.views.JiraConnector")
+    def test_application_publish_requires_a_valid_jsession(self, connector):
+        self.client.force_login(self.user)
+        url = reverse(
+            "edk-application-jira-publish",
+            kwargs={"application_id": self.application.id},
+        )
+        payload = build_jira_draft(self.extracted)
+
+        missing = self.client.post(url, data=payload, content_type="application/json")
+        invalid = self.client.post(
+            url,
+            data={**payload, "jsession": "session; injected=value"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(missing.json(), {"jsession": ["Bu alan zorunlu."]})
+        self.assertEqual(invalid.status_code, 400)
+        self.assertEqual(
+            invalid.json(),
+            {"jsession": ["Yalnızca JSESSIONID çerezinin geçerli değerini girin."]},
+        )
+        connector.assert_not_called()
 
     @patch("api.edk.views.publish_jira_draft")
     def test_publish_endpoint_does_not_echo_jira_provider_detail(self, publish):
@@ -398,6 +484,7 @@ class EDKJiraTests(TestCase):
             data={
                 "task": {"project_key": "UAV", "summary": "Uçuş hazırlığı"},
                 "subtasks": [],
+                "jsession": "admin-session-123",
             },
             content_type="application/json",
         )

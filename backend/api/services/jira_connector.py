@@ -56,14 +56,14 @@ class JiraConfig:
             timeout=getattr(settings, "JIRA_TIMEOUT", 30),
         )
 
-    def validate(self) -> None:
+    def validate(self, *, has_session_cookie: bool = False) -> None:
         if not self.server:
             raise JiraConnectorError("JIRA_SERVER tanımlanmalıdır.")
         try:
             validated_http_url(self.server, setting_name="JIRA_SERVER")
         except InvalidServiceUrl as exc:
             raise JiraConnectorError(str(exc)) from exc
-        if not (
+        if not has_session_cookie and not (
             (self.email and self.api_token)
             or (self.username and self.password)
             or self.personal_access_token
@@ -87,11 +87,13 @@ class JiraConnector:
         config: JiraConfig | None = None,
         *,
         client: Any | None = None,
+        jsession: str = "",
     ):
         self.config = config or JiraConfig.from_settings()
         self._client = client
+        self._jsession = jsession
         if client is None:
-            self.config.validate()
+            self.config.validate(has_session_cookie=bool(jsession))
 
     @property
     def client(self) -> Any:
@@ -117,16 +119,19 @@ class JiraConnector:
             "server": self.config.server.rstrip("/"),
             "verify": self.config.verify_ssl,
         }
+        if self._jsession:
+            options["cookies"] = {"JSESSIONID": self._jsession}
         kwargs: dict[str, Any] = {
             "options": options,
             "timeout": self.config.timeout,
         }
-        if self.config.personal_access_token:
-            kwargs["token_auth"] = self.config.personal_access_token
-        elif self.config.email and self.config.api_token:
-            kwargs["basic_auth"] = (self.config.email, self.config.api_token)
-        else:
-            kwargs["basic_auth"] = (self.config.username, self.config.password)
+        if not self._jsession:
+            if self.config.personal_access_token:
+                kwargs["token_auth"] = self.config.personal_access_token
+            elif self.config.email and self.config.api_token:
+                kwargs["basic_auth"] = (self.config.email, self.config.api_token)
+            else:
+                kwargs["basic_auth"] = (self.config.username, self.config.password)
 
         try:
             return JIRA(**kwargs)

@@ -61,7 +61,10 @@ describe("useEdkApplicationDetail", () => {
     const detail = useEdkApplicationDetail(apiFetch);
 
     await detail.loadApplication(7);
-    await detail.publish({ task: { project_key: "UAV", summary: "Hazırlık" } });
+    await detail.publish({
+      task: { project_key: "UAV", summary: "Hazırlık" },
+      jsession: "user-session-123"
+    });
     await detail.refreshJiraTracking();
 
     expect(apiFetch).toHaveBeenNthCalledWith(
@@ -69,6 +72,10 @@ describe("useEdkApplicationDetail", () => {
       "/api/edk/applications/7/jira/publish/",
       expect.objectContaining({ method: "POST" })
     );
+    expect(JSON.parse(apiFetch.mock.calls[1][1].body)).toEqual({
+      task: { project_key: "UAV", summary: "Hazırlık" },
+      jsession: "user-session-123"
+    });
     expect(apiFetch).toHaveBeenNthCalledWith(4, "/api/edk/applications/7/jira/refresh/", {
       method: "POST"
     });

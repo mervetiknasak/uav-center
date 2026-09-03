@@ -1,5 +1,6 @@
 """Request DTOs for meeting-minutes HTTP use cases."""
 
+import re
 from collections.abc import Mapping
 from datetime import timedelta
 from pathlib import Path
@@ -186,8 +187,20 @@ class JiraSubtaskSerializer(serializers.Serializer):
 class EDKJiraPublishRequestSerializer(serializers.Serializer):
     """Validate the editable Jira draft while retaining the legacy error contract."""
 
+    jsession = serializers.CharField(
+        max_length=4096,
+        trim_whitespace=True,
+        write_only=True,
+    )
     task = JiraTaskSerializer()
     subtasks = JiraSubtaskSerializer(many=True, required=False, default=list)
+
+    def validate_jsession(self, value):
+        if not re.fullmatch(r"[\x21-\x2B\x2D-\x3A\x3C-\x5B\x5D-\x7E]+", value):
+            raise serializers.ValidationError(
+                "Yalnızca JSESSIONID çerezinin geçerli değerini girin."
+            )
+        return value
 
     def to_internal_value(self, data):
         task = data.get("task") if isinstance(data, Mapping) else None

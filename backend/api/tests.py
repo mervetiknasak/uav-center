@@ -383,6 +383,59 @@ class EDKMinutesParseApiTests(TestCase):
         self.assertTrue(extracted["action_item_list_found"])
         self.assertTrue(extracted["attachments_found"])
 
+    def test_extracts_discussions_across_continuation_table_until_action_items(self):
+        from docx import Document
+
+        document = Document()
+        table = document.add_table(rows=11, cols=4)
+        table.cell(9, 0).merge(table.cell(9, 3)).text = "Görüşülen Konular"
+        table.cell(10, 0).merge(table.cell(10, 3)).text = "Uçuş öncesi kontroller değerlendirildi."
+        document.add_page_break()
+        document.add_paragraph("Telemetri kayıtları ikinci sayfada yeniden incelendi.")
+        continuation_table = document.add_table(rows=4, cols=4)
+        continuation_table.cell(0, 0).merge(
+            continuation_table.cell(0, 3)
+        ).text = "İkinci sayfada telemetri sonuçları görüşüldü."
+        continuation_table.cell(1, 0).merge(continuation_table.cell(1, 3)).text = "İşlem Maddeleri"
+        headers = ["No", "İşlem Maddesi", "Sorumlu", "Bitiş Tarihi"]
+        for column_index, header in enumerate(headers):
+            continuation_table.cell(2, column_index).text = header
+        action_item = ["1", "Raporu paylaş", "Ada", "2026-09-10"]
+        for column_index, value in enumerate(action_item):
+            continuation_table.cell(3, column_index).text = value
+
+        content = BytesIO()
+        document.save(content)
+        upload = SimpleUploadedFile(
+            "uzun-gorusmeler.docx",
+            content.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        response = self.client.post(self.parse_url, data={"file": upload})
+
+        self.assertEqual(response.status_code, 200)
+        extracted = response.json()["extracted_data"]
+        self.assertEqual(
+            extracted["discussions_decisions"],
+            (
+                "Uçuş öncesi kontroller değerlendirildi.\n"
+                "Telemetri kayıtları ikinci sayfada yeniden incelendi.\n"
+                "İkinci sayfada telemetri sonuçları görüşüldü."
+            ),
+        )
+        self.assertEqual(
+            extracted["action_items"],
+            [
+                {
+                    "no": "1",
+                    "action_item": "Raporu paylaş",
+                    "responsible": "Ada",
+                    "due_date": "2026-09-10",
+                }
+            ],
+        )
+
 
 class OrganizationApiTests(TestCase):
     def setUp(self):
