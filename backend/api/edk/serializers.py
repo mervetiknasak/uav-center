@@ -16,7 +16,7 @@ from ..services.document_limits import (
 )
 from .file_policy import EDK_PRESENTATION_EXTENSIONS
 from .models import EDKApplication
-from .services import create_edk_application
+from .services import create_edk_application, jira_tracking_payload
 
 
 class EDKApplicationSerializer(serializers.ModelSerializer):
@@ -31,6 +31,7 @@ class EDKApplicationSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     can_upload_minutes = serializers.SerializerMethodField()
     presentation_url = serializers.SerializerMethodField()
+    jira_tracking = serializers.SerializerMethodField()
 
     class Meta:
         model = EDKApplication
@@ -55,6 +56,7 @@ class EDKApplicationSerializer(serializers.ModelSerializer):
             "reviewed_at",
             "minutes_file_name",
             "minutes_uploaded_at",
+            "jira_tracking",
             "can_upload_minutes",
             "created_at",
             "updated_at",
@@ -73,6 +75,7 @@ class EDKApplicationSerializer(serializers.ModelSerializer):
             "presentation_url",
             "minutes_file_name",
             "minutes_uploaded_at",
+            "jira_tracking",
             "created_at",
             "updated_at",
         ]
@@ -94,6 +97,9 @@ class EDKApplicationSerializer(serializers.ModelSerializer):
         if not application.project:
             return ""
         return f"{application.project.code} — {application.project.name}"
+
+    def get_jira_tracking(self, application):
+        return jira_tracking_payload(application)
 
     def validate_aircraft_name(self, value):
         value = value.strip()

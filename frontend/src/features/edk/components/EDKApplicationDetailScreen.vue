@@ -10,6 +10,7 @@ const props = defineProps({
   decisionLoading: Boolean,
   parseLoading: Boolean,
   publishing: Boolean,
+  trackingLoading: Boolean,
   edkRoles: { type: Array, default: () => [] },
   currentUserName: { type: String, default: "" },
   error: { type: String, default: "" },
@@ -18,7 +19,7 @@ const props = defineProps({
   canPublish: Boolean
 });
 
-const emit = defineEmits(["back", "decide", "parse", "publish"]);
+const emit = defineEmits(["back", "decide", "parse", "publish", "refresh-jira"]);
 const decisionNote = ref("");
 const selectedFileName = ref("");
 const draft = ref(null);
@@ -36,6 +37,11 @@ const enabledSubtasks = computed(
 const enabledMeetingFields = computed(
   () => draft.value?.task.meeting_fields.filter((field) => field.enabled).length || 0
 );
+const jiraTracking = computed(() => props.application?.jira_tracking || null);
+const jiraProgress = computed(() => {
+  const total = jiraTracking.value?.subtask_total || 0;
+  return total ? Math.round((jiraTracking.value.subtask_closed / total) * 100) : 0;
+});
 
 watch(
   () => props.result,
@@ -226,6 +232,92 @@ function publish() {
             Toplantı tutanağı yalnızca onaylanan başvurular için yüklenebilir.
           </n-alert>
         </n-card>
+
+        <n-card v-if="jiraTracking" title="Jira Task Takibi" size="small">
+          <template #header-extra>
+            <n-button
+              size="small"
+              secondary
+              type="primary"
+              :loading="trackingLoading"
+              @click="emit('refresh-jira')"
+            >
+              Jira'dan Yenile
+            </n-button>
+          </template>
+
+          <n-descriptions label-placement="top" :columns="2" bordered size="small">
+            <n-descriptions-item label="Task">
+              <a :href="jiraTracking.url" target="_blank" rel="noopener noreferrer">
+                {{ jiraTracking.key }}
+              </a>
+            </n-descriptions-item>
+            <n-descriptions-item label="Task Durumu">
+              {{ jiraTracking.status || "Henüz alınmadı" }}
+            </n-descriptions-item>
+            <n-descriptions-item label="Task Özeti" :span="2">
+              {{ jiraTracking.summary || "—" }}
+            </n-descriptions-item>
+            <n-descriptions-item label="Son Jira Kontrolü" :span="2">
+              {{
+                jiraTracking.last_synced_at
+                  ? formatEdkDateTime(jiraTracking.last_synced_at)
+                  : "Henüz kontrol edilmedi"
+              }}
+            </n-descriptions-item>
+          </n-descriptions>
+
+          <div class="edk-jira-progress">
+            <n-space justify="space-between" align="center">
+              <strong>Sub-task kapanma durumu</strong>
+              <n-tag
+                :type="jiraTracking.all_subtasks_closed ? 'success' : 'warning'"
+                :bordered="false"
+                size="small"
+              >
+                {{
+                  jiraTracking.all_subtasks_closed
+                    ? "Tüm Sub-task'lar kapalı"
+                    : `${jiraTracking.subtask_closed}/${jiraTracking.subtask_total} kapalı`
+                }}
+              </n-tag>
+            </n-space>
+            <n-progress
+              type="line"
+              :percentage="jiraProgress"
+              :status="jiraTracking.all_subtasks_closed ? 'success' : 'default'"
+            />
+          </div>
+
+          <n-alert
+            v-if="!jiraTracking.subtask_total"
+            type="warning"
+            title="Takip edilecek Sub-task bulunamadı"
+          >
+            Tamamlanma koşulu için Jira Task'ının altında en az bir Sub-task bulunmalıdır.
+          </n-alert>
+          <div v-else class="edk-jira-subtasks">
+            <div
+              v-for="subtask in jiraTracking.subtasks"
+              :key="subtask.key"
+              class="edk-jira-subtask"
+            >
+              <div>
+                <a :href="subtask.url" target="_blank" rel="noopener noreferrer">
+                  {{ subtask.key }}
+                </a>
+                <div>{{ subtask.summary }}</div>
+              </div>
+              <n-tag
+                :type="subtask.is_closed ? 'success' : 'warning'"
+                :bordered="false"
+                size="small"
+              >
+                {{ subtask.status || (subtask.is_closed ? "Kapalı" : "Açık") }}
+              </n-tag>
+            </div>
+          </div>
+        </n-card>
       </template>
     </n-spin>
 
@@ -335,7 +427,7 @@ function publish() {
         </n-collapse>
       </n-card>
 
-      <n-space v-if="canPublish" justify="end">
+      <n-space v-if="canPublish && !jiraTracking" justify="end">
         <n-button
           type="primary"
           :loading="publishing"
@@ -345,6 +437,10 @@ function publish() {
           Task ve {{ enabledSubtasks }} Sub-task Oluştur
         </n-button>
       </n-space>
+      <n-alert v-else-if="jiraTracking" type="info" title="Jira Task bağlantısı mevcut">
+        Bu EDK, {{ jiraTracking.key }} Task'ına bağlıdır. Güncel durumu takip kartından
+        yenileyebilirsiniz.
+      </n-alert>
       <n-alert v-else type="info" title="Jira yayınlama yetkisi">
         Jira'da Task ve Sub-task oluşturma yalnızca admin kullanıcılarına açıktır.
       </n-alert>

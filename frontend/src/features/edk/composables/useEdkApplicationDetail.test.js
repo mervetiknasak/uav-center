@@ -39,4 +39,39 @@ describe("useEdkApplicationDetail", () => {
     expect(apiFetch).toHaveBeenNthCalledWith(3, "/api/edk/applications/7/");
     expect(detail.application.value.minutes_file_name).toBe("tutanak.docx");
   });
+
+  it("publishes into the selected EDK and refreshes its Jira tracking", async () => {
+    const initial = { id: 7, status: "approved", jira_tracking: null };
+    const linked = {
+      ...initial,
+      jira_tracking: { key: "UAV-10", subtask_total: 1, subtask_closed: 0 }
+    };
+    const refreshedTracking = {
+      key: "UAV-10",
+      subtask_total: 1,
+      subtask_closed: 1,
+      all_subtasks_closed: true
+    };
+    const apiFetch = vi
+      .fn()
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce({ status: "created", task: { key: "UAV-10" } })
+      .mockResolvedValueOnce(linked)
+      .mockResolvedValueOnce(refreshedTracking);
+    const detail = useEdkApplicationDetail(apiFetch);
+
+    await detail.loadApplication(7);
+    await detail.publish({ task: { project_key: "UAV", summary: "Hazırlık" } });
+    await detail.refreshJiraTracking();
+
+    expect(apiFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/edk/applications/7/jira/publish/",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(apiFetch).toHaveBeenNthCalledWith(4, "/api/edk/applications/7/jira/refresh/", {
+      method: "POST"
+    });
+    expect(detail.application.value.jira_tracking.all_subtasks_closed).toBe(true);
+  });
 });

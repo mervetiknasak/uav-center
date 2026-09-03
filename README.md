@@ -447,6 +447,12 @@ oluşturulur. Tutanak ve aksiyon etiketleri yeniden aktarımda mükerrer kayıtl
 önlemek ve yarım kalan alt görevleri güvenle tekrar denemek için kullanılır.
 Jira proje anahtarı organizasyon kayıtlarından türetilmez; taslaklarda varsayılan
 olarak `MOM`, `JIRA_MEETING_PROJECT_KEY` tanımlanmışsa onun değeri kullanılır.
+EDK detayından yayınlanan ana Task'ın Jira anahtarı ve adresi ilgili EDK kaydına
+bağlanır. EDK sahibi ile onaylayıcılar takip kartını Jira'dan yenileyerek Task
+özetini, durumunu ve doğrudan Sub-task'ların açık/kapalı durumunu görebilir. Takip
+koşulu, en az bir Sub-task bulunması ve Sub-task'ların tamamının Jira durum
+kategorisinde `done` olmasıdır; gerçek Jira okuması yalnız kullanıcı yenileme
+işlemiyle ve yapılandırılmış timeout üzerinden yapılır.
 
 ## IBM DOORS 9.7.0 Connector
 

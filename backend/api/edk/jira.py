@@ -25,6 +25,7 @@ MEETING_FIELDS = (
     ("discussions_decisions", "Görüşmeler ve kararlar"),
 )
 logger = logging.getLogger(__name__)
+JIRA_ISSUE_KEY_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*-\d+$", re.IGNORECASE)
 
 
 class JiraDraftPublisher(Protocol):
@@ -53,6 +54,32 @@ class JiraDraftPublisher(Protocol):
         parent_key: str | None = None,
         custom_fields: Mapping[str, Any] | None = None,
     ) -> Any: ...
+
+
+class JiraTrackingReader(Protocol):
+    """Narrow Jira surface required to read one Task and its Sub-task status."""
+
+    @property
+    def server_url(self) -> str: ...
+
+    def issue(
+        self,
+        issue_key: str,
+        *,
+        fields: str | Sequence[str] | None = None,
+        expand: str | None = None,
+    ) -> Any: ...
+
+    def search_issues(
+        self,
+        jql: str,
+        *,
+        start_at: int = 0,
+        max_results: int | bool = 50,
+        fields: str | Sequence[str] = "*all",
+        expand: str | None = None,
+        validate_query: bool = True,
+    ) -> Sequence[Any]: ...
 
 
 def _slug(value: str) -> str:
@@ -129,6 +156,72 @@ def _description(fields: list[dict[str, Any]]) -> str:
 def _issue_result(issue: Any, server: str) -> dict[str, str]:
     key = str(issue.key)
     return {"key": key, "url": f"{server.rstrip('/')}/browse/{key}"}
+
+
+def _resource_value(resource: Any, name: str, default: Any = None) -> Any:
+    if isinstance(resource, Mapping):
+        return resource.get(name, default)
+    return getattr(resource, name, default)
+
+
+def _issue_fields(issue: Any) -> Any:
+    return _resource_value(issue, "fields", {})
+
+
+def _status_details(issue: Any) -> tuple[str, bool]:
+    status = _resource_value(_issue_fields(issue), "status", {})
+    status_name = str(_resource_value(status, "name", "") or "")
+    category = _resource_value(status, "statusCategory", {})
+    category_key = str(_resource_value(category, "key", "") or "")
+    return status_name, category_key.casefold() == "done"
+
+
+def fetch_jira_tracking(
+    issue_key: str,
+    *,
+    jira: JiraTrackingReader,
+) -> dict[str, Any]:
+    """Read the parent Task and every direct Sub-task from Jira."""
+
+    issue_key = issue_key.strip()
+    if not JIRA_ISSUE_KEY_PATTERN.fullmatch(issue_key):
+        raise JiraConnectorError("Geçersiz Jira issue anahtarı.")
+
+    parent = jira.issue(issue_key, fields=["key", "summary", "status"])
+    parent_key = str(_resource_value(parent, "key", issue_key))
+    parent_fields = _issue_fields(parent)
+    parent_status, _parent_closed = _status_details(parent)
+    issues = jira.search_issues(
+        f'parent = "{parent_key}"',
+        max_results=False,
+        fields=["key", "summary", "status"],
+    )
+    subtasks = []
+    for issue in issues:
+        status_name, is_closed = _status_details(issue)
+        fields = _issue_fields(issue)
+        key = str(_resource_value(issue, "key", ""))
+        subtasks.append(
+            {
+                "key": key,
+                "url": f"{jira.server_url.rstrip('/')}/browse/{key}",
+                "summary": str(_resource_value(fields, "summary", "") or ""),
+                "status": status_name,
+                "is_closed": is_closed,
+            }
+        )
+
+    closed_count = sum(1 for item in subtasks if item["is_closed"])
+    return {
+        "key": parent_key,
+        "url": f"{jira.server_url.rstrip('/')}/browse/{parent_key}",
+        "summary": str(_resource_value(parent_fields, "summary", "") or ""),
+        "status": parent_status,
+        "subtasks": subtasks,
+        "subtask_total": len(subtasks),
+        "subtask_closed": closed_count,
+        "all_subtasks_closed": bool(subtasks) and closed_count == len(subtasks),
+    }
 
 
 def publish_jira_draft(

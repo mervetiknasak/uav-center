@@ -19,7 +19,7 @@ from ..services.document_limits import (
 )
 from ..services.jira_connector import JiraConnector, JiraConnectorError
 from .file_policy import presentation_content_type
-from .jira import build_jira_draft, publish_jira_draft
+from .jira import build_jira_draft, fetch_jira_tracking, publish_jira_draft
 from .minutes_parser import EDKMinutesParseError, parse_minutes_document
 from .models import EDKApplication
 from .roles import (
@@ -35,7 +35,11 @@ from .serializers import (
 )
 from .services import (
     EDKApplicationConflict,
+    EDKJiraConflict,
     decide_edk_application,
+    jira_tracking_payload,
+    link_edk_jira_issue,
+    record_edk_jira_tracking,
     record_minutes_upload,
 )
 
@@ -257,3 +261,137 @@ class EDKJiraPublishView(APIView):
                 status.HTTP_201_CREATED if result["status"] == "created" else status.HTTP_200_OK
             ),
         )
+
+
+class EDKApplicationJiraPublishView(APIView):
+    """Publish a draft and durably bind the resulting parent Task to one EDK."""
+
+    permission_classes = [IsActiveAdminUser]
+
+    def post(self, request, application_id):
+        application = get_object_or_404(EDKApplication, pk=application_id)
+        if (
+            application.status != EDKApplication.STATUS_APPROVED
+            or not application.minutes_file_name
+        ):
+            return Response(
+                {"detail": "Jira aktarımı için onaylı EDK toplantı tutanağı gereklidir."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if application.jira_issue_key:
+            return Response(
+                {"detail": "Bu EDK zaten bir Jira Task'ına bağlı."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        serializer = EDKJiraPublishRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            jira = JiraConnector()
+            result = publish_jira_draft(serializer.validated_data, jira=jira)
+            application = link_edk_jira_issue(
+                application=application,
+                issue_key=result["task"]["key"],
+                url=result["task"]["url"],
+                summary=serializer.validated_data["task"]["summary"],
+            )
+        except JiraConnectorError as exc:
+            logger.error(
+                "EDK Jira publish failed: %s",
+                safe_exception_message(exc),
+                extra={
+                    "event": "edk_jira_publish_failed",
+                    "edk_application_id": application_id,
+                },
+            )
+            return Response(
+                {"detail": "Jira aktarımı tamamlanamadı."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        except EDKJiraConflict as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        try:
+            tracking = fetch_jira_tracking(application.jira_issue_key, jira=jira)
+            application = record_edk_jira_tracking(
+                application=application,
+                tracking=tracking,
+            )
+        except JiraConnectorError as exc:
+            logger.error(
+                "EDK Jira initial tracking refresh failed: %s",
+                safe_exception_message(exc),
+                extra={
+                    "event": "edk_jira_initial_refresh_failed",
+                    "edk_application_id": application_id,
+                },
+            )
+            result["message"] = " ".join(
+                part
+                for part in (
+                    result.get("message", ""),
+                    "Task EDK'ya bağlandı; Jira durumu daha sonra yenilenmelidir.",
+                )
+                if part
+            )
+        except EDKJiraConflict as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        result["tracking"] = jira_tracking_payload(application)
+        return Response(
+            result,
+            status=(
+                status.HTTP_201_CREATED if result["status"] == "created" else status.HTTP_200_OK
+            ),
+        )
+
+
+class EDKApplicationJiraRefreshView(APIView):
+    permission_classes = [IsActiveAuthenticated]
+
+    def post(self, request, application_id):
+        if not any(
+            user_has_edk_role(request.user, role)
+            for role in (EDK_ROLE_APPLICANT, EDK_ROLE_APPROVER)
+        ):
+            raise PermissionDenied("EDK rolünüz bulunmuyor.")
+        application = get_object_or_404(
+            edk_applications_visible_to(request.user),
+            pk=application_id,
+        )
+        if not application.jira_issue_key:
+            return Response(
+                {"detail": "Bu EDK henüz bir Jira Task'ına bağlı değil."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        try:
+            jira = JiraConnector()
+            tracking = fetch_jira_tracking(application.jira_issue_key, jira=jira)
+            application = record_edk_jira_tracking(
+                application=application,
+                tracking=tracking,
+            )
+        except JiraConnectorError as exc:
+            logger.error(
+                "EDK Jira tracking refresh failed: %s",
+                safe_exception_message(exc),
+                extra={
+                    "event": "edk_jira_tracking_refresh_failed",
+                    "edk_application_id": application_id,
+                },
+            )
+            return Response(
+                {"detail": "Jira takip bilgisi yenilenemedi."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        except EDKJiraConflict as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(jira_tracking_payload(application))

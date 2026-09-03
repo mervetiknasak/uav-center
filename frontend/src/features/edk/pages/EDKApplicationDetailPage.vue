@@ -32,6 +32,7 @@ function publish(draft) {
     :decision-loading="detail.decisionLoading.value"
     :parse-loading="detail.parseLoading.value"
     :publishing="detail.publishLoading.value"
+    :tracking-loading="detail.trackingLoading.value"
     :edk-roles="edkRoles"
     :current-user-name="auth.currentUser.value?.username || ''"
     :error="detail.error.value"
@@ -42,5 +43,6 @@ function publish(draft) {
     @decide="detail.decide"
     @parse="detail.parse"
     @publish="publish"
+    @refresh-jira="detail.refreshJiraTracking"
   />
 </template>

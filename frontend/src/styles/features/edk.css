@@ -66,6 +66,29 @@
   border-color: #5eead4;
 }
 
+.edk-jira-progress {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.edk-jira-subtasks {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.edk-jira-subtask {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
 .word-cell-table-wrap {
   overflow: auto;
   border: 1px solid #e2e8f0;
