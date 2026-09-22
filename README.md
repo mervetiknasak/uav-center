@@ -203,10 +203,30 @@ sınırlarını yan etkiden önce doğrular.
 
 Kayıtlar paylaşımlı operasyonel veridir ve aktif kullanıcılar tarafından yönetilir.
 `GET /api/form-processes/templates/` arayüzün dinamik form kataloğudur. Word indirme
-akışı kaynak DOCX'i docxtpl ile açar, kaynak sayfaları korur ve doğrulanmış alanları
-aynı dokümanın sonuna “Süreç Kayıt Bilgileri” bölümü olarak ekler. Böylece kaynak
-form revizyonu görünür kalırken veri tabanındaki tam kayıt denetlenebilir biçimde
-çıktıya taşınır.
+akışı kaynak DOCX'i docxtpl ile açar ve doğrulanmış alanları yalnızca şablonda
+tanımlanmış yer tutuculara yazar. Çıktıya yeni sayfa, tablo, başlık veya alan
+eklenmez; kaynak formun yapısı korunur.
+
+Katalog tanımları açık isimli `title` ve `form_number` parametreleri kullanır;
+form adı ve form kodu, tanımın yazım sırasından bağımsız olarak doğru API alanına
+aktarılır. `PR.QUA.20.104E` için girdiler ayrıca kaynak SSB formunun 1–18 numaralı
+hücrelerine işlenir. Ekran alanları aynı numaraları izler; 13. madde sabit beyandır.
+Uyruğu/kayıt tanımlaması, üretici/tip ve uçuş tarihi/süresi aynı hücrede birleştirilir.
+Kurul başkanı, PSK ve en fazla dört üye adı doldurulur; imza/paraf alanları elle
+tamamlanır. `issue_date` formun yayımlama tarihi, `permit_issue_date` ise ayrı uçuş
+izni yayım tarihidir. Mevcut `approver_name` alanı yüklenici yetkilisinin adını taşır.
+Eski kayıt alanları veri tabanı ve API uyumluluğu için korunur; kaynakta ayrı
+hücresi olmayan yaşam döngüsü, tavsiye seçimi ve uçuş test planı numarası Word
+çıktısına eklenmez.
+
+SSB formunda geçerlilik bitişi başlangıçtan önce olamaz; girilmiş uçuş tarihi bu
+aralıkta olmalıdır (başlangıç ve bitiş dahil). Uçuş süresi girilmişse en az 1 saatlik
+tam sayı, tarihler `YYYY-MM-DD` biçiminde olmalıdır. Taslakta zorunlu alanlar boş
+kalabilir, ancak girilen değerler yine doğrulanır. Onay için başvuru sahibi ve
+geçerlilik tarihleri gerekir. Yeni kurul/tarih alanları eski kayıtlarla uyumluluk
+için isteğe bağlıdır. `api.test_form_ssb`, katalog eşlemesini, taslak/onay akışını,
+hatalı girdide yazma yapılmamasını, görünürlüğü ve indirilen DOCX'in özgün hücrelerini
+uçtan uca doğrular.
 
 Form eklerinde en fazla 15 MB boyutunda PDF, DOCX, XLSX, JPG/JPEG ve PNG kabul
 edilir. İstemcinin bildirdiği MIME türü güvenilir sayılmaz; dosya yapısı sunucuda

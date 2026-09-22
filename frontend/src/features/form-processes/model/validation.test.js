@@ -48,6 +48,59 @@ const templates = [
 ];
 
 describe("form process validation", () => {
+  const ssbTemplate = {
+    code: "pr_qua_20_104E",
+    fields: [
+      ...templates[2].fields,
+      { key: "intended_flight_date", type: "date", label: "Uçuş tarihi", max_length: 10 },
+      { key: "permit_issue_date", type: "date", label: "İzin yayım tarihi", max_length: 10 },
+      {
+        key: "board_members",
+        type: "table",
+        label: "Kurul üyeleri",
+        max_items: 4,
+        columns: [
+          { key: "name", label: "Adı ve soyadı", type: "text", max_length: 500, required: true }
+        ]
+      }
+    ]
+  };
+
+  it("validates SSB dates, duration and the four original member cells", () => {
+    const form = {
+      template_code: ssbTemplate.code,
+      record_number: "SSB-1",
+      title: "SSB",
+      data: {
+        purpose_of_flight: [],
+        valid_from: "2026-09-23",
+        valid_until: "2026-09-30",
+        intended_flight_date: "2026-10-01",
+        flight_duration: "0",
+        permit_issue_date: "2026-02-30",
+        board_members: Array.from({ length: 5 }, () => ({ name: "Üye" }))
+      }
+    };
+    const errors = collectFormProcessErrors(form, [ssbTemplate]);
+    for (const key of [
+      "intended_flight_date",
+      "flight_duration",
+      "permit_issue_date",
+      "board_members"
+    ]) {
+      expect(errors).toHaveProperty(key);
+    }
+    Object.assign(form.data, {
+      intended_flight_date: "2026-09-23",
+      flight_duration: "2",
+      permit_issue_date: "2026-09-23",
+      board_members: [{ name: "Üye" }]
+    });
+    expect(collectFormProcessErrors(form, [ssbTemplate])).toEqual({});
+    form.data.valid_until = "2026-09-01";
+    expect(collectFormProcessErrors(form, [ssbTemplate])).toHaveProperty("valid_until");
+  });
+
   it("validates record identity and required template fields", () => {
     const form = {
       template_code: "fm_dsg_0200t",

@@ -17,6 +17,7 @@ from .form_processes.catalog import (
     FORM_TEMPLATES,
     FormTemplateValidationError,
     form_process_catalog,
+    get_form_template,
     validate_form_data,
 )
 from .models import FormProcessRecord
@@ -575,7 +576,7 @@ class FormProcessApiTests(APITestCase):
         self.assertEqual(duplicate.status_code, 400)
         self.assertIn("record_number", duplicate.data)
 
-    def test_generates_word_document_from_retained_template_and_validated_data(self):
+    def test_generates_word_document_without_appending_fields_to_template(self):
         create_response = self.client.post(
             "/api/form-processes/",
             self.panel_payload(),
@@ -594,14 +595,17 @@ class FormProcessApiTests(APITestCase):
         self.assertEqual(response["X-Content-Type-Options"], "nosniff")
         generated_bytes = b"".join(response.streaming_content)
         generated = Document(BytesIO(generated_bytes))
+        source = Document(get_form_template("fm_dsg_0200t").document_path)
         text_parts = [paragraph.text for paragraph in generated.paragraphs]
         for table in generated.tables:
             text_parts.extend(cell.text for row in table.rows for cell in row.cells)
         generated_text = "\n".join(text_parts)
-        self.assertIn("PANEL UYUM BEYANI", generated_text.upper())
-        self.assertIn("SÜREÇ KAYIT BİLGİLERİ", generated_text)
-        self.assertIn("Uçuş Kontrol Paneli", generated_text)
-        self.assertIn("PANEL-2026-001", generated_text)
+        self.assertIn("PANEL BEYANI", generated_text.upper())
+        self.assertNotIn("SÜREÇ KAYIT BİLGİLERİ", generated_text)
+        self.assertNotIn("Uçuş Kontrol Paneli", generated_text)
+        self.assertNotIn("PANEL-2026-001", generated_text)
+        self.assertEqual(len(generated.paragraphs), len(source.paragraphs))
+        self.assertEqual(len(generated.tables), len(source.tables))
         self.assertNotIn("{{", generated_text)
         with ZipFile(BytesIO(generated_bytes)) as package:
             self.assertIn("word/document.xml", package.namelist())
