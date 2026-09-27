@@ -11,7 +11,10 @@ from typing import Any, Protocol
 from django.conf import settings
 
 from ..common.redaction import safe_exception_message
-from ..organization.models import PanelResponsible
+from ..organization.person_matching import (
+    match_registered_person_username,
+    registered_person_username_index,
+)
 from ..services.jira_connector import JiraConnectorError
 
 MEETING_FIELDS = (
@@ -25,6 +28,7 @@ MEETING_FIELDS = (
     ("discussions_decisions", "Görüşmeler ve kararlar"),
 )
 logger = logging.getLogger(__name__)
+JIRA_ISSUE_KEY_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*-\d+$", re.IGNORECASE)
 
 
 class JiraDraftPublisher(Protocol):
@@ -55,14 +59,39 @@ class JiraDraftPublisher(Protocol):
     ) -> Any: ...
 
 
+class JiraTrackingReader(Protocol):
+    """Narrow Jira surface required to read one Task and its Sub-task status."""
+
+    @property
+    def server_url(self) -> str: ...
+
+    def issue(
+        self,
+        issue_key: str,
+        *,
+        fields: str | Sequence[str] | None = None,
+        expand: str | None = None,
+    ) -> Any: ...
+
+    def search_issues(
+        self,
+        jql: str,
+        *,
+        start_at: int = 0,
+        max_results: int | bool = 50,
+        fields: str | Sequence[str] = "*all",
+        expand: str | None = None,
+        validate_query: bool = True,
+    ) -> Sequence[Any]: ...
+
+
 def _slug(value: str) -> str:
     value = re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
     return value[:100]
 
 
 def build_jira_draft(extracted: dict[str, Any]) -> dict[str, Any]:
-    people = list(PanelResponsible.objects.exclude(username=""))
-    by_name = {person.name.casefold().strip(): person.username for person in people}
+    username_index = registered_person_username_index()
     subject = (extracted.get("subject") or "").strip()
     mom_no = (extracted.get("mom_no") or "").strip()
     fingerprint_source = "|".join(str(extracted.get(key) or "") for key, _label in MEETING_FIELDS)
@@ -90,7 +119,7 @@ def build_jira_draft(extracted: dict[str, Any]) -> dict[str, Any]:
                 "summary": (item.get("action_item") or "").strip(),
                 "description": f"Toplantı aksiyon no: {item.get('no') or index + 1}",
                 "responsible": responsible,
-                "username": by_name.get(responsible.casefold()),
+                "username": match_registered_person_username(responsible, username_index),
                 "due_date": (item.get("due_date") or "").strip(),
             }
         )
@@ -129,6 +158,72 @@ def _description(fields: list[dict[str, Any]]) -> str:
 def _issue_result(issue: Any, server: str) -> dict[str, str]:
     key = str(issue.key)
     return {"key": key, "url": f"{server.rstrip('/')}/browse/{key}"}
+
+
+def _resource_value(resource: Any, name: str, default: Any = None) -> Any:
+    if isinstance(resource, Mapping):
+        return resource.get(name, default)
+    return getattr(resource, name, default)
+
+
+def _issue_fields(issue: Any) -> Any:
+    return _resource_value(issue, "fields", {})
+
+
+def _status_details(issue: Any) -> tuple[str, bool]:
+    status = _resource_value(_issue_fields(issue), "status", {})
+    status_name = str(_resource_value(status, "name", "") or "")
+    category = _resource_value(status, "statusCategory", {})
+    category_key = str(_resource_value(category, "key", "") or "")
+    return status_name, category_key.casefold() == "done"
+
+
+def fetch_jira_tracking(
+    issue_key: str,
+    *,
+    jira: JiraTrackingReader,
+) -> dict[str, Any]:
+    """Read the parent Task and every direct Sub-task from Jira."""
+
+    issue_key = issue_key.strip()
+    if not JIRA_ISSUE_KEY_PATTERN.fullmatch(issue_key):
+        raise JiraConnectorError("Geçersiz Jira issue anahtarı.")
+
+    parent = jira.issue(issue_key, fields=["key", "summary", "status"])
+    parent_key = str(_resource_value(parent, "key", issue_key))
+    parent_fields = _issue_fields(parent)
+    parent_status, _parent_closed = _status_details(parent)
+    issues = jira.search_issues(
+        f'parent = "{parent_key}"',
+        max_results=False,
+        fields=["key", "summary", "status"],
+    )
+    subtasks = []
+    for issue in issues:
+        status_name, is_closed = _status_details(issue)
+        fields = _issue_fields(issue)
+        key = str(_resource_value(issue, "key", ""))
+        subtasks.append(
+            {
+                "key": key,
+                "url": f"{jira.server_url.rstrip('/')}/browse/{key}",
+                "summary": str(_resource_value(fields, "summary", "") or ""),
+                "status": status_name,
+                "is_closed": is_closed,
+            }
+        )
+
+    closed_count = sum(1 for item in subtasks if item["is_closed"])
+    return {
+        "key": parent_key,
+        "url": f"{jira.server_url.rstrip('/')}/browse/{parent_key}",
+        "summary": str(_resource_value(parent_fields, "summary", "") or ""),
+        "status": parent_status,
+        "subtasks": subtasks,
+        "subtask_total": len(subtasks),
+        "subtask_closed": closed_count,
+        "all_subtasks_closed": bool(subtasks) and closed_count == len(subtasks),
+    }
 
 
 def publish_jira_draft(

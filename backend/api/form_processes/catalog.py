@@ -59,8 +59,8 @@ class FormTemplate:
     code: str
     process_code: str
     process_name: str
-    form_number: str
     title: str
+    form_number: str
     description: str
     fields: tuple[FormField, ...]
 
@@ -310,13 +310,13 @@ PTF_IDENTITY_FIELDS = (
 
 FORM_TEMPLATES = (
     FormTemplate(
-        "fm_dsg_0328",
-        "edk",
-        "EDK",
-        "AWSS Kapağı",
-        "FM.DSG.0328",
-        "Uçuşa elverişlilik durum değerlendirmesi formu kapağı.",
-        awss_fields(
+        code="fm_dsg_0328",
+        process_code="edk",
+        process_name="EDK",
+        title="AWSS Kapağı",
+        form_number="FM.DSG.0328",
+        description="Uçuşa elverişlilik durum değerlendirmesi formu kapağı.",
+        fields=awss_fields(
             ("load_data_basis", "Yük veri tabanı / yük veri temeli"),
             ("structural_configuration", "Yapısal konfigürasyon"),
             ("static_test_results", "Statik test sonuçları"),
@@ -331,13 +331,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0063e",
-        "tc-procedures",
-        "TC Procedures",
-        "Compliance Demonstration Item (CDI) Cover Page",
-        "FM.DSG.0063E",
-        "CDI sınıflandırma, LoI ve uyum gösterim kapak formu.",
-        (
+        code="fm_dsg_0063e",
+        process_code="tc-procedures",
+        process_name="TC Procedures",
+        title="Compliance Demonstration Item (CDI) Cover Page",
+        form_number="FM.DSG.0063E",
+        description="CDI sınıflandırma, LoI ve uyum gösterim kapak formu.",
+        fields=(
             text("program", "Program", required=True),
             text("ata_index", "ATA indeks"),
             text("ata_subject", "ATA konu"),
@@ -359,13 +359,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0307e",
-        "stc-procedures",
-        "STC Procedures",
-        "Type Design Change Classification (DCC) Form",
-        "FM.DSG.0307E",
-        "Tip tasarım değişikliği sınıflandırma tablosu.",
-        (
+        code="fm_dsg_0307e",
+        process_code="stc-procedures",
+        process_name="STC Procedures",
+        title="Type Design Change Classification (DCC) Form",
+        form_number="FM.DSG.0307E",
+        description="Tip tasarım değişikliği sınıflandırma tablosu.",
+        fields=(
             text("project", "Proje", required=True),
             text("change_title", "Değişiklik başlığı", required=True),
             text("change_reference", "Değişiklik referansı"),
@@ -392,13 +392,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0308e",
-        "stc-procedures",
-        "STC Procedures",
-        "Significant / Not Significant Decision Table for a Major Change",
-        "FM.DSG.0308E",
-        "Major değişiklik için significant / not significant karar formu.",
-        (
+        code="fm_dsg_0308e",
+        process_code="stc-procedures",
+        process_name="STC Procedures",
+        title="Significant / Not Significant Decision Table for a Major Change",
+        form_number="FM.DSG.0308E",
+        description="Major değişiklik için significant / not significant karar formu.",
+        fields=(
             text("design_change_number", "Tasarım değişikliği numarası", required=True),
             text("project", "Proje", required=True),
             area("applicability", "Uygulanabilirlik", group="Değişiklik"),
@@ -416,13 +416,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0309e",
-        "stc-procedures",
-        "STC Procedures",
-        "Design Change Approval Sheet (DCAS) for Certification",
-        "FM.DSG.0309E",
-        "Sertifikasyon amaçlı tasarım değişikliği onay formu.",
-        (
+        code="fm_dsg_0309e",
+        process_code="stc-procedures",
+        process_name="STC Procedures",
+        title="Design Change Approval Sheet (DCAS) for Certification",
+        form_number="FM.DSG.0309E",
+        description="Sertifikasyon amaçlı tasarım değişikliği onay formu.",
+        fields=(
             text("design_change_number", "Tasarım değişikliği numarası", required=True),
             text("form_number", "Form numarası"),
             text("project", "Proje", required=True),
@@ -442,13 +442,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0464e",
-        "tc-procedures",
-        "TC Procedures",
-        "Compliance Document Cover Page",
-        "FM.DSG.0464E",
-        "Uyum dokümanı kapak sayfası.",
-        (
+        code="fm_dsg_0464e",
+        process_code="tc-procedures",
+        process_name="TC Procedures",
+        title="Compliance Document Cover Page",
+        form_number="FM.DSG.0464E",
+        description="Uyum dokümanı kapak sayfası.",
+        fields=(
             text("compliance_document_number", "Uyum dokümanı numarası", required=True),
             text("issue_number", "Yayın numarası"),
             text("program_project", "Program / Proje", required=True),
@@ -468,13 +468,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0029e",
-        "tc-procedures",
-        "TC Procedures",
-        "Turkish Aerospace Declaration of Compliance",
-        "FM.DSG.0029E",
-        "Tip sertifikasyonu için uyum beyanı.",
-        (
+        code="fm_dsg_0029e",
+        process_code="tc-procedures",
+        process_name="TC Procedures",
+        title="Turkish Aerospace Declaration of Compliance",
+        form_number="FM.DSG.0029E",
+        description="Tip sertifikasyonu için uyum beyanı.",
+        fields=(
             text("document_number", "Doküman numarası", required=True),
             text("project", "Proje", required=True),
             text("aircraft", "Hava aracı"),
@@ -499,13 +499,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0327",
-        "flight-permits",
-        "Uçuş İzinleri",
-        "Uçuş Uygunluk Belgesi / Flight Clearance Certificate (FCC)",
-        "FM.DSG.0327",
-        "Uçuş uygunluk belgesi, dayanaklar, onaylar ve yayın geçmişi.",
-        (
+        code="fm_dsg_0327",
+        process_code="flight-permits",
+        process_name="Uçuş İzinleri",
+        title="Uçuş Uygunluk Belgesi / Flight Clearance Certificate (FCC)",
+        form_number="FM.DSG.0327",
+        description="Uçuş uygunluk belgesi, dayanaklar, onaylar ve yayın geçmişi.",
+        fields=(
             text("project_name", "Proje adı", group="Hava Aracı Bilgileri", required=True),
             text(
                 "aircraft_type",
@@ -660,40 +660,40 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0008e",
-        "assignment-management",
-        "Görevlendirme Yönetimi",
-        "Mission Letter for CVE",
-        "FM.DSG.0008E",
-        "CVE görevlendirme yazısı.",
-        MISSION_FIELDS,
+        code="fm_dsg_0008e",
+        process_code="assignment-management",
+        process_name="Görevlendirme Yönetimi",
+        title="Mission Letter for CVE",
+        form_number="FM.DSG.0008E",
+        description="CVE görevlendirme yazısı.",
+        fields=MISSION_FIELDS,
     ),
     FormTemplate(
-        "fm_dsg_0009e",
-        "assignment-management",
-        "Görevlendirme Yönetimi",
-        "Mission Letter for PCC",
-        "FM.DSG.0009E",
-        "PCC görevlendirme yazısı.",
-        MISSION_FIELDS,
+        code="fm_dsg_0009e",
+        process_code="assignment-management",
+        process_name="Görevlendirme Yönetimi",
+        title="Mission Letter for PCC",
+        form_number="FM.DSG.0009E",
+        description="PCC görevlendirme yazısı.",
+        fields=MISSION_FIELDS,
     ),
     FormTemplate(
-        "fm_dsg_0010e",
-        "assignment-management",
-        "Görevlendirme Yönetimi",
-        "Mission Letter for AS",
-        "FM.DSG.0010E",
-        "AS görevlendirme yazısı.",
-        MISSION_FIELDS,
+        code="fm_dsg_0010e",
+        process_code="assignment-management",
+        process_name="Görevlendirme Yönetimi",
+        title="Mission Letter for AS",
+        form_number="FM.DSG.0010E",
+        description="AS görevlendirme yazısı.",
+        fields=MISSION_FIELDS,
     ),
     FormTemplate(
-        "fm_dsg_0011e",
-        "assignment-management",
-        "Görevlendirme Yönetimi",
-        "Personnel Assessment Form for AS",
-        "FM.DSG.0011E",
-        "AS personel yeterlilik ve mülakat değerlendirmesi.",
-        (
+        code="fm_dsg_0011e",
+        process_code="assignment-management",
+        process_name="Görevlendirme Yönetimi",
+        title="Personnel Assessment Form for AS",
+        form_number="FM.DSG.0011E",
+        description="AS personel yeterlilik ve mülakat değerlendirmesi.",
+        fields=(
             text("paf_number", "PAF numarası", required=True),
             text("issue", "Yayın"),
             text("person_name", "Ad ve soyad", required=True),
@@ -716,49 +716,49 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0120",
-        "assignment-management",
-        "Görevlendirme Yönetimi",
-        "Head of Design Authorisation",
-        "FM.DSG.0120",
-        "Tasarım Başkanı yetkilendirme formu.",
-        AUTHORIZATION_FIELDS,
+        code="fm_dsg_0120",
+        process_code="assignment-management",
+        process_name="Görevlendirme Yönetimi",
+        title="Head of Design Authorisation",
+        form_number="FM.DSG.0120",
+        description="Tasarım Başkanı yetkilendirme formu.",
+        fields=AUTHORIZATION_FIELDS,
     ),
     FormTemplate(
-        "fm_dsg_0121e",
-        "assignment-management",
-        "Görevlendirme Yönetimi",
-        "Head of Airworthiness Authorisation",
-        "FM.DSG.0121E",
-        "Uçuşa Elverişlilik Başkanı yetkilendirme formu.",
-        AUTHORIZATION_FIELDS,
+        code="fm_dsg_0121e",
+        process_code="assignment-management",
+        process_name="Görevlendirme Yönetimi",
+        title="Head of Airworthiness Authorisation",
+        form_number="FM.DSG.0121E",
+        description="Uçuşa Elverişlilik Başkanı yetkilendirme formu.",
+        fields=AUTHORIZATION_FIELDS,
     ),
     FormTemplate(
-        "fm_dsg_0281",
-        "assignment-management",
-        "Görevlendirme Yönetimi",
-        "Deputy Head of Design Authorisation",
-        "FM.DSG.0281",
-        "Tasarım Başkan Yardımcısı yetkilendirme formu.",
-        AUTHORIZATION_FIELDS,
+        code="fm_dsg_0281",
+        process_code="assignment-management",
+        process_name="Görevlendirme Yönetimi",
+        title="Deputy Head of Design Authorisation",
+        form_number="FM.DSG.0281",
+        description="Tasarım Başkan Yardımcısı yetkilendirme formu.",
+        fields=AUTHORIZATION_FIELDS,
     ),
     FormTemplate(
-        "fm_dsg_0303e",
-        "assignment-management",
-        "Görevlendirme Yönetimi",
-        "Deputy Head of Airworthiness Authorisation",
-        "FM.DSG.0303E",
-        "Uçuşa Elverişlilik Başkan Yardımcısı yetkilendirme formu.",
-        AUTHORIZATION_FIELDS,
+        code="fm_dsg_0303e",
+        process_code="assignment-management",
+        process_name="Görevlendirme Yönetimi",
+        title="Deputy Head of Airworthiness Authorisation",
+        form_number="FM.DSG.0303E",
+        description="Uçuşa Elverişlilik Başkan Yardımcısı yetkilendirme formu.",
+        fields=AUTHORIZATION_FIELDS,
     ),
     FormTemplate(
-        "fm_dsg_0007t",
-        "edk",
-        "EDK",
-        "Hava Aracı Üzeri Mühendislik İnceleme (HAÜMİ) Bulgu Formu",
-        "FM.DSG.0007T",
-        "Mühendislik inceleme bulgusu ve kapatma kararı.",
-        (
+        code="fm_dsg_0007t",
+        process_code="edk",
+        process_name="EDK",
+        title="Hava Aracı Üzeri Mühendislik İnceleme (HAÜMİ) Bulgu Formu",
+        form_number="FM.DSG.0007T",
+        description="Mühendislik inceleme bulgusu ve kapatma kararı.",
+        fields=(
             text("finding_number", "Bulgu numarası", required=True),
             day("finding_date", "GT tarihi"),
             text("project", "Proje"),
@@ -783,13 +783,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0378e",
-        "others",
-        "Others",
-        "FM.DSG.0378E",
-        "LOI Milestones",
-        "Sertifikasyon fazlarına göre LoI kilometre taşları.",
-        (
+        code="fm_dsg_0378e",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.DSG.0378E",
+        title="LOI Milestones",
+        description="Sertifikasyon fazlarına göre LoI kilometre taşları.",
+        fields=(
             text("project", "Proje", required=True),
             text("product", "Ürün / hava aracı"),
             text("type_certificate", "Tip sertifikası"),
@@ -800,13 +800,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0379e",
-        "others",
-        "Others",
-        "FM.DSG.0379E",
-        "Level of Involvement (LOI)",
-        "Gömülü LoI çalışma kitabı için kayıt ve özet formu.",
-        (
+        code="fm_dsg_0379e",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.DSG.0379E",
+        title="Level of Involvement (LOI)",
+        description="Gömülü LoI çalışma kitabı için kayıt ve özet formu.",
+        fields=(
             text("project", "Proje", required=True),
             text("certification_basis", "Sertifikasyon temeli"),
             text("loi_reference", "LoI referansı"),
@@ -816,13 +816,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_qua_0388e",
-        "others",
-        "Others",
-        "FM.QUA.0388E",
-        "Candidate Auditor Evaluation",
-        "Aday denetçi değerlendirme formu.",
-        (
+        code="fm_qua_0388e",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.QUA.0388E",
+        title="Candidate Auditor Evaluation",
+        description="Aday denetçi değerlendirme formu.",
+        fields=(
             text("candidate_name", "Aday denetçi adı ve soyadı", required=True),
             text("position", "Görevi"),
             text("department", "Departmanı"),
@@ -851,13 +851,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "pr_dsg_20_034E",
-        "flight-permits",
-        "Uçuş İzinleri",
-        "TUSAŞ Özel Uçuş İzni Başvuru Formu",
-        "PR.DSG.20.034E",
-        "Özel uçuş izni başvurusu.",
-        (
+        code="pr_dsg_20_034E",
+        process_code="flight-permits",
+        process_name="Uçuş İzinleri",
+        title="TUSAŞ Özel Uçuş İzni Başvuru Formu",
+        form_number="PR.DSG.20.034E",
+        description="Özel uçuş izni başvurusu.",
+        fields=(
             *PTF_IDENTITY_FIELDS,
             choice(
                 "is_recommendation",
@@ -874,13 +874,87 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "pr_qua_20_104E",
-        "flight-permits",
-        "Uçuş İzinleri",
-        "SSB Özel Uçuş İzni Tavsiyesi Formu",
-        "PR.QUA.20.104E",
-        "Özel uçuş izni tavsiyesi başvurusu.",
-        (
+        code="pr_qua_20_104E",
+        process_code="flight-permits",
+        process_name="Uçuş İzinleri",
+        title="SSB Özel Uçuş İzni Tavsiyesi Formu",
+        form_number="PR.QUA.20.104E",
+        description="Özel uçuş izni tavsiyesi başvurusu.",
+        fields=(
+            text("contract_number", "1. Sözleşme", group="Başvuru Bilgileri"),
+            text("applicant", "2. Başvuru sahibi", group="Başvuru Bilgileri", required=True),
+            text("application_number", "3. Uçuş izni form numarası", group="Başvuru Bilgileri"),
+            text("aircraft_nationality", "4. Hava aracının uyruğu", group="Hava Aracı Bilgileri"),
+            text("aircraft_id_mark", "4. Kayıt tanımlaması", group="Hava Aracı Bilgileri"),
+            text("aircraft_owner", "5. Hava aracının sahibi", group="Hava Aracı Bilgileri"),
+            text("aircraft_manufacturer", "6. Hava aracı üreticisi", group="Hava Aracı Bilgileri"),
+            text("aircraft_model", "6. Hava aracı tipi / modeli", group="Hava Aracı Bilgileri"),
+            text("serial_number", "7. Seri numarası", group="Hava Aracı Bilgileri"),
+            day("intended_flight_date", "8. Öngörülen uçuş tarihi", group="Uçuş Bilgileri"),
+            text("flight_duration", "8. Uçuş süresi (saat)", group="Uçuş Bilgileri", max_length=8),
+            multi_choice(
+                "purpose_of_flight",
+                "9. Uçuş amacı kategorileri",
+                FLIGHT_PURPOSE_OPTIONS,
+                group="Uçuş Bilgileri",
+            ),
+            area("purpose_scope", "9. Uçuşun amacı / kapsamı", group="Uçuş Bilgileri"),
+            area("aircraft_configuration", "10. Hava aracı konfigürasyonu", group="Uçuş Bilgileri"),
+            area("conditions_restrictions", "11. Koşullar ve kısıtlamalar", group="Uçuş Bilgileri"),
+            area(
+                "substantiations", "12. Uçuş koşulları ile ilgili kanıtlar", group="Uçuş Bilgileri"
+            ),
+            day("issue_date", "14. Yayımlama tarihi", group="Yayımlama ve Kurul"),
+            text(
+                "approver_name",
+                "15. Yüklenici yetkilisinin adı ve soyadı",
+                group="Yayımlama ve Kurul",
+            ),
+            text("board_chair_name", "16. Kurul başkanı", group="Yayımlama ve Kurul"),
+            text("board_psk_name", "16. PSK", group="Yayımlama ve Kurul"),
+            table(
+                "board_members",
+                "16. Kurul üyeleri",
+                (FormTableColumn("name", "Adı ve soyadı", required=True),),
+                group="Yayımlama ve Kurul",
+                max_items=4,
+            ),
+            day("valid_from", "17. Geçerlilik başlangıcı", group="Geçerlilik", required=True),
+            day("valid_until", "17. Geçerlilik bitişi", group="Geçerlilik", required=True),
+            day("permit_issue_date", "18. Uçuş izni yayım tarihi", group="Geçerlilik"),
+            # Keep existing operational data accepted, separate from source form slots.
+            choice(
+                "permit_lifecycle_status",
+                "İzin yaşam döngüsü durumu",
+                (
+                    ("draft", "Taslak"),
+                    ("approved", "Onaylandı"),
+                    ("suspended", "Askıya Alındı"),
+                    ("revoked", "İptal Edildi"),
+                ),
+                group="Ek Kayıt Bilgileri",
+            ),
+            choice(
+                "is_recommendation",
+                "Uçuş izni tavsiyesi",
+                (("yes", "Evet"), ("no", "Hayır")),
+                group="Ek Kayıt Bilgileri",
+            ),
+            text(
+                "flight_test_plan_number",
+                "Uçuş test planı numarası",
+                group="Ek Kayıt Bilgileri",
+            ),
+        ),
+    ),
+    FormTemplate(
+        code="fm_qua_0579",
+        process_code="flight-permits",
+        process_name="Uçuş İzinleri",
+        form_number="FM.QUA.0579",
+        title="TUSAŞ Özel Uçuş İzni Başvuru Formu",
+        description="Özel uçuş izni başvurusu.",
+        fields=(
             *PTF_IDENTITY_FIELDS,
             choice(
                 "is_recommendation",
@@ -897,36 +971,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_qua_0579",
-        "flight-permits",
-        "Uçuş İzinleri",
-        "FM.QUA.0579",
-        "TUSAŞ Özel Uçuş İzni Başvuru Formu",
-        "Özel uçuş izni başvurusu.",
-        (
-            *PTF_IDENTITY_FIELDS,
-            choice(
-                "is_recommendation",
-                "Uçuş izni tavsiyesi",
-                (("yes", "Evet"), ("no", "Hayır")),
-                group="Başvuru Bilgileri",
-            ),
-            text("contract_number", "Sözleşme numarası", group="Başvuru Bilgileri"),
-            text(
-                "flight_test_plan_number",
-                "Uçuş test planı numarası",
-                group="Başvuru Bilgileri",
-            ),
-        ),
-    ),
-    FormTemplate(
-        "fm_qua_0580",
-        "flight-permits",
-        "Uçuş İzinleri",
-        "SHGM Uçuş İzni İçin Uçuş Koşulları Onay Formu",
-        "FM.QUA.0580",
-        "Uçuş koşulları onay formu.",
-        (
+        code="fm_qua_0580",
+        process_code="flight-permits",
+        process_name="Uçuş İzinleri",
+        title="SHGM Uçuş İzni İçin Uçuş Koşulları Onay Formu",
+        form_number="FM.QUA.0580",
+        description="Uçuş koşulları onay formu.",
+        fields=(
             *PTF_IDENTITY_FIELDS,
             text("initial_approval_reference", "İlk onay referansı", group="Uçuş Bilgileri"),
             area("maintenance_instructions", "Talimatlar", group="Uçuş Bilgileri"),
@@ -934,13 +985,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_qua_0581",
-        "flight-permits",
-        "Uçuş İzinleri",
-        "FM.QUA.0581",
-        "TUSAŞ Özel Uçuş İzni Onay Formu",
-        "Özel uçuş izni onay formu.",
-        (
+        code="fm_qua_0581",
+        process_code="flight-permits",
+        process_name="Uçuş İzinleri",
+        form_number="FM.QUA.0581",
+        title="TUSAŞ Özel Uçuş İzni Onay Formu",
+        description="Özel uçuş izni onay formu.",
+        fields=(
             *PTF_IDENTITY_FIELDS,
             text("nationality_registration", "Hava aracı tescil işareti"),
             text("validity_period", "Geçerlilik süresi", group="Uçuş Bilgileri"),
@@ -952,13 +1003,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_qua_0701t",
-        "others",
-        "Others",
-        "FM.QUA.0701T",
-        "Hava Aracı Olay İnceleme Raporu",
-        "Hava aracı olay inceleme ve düzeltici faaliyet raporu.",
-        (
+        code="fm_qua_0701t",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.QUA.0701T",
+        title="Hava Aracı Olay İnceleme Raporu",
+        description="Hava aracı olay inceleme ve düzeltici faaliyet raporu.",
+        fields=(
             text("report_number", "Olay inceleme rapor numarası", required=True),
             text("project_name", "Proje adı"),
             text("aircraft_model", "Hava aracı modeli"),
@@ -980,13 +1031,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0200t",
-        "others",
-        "Others",
-        "FM.DSG.0200T",
-        "Panel Uyum Beyanı",
-        "Panel bazlı uyum ve sertifikasyon beyanı.",
-        (
+        code="fm_dsg_0200t",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.DSG.0200T",
+        title="Panel Uyum Beyanı",
+        description="Panel bazlı uyum ve sertifikasyon beyanı.",
+        fields=(
             text("panel_name", "Panel adı", required=True),
             text("project_name", "Proje adı", required=True),
             area("related_documents", "İlgili dokümanlar", group="Dokümanlar"),
@@ -1002,13 +1053,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0006e",
-        "others",
-        "Others",
-        "FM.DSG.0006E",
-        "Reportable Occurrence Form",
-        "Raporlanabilir olay ve uçuşa elverişlilik etkisi kaydı.",
-        (
+        code="fm_dsg_0006e",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.DSG.0006E",
+        title="Reportable Occurrence Form",
+        description="Raporlanabilir olay ve uçuşa elverişlilik etkisi kaydı.",
+        fields=(
             text("report_number", "Raporlanabilir olay form numarası", required=True),
             text("project_name", "Proje adı"),
             text("aircraft_model", "Hava aracı modeli"),
@@ -1031,13 +1082,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0465e",
-        "tc-procedures",
-        "TC Procedures",
-        "Certification Review Item",
-        "FM.DSG.0465E",
-        "Sertifikasyon inceleme maddesi (CRI) formu.",
-        (
+        code="fm_dsg_0465e",
+        process_code="tc-procedures",
+        process_name="TC Procedures",
+        title="Certification Review Item",
+        form_number="FM.DSG.0465E",
+        description="Sertifikasyon inceleme maddesi (CRI) formu.",
+        fields=(
             text("document_number", "Doküman numarası", required=True),
             text("addressee", "Muhatap"),
             text("subject", "Konu", required=True),
@@ -1071,13 +1122,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0329",
-        "others",
-        "Others",
-        "FM.DSG.0329",
-        "Yükler ve Aeroelastisite Uçuşa Elverişlilik Durum Değerlendirmesi",
-        "Yükler, uçuş zarfı ve aeroelastisite durum özeti.",
-        awss_fields(
+        code="fm_dsg_0329",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.DSG.0329",
+        title="Yükler ve Aeroelastisite Uçuşa Elverişlilik Durum Değerlendirmesi",
+        description="Yükler, uçuş zarfı ve aeroelastisite durum özeti.",
+        fields=awss_fields(
             ("load_data_basis", "Yük veri tabanı / yük veri temeli"),
             ("aircraft_geometry", "Hava aracı tanımı ve geometrik veriler"),
             ("configuration", "Konfigürasyon"),
@@ -1095,13 +1146,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0330",
-        "others",
-        "Others",
-        "FM.DSG.0330",
-        "Güç Ünitesi Montajı Uçuşa Elverişlilik Durum Değerlendirmesi",
-        "Güç ünitesi montajı ve kalifikasyon durum özeti.",
-        awss_fields(
+        code="fm_dsg_0330",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.DSG.0330",
+        title="Güç Ünitesi Montajı Uçuşa Elverişlilik Durum Değerlendirmesi",
+        description="Güç ünitesi montajı ve kalifikasyon durum özeti.",
+        fields=awss_fields(
             ("aircraft_definition", "Hava aracı / güç ünitesi tanımı"),
             ("available_functions", "Mevcut fonksiyonlar"),
             ("configuration_summary", "Konfigürasyon özeti"),
@@ -1119,13 +1170,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0331",
-        "others",
-        "Others",
-        "FM.DSG.0331",
-        "Hava Aracı Performansı ve Kumanda Edilebilirlik Durum Değerlendirmesi",
-        "Performans ve kumanda edilebilirlik durum özeti.",
-        awss_fields(
+        code="fm_dsg_0331",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.DSG.0331",
+        title="Hava Aracı Performansı ve Kumanda Edilebilirlik Durum Değerlendirmesi",
+        description="Performans ve kumanda edilebilirlik durum özeti.",
+        fields=awss_fields(
             ("models_database", "Performans, stabilite ve kontrol modelleri / veri tabanı"),
             ("flight_envelope", "Uçuş zarfı"),
             ("performance_analysis", "Performans analiz sonuçları"),
@@ -1136,13 +1187,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0332",
-        "others",
-        "Others",
-        "FM.DSG.0332",
-        "Sistemler Uçuşa Elverişlilik Durum Değerlendirmesi",
-        "Sistem emniyeti, kalifikasyon ve uyum durum özeti.",
-        awss_fields(
+        code="fm_dsg_0332",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.DSG.0332",
+        title="Sistemler Uçuşa Elverişlilik Durum Değerlendirmesi",
+        description="Sistem emniyeti, kalifikasyon ve uyum durum özeti.",
+        fields=awss_fields(
             ("aircraft_definition", "Hava aracı / sistem tanımı"),
             ("available_functions", "Mevcut fonksiyonlar"),
             ("equipment_dal_list", "Ekipman DAL listesi"),
@@ -1156,13 +1207,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0344",
-        "others",
-        "Others",
-        "FM.DSG.0344",
-        "İnsan Faktörleri Uçuşa Elverişlilik Durum Değerlendirmesi",
-        "İnsan faktörleri analiz ve doğrulama durum özeti.",
-        awss_fields(
+        code="fm_dsg_0344",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.DSG.0344",
+        title="İnsan Faktörleri Uçuşa Elverişlilik Durum Değerlendirmesi",
+        description="İnsan faktörleri analiz ve doğrulama durum özeti.",
+        fields=awss_fields(
             ("validation_models_database", "İnsan faktörleri modelleri ve veri tabanı"),
             ("cockpit_cabin_design", "Kokpit / kabin iç tasarımı"),
             ("analysis_results", "İnsan faktörleri analiz sonuçları"),
@@ -1170,13 +1221,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0625",
-        "others",
-        "Others",
-        "FM.DSG.0625",
-        "Yazılım Uçuşa Elverişlilik Durum Değerlendirmesi",
-        "Yazılım DAL, kalifikasyon ve emniyet durum özeti.",
-        awss_fields(
+        code="fm_dsg_0625",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.DSG.0625",
+        title="Yazılım Uçuşa Elverişlilik Durum Değerlendirmesi",
+        description="Yazılım DAL, kalifikasyon ve emniyet durum özeti.",
+        fields=awss_fields(
             ("available_functions", "Mevcut fonksiyonlar"),
             ("equipment_list", "Yazılım içeren ekipman listesi"),
             ("software_status", "Yazılım kalifikasyon durumu"),
@@ -1189,13 +1240,13 @@ FORM_TEMPLATES = (
         ),
     ),
     FormTemplate(
-        "fm_dsg_0626",
-        "others",
-        "Others",
-        "FM.DSG.0626",
-        "Donanım Uçuşa Elverişlilik Durum Değerlendirmesi",
-        "Donanım DAL, kalifikasyon ve emniyet durum özeti.",
-        awss_fields(
+        code="fm_dsg_0626",
+        process_code="others",
+        process_name="Others",
+        form_number="FM.DSG.0626",
+        title="Donanım Uçuşa Elverişlilik Durum Değerlendirmesi",
+        description="Donanım DAL, kalifikasyon ve emniyet durum özeti.",
+        fields=awss_fields(
             ("available_functions", "Mevcut fonksiyonlar"),
             ("equipment_list", "Donanım içeren ekipman listesi"),
             ("hardware_status", "Donanım kalifikasyon durumu"),
@@ -1323,12 +1374,12 @@ def validate_form_data(
                 cleaned[key] = []
                 continue
             allowed_values = {item[0] for item in field.options}
-            if len(value) != len(set(value)):
+            if any(not isinstance(item, str) or item not in allowed_values for item in value):
+                errors[key] = ["Geçerli seçimler gönderilmelidir."]
+            elif len(value) != len(set(value)):
                 errors[key] = ["Aynı seçim birden fazla kez gönderilemez."]
             elif field.max_items and len(value) > field.max_items:
                 errors[key] = [f"En fazla {field.max_items} seçim yapılabilir."]
-            elif any(not isinstance(item, str) or item not in allowed_values for item in value):
-                errors[key] = ["Geçerli seçimler gönderilmelidir."]
             elif require_required and field.required and not value:
                 errors[key] = [f"{field.label} zorunludur."]
             cleaned[key] = value
@@ -1346,7 +1397,9 @@ def validate_form_data(
                 errors[key] = [f"En fazla {field.max_length} karakter girilebilir."]
             elif field.field_type == "date" and value:
                 try:
-                    date.fromisoformat(value)
+                    parsed = date.fromisoformat(value)
+                    if template_code == "pr_qua_20_104E" and parsed.isoformat() != value:
+                        raise ValueError
                 except ValueError:
                     errors[key] = ["Geçerli bir tarih gönderilmelidir."]
             elif (
@@ -1367,7 +1420,7 @@ def validate_form_data(
     ):
         errors["valid_until"] = ["Geçerlilik bitişi, başlangıç tarihinden önce olamaz."]
 
-    if template_code in {"fm_qua_0579", "fm_qua_0580", "fm_qua_0581"}:
+    if template_code in {"fm_qua_0579", "fm_qua_0580", "fm_qua_0581", "pr_qua_20_104E"}:
         if (
             cleaned.get("valid_from")
             and cleaned.get("valid_until")
@@ -1378,8 +1431,28 @@ def validate_form_data(
         ):
             errors["valid_until"] = ["Geçerlilik bitişi, başlangıç tarihinden önce olamaz."]
         duration = cleaned.get("flight_duration", "")
-        if duration and (not duration.isdigit() or int(duration) < 1):
+        if (
+            duration
+            and "flight_duration" not in errors
+            and (not duration.isascii() or not duration.isdigit() or int(duration) < 1)
+        ):
             errors["flight_duration"] = ["Uçuş süresi en az 1 saat olan bir tam sayı olmalıdır."]
+
+    if template_code == "pr_qua_20_104E":
+        flight_date = cleaned.get("intended_flight_date")
+        if flight_date and "intended_flight_date" not in errors:
+            for boundary, is_start in (("valid_from", True), ("valid_until", False)):
+                value = cleaned.get(boundary)
+                if value and boundary not in errors:
+                    outside = (
+                        date.fromisoformat(flight_date) < date.fromisoformat(value)
+                        if is_start
+                        else date.fromisoformat(flight_date) > date.fromisoformat(value)
+                    )
+                    if outside:
+                        errors["intended_flight_date"] = [
+                            "Öngörülen uçuş tarihi, izin geçerlilik aralığında olmalıdır."
+                        ]
 
     if errors:
         raise FormTemplateValidationError(errors)

@@ -200,6 +200,24 @@ class JiraConnectorTests(SimpleTestCase):
             token_auth="pat-secret",
         )
 
+    def test_jsession_is_passed_as_cookie_without_service_credentials(self):
+        jira_module = ModuleType("jira")
+        jira_constructor = Mock(return_value=Mock())
+        jira_module.JIRA = jira_constructor
+        config = JiraConfig(server="https://jira.example.com")
+
+        with patch.dict(sys.modules, {"jira": jira_module}):
+            _client = JiraConnector(config=config, jsession="user-session-123").client
+
+        jira_constructor.assert_called_once_with(
+            options={
+                "server": "https://jira.example.com",
+                "verify": True,
+                "cookies": {"JSESSIONID": "user-session-123"},
+            },
+            timeout=30,
+        )
+
     @override_settings(
         JIRA_SERVER="https://example.atlassian.net",
         JIRA_EMAIL="pilot@example.com",

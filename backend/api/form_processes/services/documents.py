@@ -4,65 +4,9 @@ from datetime import date
 from io import BytesIO
 
 from django.utils import timezone
-from docx import Document
-from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
-from docx.table import Table
 from docxtpl import DocxTemplate
 
 from ..catalog import get_form_template
-
-
-def _set_cell_shading(cell, fill: str) -> None:
-    properties = cell._tc.get_or_add_tcPr()
-    shading = properties.find(qn("w:shd"))
-    if shading is None:
-        shading = OxmlElement("w:shd")
-        properties.append(shading)
-    shading.set(qn("w:fill"), fill)
-
-
-def _set_table_borders(table) -> None:
-    borders = OxmlElement("w:tblBorders")
-    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
-        border = OxmlElement(f"w:{edge}")
-        border.set(qn("w:val"), "single")
-        border.set(qn("w:sz"), "5")
-        border.set(qn("w:color"), "B7C6D8")
-        borders.append(border)
-    table._tbl.tblPr.append(borders)
-
-
-def _display_value(value, field=None) -> str:
-    if value is True:
-        return "Evet"
-    if value is False:
-        return "Hayır"
-    if isinstance(value, list):
-        if not value:
-            return "—"
-        if getattr(field, "field_type", "") == "multi_select":
-            labels = dict(getattr(field, "options", ()))
-            return "\n".join(str(labels.get(item, item) or "") for item in value)
-        columns = getattr(field, "columns", ())
-        return (
-            "\n".join(
-                " | ".join(
-                    f"{column.label}: "
-                    f"{_display_date(row.get(column.key)) if column.field_type == 'date' else row.get(column.key) or '—'}"
-                    for column in columns
-                )
-                for row in value
-                if isinstance(row, dict)
-            )
-            or "—"
-        )
-    if getattr(field, "field_type", "") == "date":
-        return _display_date(value) or "—"
-    if getattr(field, "field_type", "") == "select":
-        return dict(field.options).get(value, value) or "—"
-    return str(value or "—")
 
 
 def _display_date(value) -> str:
@@ -82,6 +26,9 @@ def _template_context(record, definition) -> dict:
         "generated_at": timezone.localdate().strftime("%d.%m.%Y"),
         **record.data,
     }
+    if definition.code == "pr_qua_20_104E":
+        context.update(_ssb_template_context(record.data, definition))
+        return context
     if definition.code != "fm_dsg_0327":
         return context
 
@@ -111,64 +58,49 @@ def _template_context(record, definition) -> dict:
     return context
 
 
+def _ssb_template_context(data, definition) -> dict:
+    """Display values for the numbered cells of the SSB retained form."""
+
+    def joined(*values, separator=" / "):
+        return separator.join(str(value) for value in values if value)
+
+    purpose_field = next(field for field in definition.fields if field.key == "purpose_of_flight")
+    labels = dict(purpose_field.options)
+    purpose = joined(
+        *(labels[value] for value in data.get("purpose_of_flight", [])),
+        data.get("purpose_scope"),
+        separator="\n",
+    )
+    members = data.get("board_members") or []
+    return {
+        "nationality_marks_display": joined(
+            data.get("aircraft_nationality"), data.get("aircraft_id_mark")
+        ),
+        "manufacturer_type_display": joined(
+            data.get("aircraft_manufacturer"), data.get("aircraft_model")
+        ),
+        "flight_date_duration_display": joined(
+            _display_date(data.get("intended_flight_date")),
+            f"{data['flight_duration']} saat" if data.get("flight_duration") else "",
+        ),
+        "purpose_display": purpose,
+        "issue_date_display": _display_date(data.get("issue_date")),
+        "permit_issue_date_display": _display_date(data.get("permit_issue_date")),
+        "validity_display": joined(
+            _display_date(data.get("valid_from")),
+            _display_date(data.get("valid_until")),
+            separator=" – ",
+        ),
+        "board_member_names": [row.get("name", "") for row in members] + [""] * (4 - len(members)),
+    }
+
+
 def build_form_process_document(record):
     definition = get_form_template(record.template_code)
     template = DocxTemplate(definition.document_path)
     context = _template_context(record, definition)
     template.render(context, autoescape=True)
-    rendered = BytesIO()
-    template.save(rendered)
-    rendered.seek(0)
-
-    document = Document(rendered)
-    document.add_page_break()
-    heading = document.add_paragraph()
-    heading.paragraph_format.keep_with_next = True
-    heading.add_run("SÜREÇ KAYIT BİLGİLERİ").bold = True
-    metadata = document.add_table(rows=0, cols=2)
-    _set_table_borders(metadata)
-    metadata_rows = (
-        ("Süreç", definition.process_name),
-        ("Form", f"{definition.form_number} — {definition.title}"),
-        ("Kayıt numarası", record.record_number),
-        ("Kayıt başlığı", record.title),
-        ("Durum", record.get_status_display()),
-        ("Oluşturma tarihi", timezone.localtime(record.created_at).strftime("%d.%m.%Y %H:%M")),
-        ("Son güncelleyen", getattr(record.updated_by, "username", "") or "—"),
-    )
-    for label, value in metadata_rows:
-        cells = metadata.add_row().cells
-        _set_cell_shading(cells[0], "E8EEF6")
-        cells[0].text = label
-        cells[1].text = _display_value(value)
-        for cell in cells:
-            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-
-    current_group = None
-    details: Table | None = None
-    for field in definition.fields:
-        if field.group != current_group:
-            current_group = field.group
-            group_heading = document.add_paragraph()
-            group_heading.paragraph_format.keep_with_next = True
-            group_heading.add_run(current_group).bold = True
-            details = document.add_table(rows=0, cols=2)
-            _set_table_borders(details)
-        if details is None:
-            raise RuntimeError("Form alan grubu tablosu oluşturulamadı.")
-        cells = details.add_row().cells
-        _set_cell_shading(cells[0], "F1F5F9")
-        cells[0].text = field.label
-        cells[1].text = _display_value(record.data.get(field.key), field)
-        for cell in cells:
-            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-
-    if record.notes:
-        notes_heading = document.add_paragraph()
-        notes_heading.add_run("Notlar").bold = True
-        document.add_paragraph(record.notes)
-
     output = BytesIO()
-    document.save(output)
+    template.save(output)
     output.seek(0)
     return output

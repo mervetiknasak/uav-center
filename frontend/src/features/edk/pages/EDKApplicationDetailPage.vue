@@ -11,7 +11,11 @@ const router = useRouter();
 const { api, auth } = useAppContext();
 const detail = useEdkApplicationDetail(api.apiFetch);
 const applicationId = computed(() => Number(route.params.applicationId));
-const canPublish = computed(() => Boolean(auth.currentUser.value?.is_staff));
+const canPublish = computed(
+  () =>
+    Boolean(auth.currentUser.value?.is_staff) ||
+    detail.application.value?.applicant_name === auth.currentUser.value?.username
+);
 const edkRoles = computed(() => auth.currentUser.value?.edk_roles || []);
 
 onMounted(() => detail.loadApplication(applicationId.value));
@@ -20,8 +24,8 @@ function goBack() {
   router.push({ name: "edk" });
 }
 
-function publish(draft) {
-  if (canPublish.value) detail.publish(draft);
+function publish(payload) {
+  if (canPublish.value) detail.publish(payload);
 }
 </script>
 
@@ -32,6 +36,7 @@ function publish(draft) {
     :decision-loading="detail.decisionLoading.value"
     :parse-loading="detail.parseLoading.value"
     :publishing="detail.publishLoading.value"
+    :tracking-loading="detail.trackingLoading.value"
     :edk-roles="edkRoles"
     :current-user-name="auth.currentUser.value?.username || ''"
     :error="detail.error.value"
@@ -42,5 +47,6 @@ function publish(draft) {
     @decide="detail.decide"
     @parse="detail.parse"
     @publish="publish"
+    @refresh-jira="detail.refreshJiraTracking"
   />
 </template>

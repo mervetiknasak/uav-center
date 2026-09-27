@@ -17,6 +17,7 @@ from .form_processes.catalog import (
     FORM_TEMPLATES,
     FormTemplateValidationError,
     form_process_catalog,
+    get_form_template,
     validate_form_data,
 )
 from .models import FormProcessRecord
@@ -31,12 +32,16 @@ def valid_pdf_bytes() -> bytes:
 
 
 class FormProcessCatalogTests(SimpleTestCase):
-    def test_catalog_contains_every_retained_fm_docx(self):
+    def test_catalog_contains_every_retained_form_template(self):
         catalog = form_process_catalog()
 
-        self.assertEqual(len(catalog), 14)
-        self.assertEqual(len(FORM_TEMPLATES), 35)
-        self.assertEqual(len({template.code for template in FORM_TEMPLATES}), 35)
+        self.assertEqual(len(catalog), 6)
+        self.assertEqual(len(FORM_TEMPLATES), 36)
+        self.assertEqual(len({template.code for template in FORM_TEMPLATES}), 36)
+        self.assertEqual(
+            sum(len(process["templates"]) for process in catalog),
+            len(FORM_TEMPLATES),
+        )
         for template in FORM_TEMPLATES:
             with self.subTest(template=template.code):
                 self.assertTrue(template.document_path.is_file())
@@ -46,15 +51,23 @@ class FormProcessCatalogTests(SimpleTestCase):
     def test_flight_permit_forms_are_owned_by_the_engineering_form_catalog(self):
         catalog = form_process_catalog()
         flight_permits = next(process for process in catalog if process["code"] == "flight-permits")
+        expected_codes = {
+            "fm_dsg_0327",
+            "pr_dsg_20_034E",
+            "pr_qua_20_104E",
+            "fm_qua_0579",
+            "fm_qua_0580",
+            "fm_qua_0581",
+        }
 
         self.assertEqual(flight_permits["name"], "Uçuş İzinleri")
         self.assertEqual(
             {template["code"] for template in flight_permits["templates"]},
-            {"fm_qua_0579", "fm_qua_0580", "fm_qua_0581"},
+            expected_codes,
         )
         self.assertFalse(
             any(
-                template["code"] in {"fm_qua_0579", "fm_qua_0580", "fm_qua_0581"}
+                template["code"] in expected_codes
                 for process in catalog
                 if process["code"] != "flight-permits"
                 for template in process["templates"]
@@ -205,10 +218,10 @@ class FormProcessApiTests(APITestCase):
         response = self.client.get("/api/form-processes/templates/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 14)
+        self.assertEqual(len(response.data), 6)
         self.assertEqual(
             sum(len(process["templates"]) for process in response.data),
-            35,
+            36,
         )
 
         self.client.force_authenticate(user=None)
@@ -333,9 +346,9 @@ class FormProcessApiTests(APITestCase):
         )
 
         self.assertEqual(create_response.status_code, 201)
-        self.assertEqual(create_response.data["process_code"], "panel-declaration")
+        self.assertEqual(create_response.data["process_code"], "others")
         self.assertEqual(create_response.data["record_number"], "PANEL-2026-001")
-        self.assertEqual(create_response.data["process_name"], "Panel Uyum Beyanı")
+        self.assertEqual(create_response.data["process_name"], "Others")
         self.assertEqual(create_response.data["form_number"], "FM.DSG.0200T")
         self.assertEqual(
             create_response.data["created_by_name"],
@@ -355,7 +368,7 @@ class FormProcessApiTests(APITestCase):
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.data["status_display"], "Onaylandı")
 
-        list_response = self.client.get("/api/form-processes/?process=panel-declaration")
+        list_response = self.client.get("/api/form-processes/?process=others")
         self.assertEqual(list_response.status_code, 200)
         self.assertEqual(len(list_response.data), 1)
 
@@ -563,7 +576,7 @@ class FormProcessApiTests(APITestCase):
         self.assertEqual(duplicate.status_code, 400)
         self.assertIn("record_number", duplicate.data)
 
-    def test_generates_word_document_from_retained_template_and_validated_data(self):
+    def test_generates_word_document_without_appending_fields_to_template(self):
         create_response = self.client.post(
             "/api/form-processes/",
             self.panel_payload(),
@@ -582,14 +595,17 @@ class FormProcessApiTests(APITestCase):
         self.assertEqual(response["X-Content-Type-Options"], "nosniff")
         generated_bytes = b"".join(response.streaming_content)
         generated = Document(BytesIO(generated_bytes))
+        source = Document(get_form_template("fm_dsg_0200t").document_path)
         text_parts = [paragraph.text for paragraph in generated.paragraphs]
         for table in generated.tables:
             text_parts.extend(cell.text for row in table.rows for cell in row.cells)
         generated_text = "\n".join(text_parts)
-        self.assertIn("PANEL UYUM BEYANI", generated_text.upper())
-        self.assertIn("SÜREÇ KAYIT BİLGİLERİ", generated_text)
-        self.assertIn("Uçuş Kontrol Paneli", generated_text)
-        self.assertIn("PANEL-2026-001", generated_text)
+        self.assertIn("PANEL BEYANI", generated_text.upper())
+        self.assertNotIn("SÜREÇ KAYIT BİLGİLERİ", generated_text)
+        self.assertNotIn("Uçuş Kontrol Paneli", generated_text)
+        self.assertNotIn("PANEL-2026-001", generated_text)
+        self.assertEqual(len(generated.paragraphs), len(source.paragraphs))
+        self.assertEqual(len(generated.tables), len(source.tables))
         self.assertNotIn("{{", generated_text)
         with ZipFile(BytesIO(generated_bytes)) as package:
             self.assertIn("word/document.xml", package.namelist())

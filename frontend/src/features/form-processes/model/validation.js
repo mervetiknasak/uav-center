@@ -91,7 +91,7 @@ export function collectFormProcessErrors(form, templates = [], { requireRequired
     errors.valid_until = "Geçerlilik bitişi, başlangıç tarihinden önce olamaz.";
   }
   if (
-    ["fm_qua_0579", "fm_qua_0580", "fm_qua_0581"].includes(template?.code) &&
+    ["fm_qua_0579", "fm_qua_0580", "fm_qua_0581", "pr_qua_20_104E"].includes(template?.code) &&
     form.data?.valid_from &&
     form.data?.valid_until &&
     form.data.valid_from > form.data.valid_until
@@ -99,11 +99,28 @@ export function collectFormProcessErrors(form, templates = [], { requireRequired
     errors.valid_until = "Geçerlilik bitişi, başlangıç tarihinden önce olamaz.";
   }
   if (
-    ["fm_qua_0579", "fm_qua_0580", "fm_qua_0581"].includes(template?.code) &&
+    ["fm_qua_0579", "fm_qua_0580", "fm_qua_0581", "pr_qua_20_104E"].includes(template?.code) &&
     form.data?.flight_duration &&
     (!/^\d+$/.test(form.data.flight_duration) || Number(form.data.flight_duration) < 1)
   ) {
     errors.flight_duration = "Uçuş süresi en az 1 saat olan bir tam sayı olmalıdır.";
+  }
+  if (template?.code === "pr_qua_20_104E") {
+    for (const field of template.fields || []) {
+      const value = form.data?.[field.key];
+      if (field.type === "date" && value && !validIsoDate(value)) {
+        errors[field.key] = "Geçerli bir tarih seçilmelidir.";
+      }
+    }
+    const flightDate = form.data?.intended_flight_date;
+    if (
+      flightDate &&
+      !errors.intended_flight_date &&
+      ((form.data?.valid_from && !errors.valid_from && flightDate < form.data.valid_from) ||
+        (form.data?.valid_until && !errors.valid_until && flightDate > form.data.valid_until))
+    ) {
+      errors.intended_flight_date = "Öngörülen uçuş tarihi, izin geçerlilik aralığında olmalıdır.";
+    }
   }
   return errors;
 }

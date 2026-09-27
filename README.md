@@ -40,7 +40,7 @@ bağımlılık yönü, veri sahipliği ve genişletme kuralları için
 - Panel sorumlularına alıcı önizlemeli e-posta bildirimi ve bildirim geçmişi
 - Teknik doküman termin/inceleme tarihleri, bekleyen iş akışları ve uçuş izni
   geçerliliklerini birleştiren Operasyonel Takvim
-- Uçuş izni formları dahil klasör bazlı 14 mühendislik süreci ve 35 sürümlü FM Word şablonu
+- Uçuş izni formları dahil 6 mühendislik süreci ve 36 sürümlü Word şablonu
 - Mühendislik form kayıtlarında güvenli doküman eki ve indirilebilir Word çıktısı
 - Manifest, güvenli uygulama-kabuğu önbelleği ve arayüz içi kurulum seçeneğiyle kurulabilir PWA
 
@@ -146,7 +146,8 @@ DRF yanıt formatı:
 - `GET /api/edk/applications/<id>/presentation/`: yalnız başvuruyu görebilen EDK kullanıcısına doğrulanmış sunum dosyasını indirir
 - `POST /api/edk/applications/<id>/decision/`: Onaylayıcı rolüyle bekleyen başvuruyu onaylama veya gerekçeli reddetme
 - `POST /api/edk/applications/<id>/minutes/parse/`: yalnız başvuru sahibi ve onaylanmış EDK kaydı için `.docx` toplantı tutanağını okuma
-- `POST /api/edk/jira/publish/`: staff kullanıcının düzenlenen toplantı taslağından bir Jira Task ve ona bağlı Sub-task kayıtları oluşturması
+- `POST /api/edk/jira/publish/`: staff kullanıcının zorunlu, geçici `jsession` değeriyle kendi Jira oturumu adına düzenlenen toplantı taslağından bir Jira Task ve ona bağlı Sub-task kayıtları oluşturması
+- `POST /api/edk/applications/<id>/jira/publish/`: adminin veya EDK talebini açan kişinin zorunlu, geçici `jsession` değeriyle Task ve Sub-task kayıtlarını oluşturup ana Task'ı EDK'ya bağlaması
 
 Yerel demo dokümanlarını mevcut projelere idempotent olarak eklemek için:
 
@@ -191,20 +192,41 @@ paylaşımlı operasyonel kayıtları görebilir, ancak bildirim gönderemez.
 ## Mühendislik Form Süreçleri
 
 **Süreçler → Formlar** çalışma alanı, `Formlar` envanterindeki klasörleri süreç ve
-`FM` ile başlayan DOCX dosyalarını sürümlü şablon olarak sunar. Katalogda uçuş
-izinleri dahil 14 süreç altında 35 şablon bulunur. `FM.QUA.0579`, `FM.QUA.0580`
-ve `FM.QUA.0581` uçuş izni sürecinin şablonlarıdır; kayıtları da diğer formlar
-gibi `FormProcessRecord` içinde tutulur. Her şablon; kaynak formdaki başlık, boş hücre
-ve yer tutuculardan çıkarılan alan şemasına sahiptir. Backend yalnız seçilen
+DOCX dosyalarını sürümlü şablon olarak sunar. Katalogda uçuş izinleri dahil 6 süreç
+altında 36 şablon bulunur. `FM.DSG.0327`, `PR.DSG.20.034E`, `PR.QUA.20.104E`,
+`FM.QUA.0579`, `FM.QUA.0580` ve `FM.QUA.0581` uçuş izni sürecinin şablonlarıdır;
+kayıtları da diğer formlar gibi `FormProcessRecord` içinde tutulur. Her şablon;
+kaynak formdaki başlık, boş hücre ve yer tutuculardan çıkarılan alan şemasına
+sahiptir. Backend yalnız seçilen
 şablonun alanlarını kabul eder; zorunlu alan, veri tipi, tarih, seçim ve uzunluk
 sınırlarını yan etkiden önce doğrular.
 
 Kayıtlar paylaşımlı operasyonel veridir ve aktif kullanıcılar tarafından yönetilir.
 `GET /api/form-processes/templates/` arayüzün dinamik form kataloğudur. Word indirme
-akışı kaynak DOCX'i docxtpl ile açar, kaynak sayfaları korur ve doğrulanmış alanları
-aynı dokümanın sonuna “Süreç Kayıt Bilgileri” bölümü olarak ekler. Böylece kaynak
-form revizyonu görünür kalırken veri tabanındaki tam kayıt denetlenebilir biçimde
-çıktıya taşınır.
+akışı kaynak DOCX'i docxtpl ile açar ve doğrulanmış alanları yalnızca şablonda
+tanımlanmış yer tutuculara yazar. Çıktıya yeni sayfa, tablo, başlık veya alan
+eklenmez; kaynak formun yapısı korunur.
+
+Katalog tanımları açık isimli `title` ve `form_number` parametreleri kullanır;
+form adı ve form kodu, tanımın yazım sırasından bağımsız olarak doğru API alanına
+aktarılır. `PR.QUA.20.104E` için girdiler ayrıca kaynak SSB formunun 1–18 numaralı
+hücrelerine işlenir. Ekran alanları aynı numaraları izler; 13. madde sabit beyandır.
+Uyruğu/kayıt tanımlaması, üretici/tip ve uçuş tarihi/süresi aynı hücrede birleştirilir.
+Kurul başkanı, PSK ve en fazla dört üye adı doldurulur; imza/paraf alanları elle
+tamamlanır. `issue_date` formun yayımlama tarihi, `permit_issue_date` ise ayrı uçuş
+izni yayım tarihidir. Mevcut `approver_name` alanı yüklenici yetkilisinin adını taşır.
+Eski kayıt alanları veri tabanı ve API uyumluluğu için korunur; kaynakta ayrı
+hücresi olmayan yaşam döngüsü, tavsiye seçimi ve uçuş test planı numarası Word
+çıktısına eklenmez.
+
+SSB formunda geçerlilik bitişi başlangıçtan önce olamaz; girilmiş uçuş tarihi bu
+aralıkta olmalıdır (başlangıç ve bitiş dahil). Uçuş süresi girilmişse en az 1 saatlik
+tam sayı, tarihler `YYYY-MM-DD` biçiminde olmalıdır. Taslakta zorunlu alanlar boş
+kalabilir, ancak girilen değerler yine doğrulanır. Onay için başvuru sahibi ve
+geçerlilik tarihleri gerekir. Yeni kurul/tarih alanları eski kayıtlarla uyumluluk
+için isteğe bağlıdır. `api.test_form_ssb`, katalog eşlemesini, taslak/onay akışını,
+hatalı girdide yazma yapılmamasını, görünürlüğü ve indirilen DOCX'in özgün hücrelerini
+uçtan uca doğrular.
 
 Form eklerinde en fazla 15 MB boyutunda PDF, DOCX, XLSX, JPG/JPEG ve PNG kabul
 edilir. İstemcinin bildirdiği MIME türü güvenilir sayılmaz; dosya yapısı sunucuda
@@ -447,6 +469,19 @@ oluşturulur. Tutanak ve aksiyon etiketleri yeniden aktarımda mükerrer kayıtl
 önlemek ve yarım kalan alt görevleri güvenle tekrar denemek için kullanılır.
 Jira proje anahtarı organizasyon kayıtlarından türetilmez; taslaklarda varsayılan
 olarak `MOM`, `JIRA_MEETING_PROJECT_KEY` tanımlanmışsa onun değeri kullanılır.
+EDK detayından yayınlanan ana Task'ın Jira anahtarı ve adresi ilgili EDK kaydına
+bağlanır. EDK sahibi ile onaylayıcılar takip kartını Jira'dan yenileyerek Task
+özetini, durumunu ve doğrudan Sub-task'ların açık/kapalı durumunu görebilir. Takip
+koşulu, en az bir Sub-task bulunması ve Sub-task'ların tamamının Jira durum
+kategorisinde `done` olmasıdır; gerçek Jira okuması yalnız kullanıcı yenileme
+işlemiyle ve yapılandırılmış timeout üzerinden yapılır.
+
+Jira yayın istekleri `jsession` alanında JSESSIONID çerezinin yalnızca değerini
+zorunlu olarak alır. Değer veritabanına veya uygulama ayarlarına kaydedilmez ve
+yanıta eklenmez; yalnız o istekte oluşturulan Jira istemcisinin `JSESSIONID`
+çerezi olarak kullanılır. EDK'ya bağlı yayın işlemini staff kullanıcıların yanında
+doğrudan talebi açan kullanıcı da yapabilir; diğer kullanıcılar kayıt için `404`
+alır.
 
 ## IBM DOORS 9.7.0 Connector
 
