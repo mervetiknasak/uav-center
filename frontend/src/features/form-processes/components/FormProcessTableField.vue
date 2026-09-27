@@ -1,6 +1,7 @@
 <script setup>
 const props = defineProps({
   field: { type: Object, required: true },
+  disabled: { type: Boolean, default: false },
   value: { type: Array, default: () => [] }
 });
 
@@ -49,6 +50,7 @@ function removeRow(rowIndex) {
             <td v-for="column in field.columns" :key="column.key">
               <n-date-picker
                 v-if="column.type === 'date'"
+                :disabled="disabled"
                 :formatted-value="row[column.key] || null"
                 value-format="yyyy-MM-dd"
                 type="date"
@@ -58,6 +60,7 @@ function removeRow(rowIndex) {
               />
               <n-input
                 v-else
+                :readonly="disabled"
                 :value="row[column.key] || ''"
                 :maxlength="column.max_length"
                 :aria-label="`${rowIndex + 1}. satır ${column.label}`"
@@ -67,6 +70,7 @@ function removeRow(rowIndex) {
             <td class="form-process-table-row-actions">
               <n-button
                 tertiary
+                :disabled="disabled"
                 type="error"
                 :aria-label="`${rowIndex + 1}. satırı kaldır`"
                 @click="removeRow(rowIndex)"
@@ -79,7 +83,12 @@ function removeRow(rowIndex) {
       </table>
     </div>
     <n-empty v-else size="small" description="Henüz satır eklenmedi" />
-    <n-button secondary type="primary" :disabled="value.length >= field.max_items" @click="addRow">
+    <n-button
+      secondary
+      type="primary"
+      :disabled="disabled || value.length >= field.max_items"
+      @click="addRow"
+    >
       Satır ekle
     </n-button>
     <small>En fazla {{ field.max_items }} satır eklenebilir.</small>

@@ -4,6 +4,8 @@ import { ArrowLeft, Check, Download, Eye, Save } from "@lucide/vue";
 import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 
 import { useAppContext } from "../../../app/bootstrap";
+import FormNumberingDialog from "../components/FormNumberingDialog.vue";
+import { useFormNumbering } from "../composables/useFormNumbering";
 import FormProcessFieldsStep from "../components/FormProcessFieldsStep.vue";
 import FormProcessReviewStep from "../components/FormProcessReviewStep.vue";
 import FormProcessTemplateStep from "../components/FormProcessTemplateStep.vue";
@@ -11,11 +13,17 @@ import { useFormProcessEditor } from "../composables/useFormProcessEditor";
 
 const route = useRoute();
 const router = useRouter();
-const { api } = useAppContext();
+const { api, auth } = useAppContext();
 const editor = useFormProcessEditor({
   apiFetch: api.apiFetch,
   router,
   recordId: route.params.recordId || null
+});
+
+const numbering = useFormNumbering({
+  apiFetch: api.apiFetch,
+  editor,
+  userId: auth.currentUser.value?.id
 });
 
 function leaveWarning(event) {
@@ -31,7 +39,7 @@ onBeforeRouteLeave(() => {
 
 onMounted(() => {
   window.addEventListener("beforeunload", leaveWarning);
-  editor.load();
+  editor.load().then(numbering.load);
 });
 onBeforeUnmount(() => window.removeEventListener("beforeunload", leaveWarning));
 </script>
@@ -53,6 +61,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", leaveWarning));
       </template>
     </n-page-header>
 
+    <FormNumberingDialog :controller="numbering" />
     <n-spin :show="editor.loading.value">
       <n-alert v-if="editor.error.value" type="error" class="form-process-alert">
         {{ editor.error.value }}
@@ -70,7 +79,11 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", leaveWarning));
       </n-alert>
 
       <template v-if="editor.ready.value && !editor.archived.value">
-        <nav class="form-process-steps" aria-label="Form oluşturma adımları">
+        <nav
+          :inert="Boolean(numbering.pending.value)"
+          class="form-process-steps"
+          aria-label="Form oluşturma adımları"
+        >
           <button
             type="button"
             :class="{ 'is-active': editor.currentStep.value === 1 }"
@@ -124,7 +137,11 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", leaveWarning));
 
         <FormProcessFieldsStep
           v-else-if="editor.currentStep.value === 2 && editor.selectedTemplate.value"
+          :inert="numbering.busy.value"
           :form="editor.form"
+          :number-mappings="numbering.available.value"
+          :numbering-disabled="editor.saving.value || Boolean(numbering.pending.value)"
+          @allocate-number="numbering.open"
           :template="editor.selectedTemplate.value"
           :errors="editor.validationErrors.value"
           :file-list="editor.fileList.value"
@@ -145,7 +162,7 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", leaveWarning));
           :attachment="editor.reviewAttachment.value"
         />
 
-        <div class="form-process-action-bar">
+        <div :inert="Boolean(numbering.pending.value)" class="form-process-action-bar">
           <n-space justify="space-between" align="center">
             <n-button
               v-if="editor.currentStep.value === 1"
@@ -177,7 +194,12 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", leaveWarning));
                 Form alanlarına devam et
               </n-button>
               <template v-else-if="editor.currentStep.value === 2">
-                <n-button secondary :loading="editor.saving.value" @click="editor.saveDraft">
+                <n-button
+                  secondary
+                  :loading="editor.saving.value"
+                  :disabled="Boolean(numbering.pending.value)"
+                  @click="editor.saveDraft"
+                >
                   <template #icon
                     ><n-icon><Save /></n-icon
                   ></template>
@@ -201,13 +223,23 @@ onBeforeUnmount(() => window.removeEventListener("beforeunload", leaveWarning));
                 Word indir
               </n-button>
               <template v-else>
-                <n-button secondary :loading="editor.saving.value" @click="editor.saveDraft">
+                <n-button
+                  secondary
+                  :loading="editor.saving.value"
+                  :disabled="Boolean(numbering.pending.value)"
+                  @click="editor.saveDraft"
+                >
                   <template #icon
                     ><n-icon><Save /></n-icon
                   ></template>
                   Taslak kaydet
                 </n-button>
-                <n-button type="primary" :loading="editor.saving.value" @click="editor.complete">
+                <n-button
+                  type="primary"
+                  :loading="editor.saving.value"
+                  :disabled="Boolean(numbering.pending.value)"
+                  @click="editor.complete"
+                >
                   <template #icon
                     ><n-icon><Check /></n-icon
                   ></template>

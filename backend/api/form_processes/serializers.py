@@ -29,6 +29,26 @@ class MultipartJSONField(serializers.JSONField):
 
 
 class FormProcessRecordSerializer(serializers.ModelSerializer):
+    record_number = serializers.CharField(max_length=128, trim_whitespace=False)
+    locked_fields = serializers.SerializerMethodField()
+    numbering = serializers.SerializerMethodField()
+
+    def get_locked_fields(self, record):
+        from .numbering.rules import locked_values
+
+        return sorted(locked_values(record))
+
+    def get_numbering(self, record):
+        return [
+            {
+                "id": str(item.pk),
+                "target_field": item.target_field,
+                "document_number": item.document_number,
+                "status": item.status,
+            }
+            for item in record.number_allocations.all()
+        ]
+
     template_code = serializers.ChoiceField(
         choices=[(template.code, template.title) for template in FORM_TEMPLATES]
     )
@@ -47,6 +67,8 @@ class FormProcessRecordSerializer(serializers.ModelSerializer):
         model = FormProcessRecord
         fields = [
             "id",
+            "locked_fields",
+            "numbering",
             "process_code",
             "process_name",
             "template_code",
@@ -81,6 +103,12 @@ class FormProcessRecordSerializer(serializers.ModelSerializer):
         extra_kwargs = {"attachment": {"write_only": True, "required": False}}
 
     def validate_record_number(self, value):
+        from .numbering.rules import locked_values
+
+        if self.context.get("numbering_result") or (
+            self.instance and "record_number" in locked_values(self.instance)
+        ):
+            return value
         value = value.strip().upper()
         if not value:
             raise serializers.ValidationError("Kayıt numarası zorunludur.")
@@ -108,6 +136,10 @@ class FormProcessRecordSerializer(serializers.ModelSerializer):
         return uploaded_file
 
     def validate(self, attrs):
+        from .numbering.rules import enforce_locks, locked_values, set_field
+
+        if self.instance:
+            enforce_locks(self.instance, attrs)
         template_code = attrs.get("template_code", getattr(self.instance, "template_code", ""))
         if self.instance and template_code != self.instance.template_code:
             raise serializers.ValidationError(
@@ -146,6 +178,10 @@ class FormProcessRecordSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"record_number": ["Bu süreçte aynı kayıt numarası zaten kullanılıyor."]}
             )
+        if self.instance:
+            # Catalog normalization must not alter an already issued provider value.
+            for path, value in locked_values(self.instance).items():
+                set_field(attrs, path, value)
         return attrs
 
     def _definition(self, record):

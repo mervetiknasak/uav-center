@@ -2,7 +2,9 @@ from .models import FormProcessRecord
 
 
 def form_process_records_with_actors():
-    return FormProcessRecord.objects.select_related("created_by", "updated_by")
+    return FormProcessRecord.objects.select_related("created_by", "updated_by").prefetch_related(
+        "number_allocations"
+    )
 
 
 def approved_flight_permit_operational_alert_candidates():

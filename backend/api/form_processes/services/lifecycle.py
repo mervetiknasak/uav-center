@@ -73,7 +73,8 @@ def create_form_process_record(*, validated_data: Mapping[str, Any], actor) -> F
         with transaction.atomic():
             record.save()
     except Exception:
-        _compensate_new_upload(record)
+        if not getattr(upload, "_committed", False):
+            _compensate_new_upload(record)
         raise
     return record
 
@@ -103,6 +104,10 @@ def update_form_process_record(
 
     try:
         with transaction.atomic():
+            from ..numbering.rules import enforce_locks
+
+            record = FormProcessRecord.objects.select_for_update().get(pk=record.pk)
+            enforce_locks(record, data)
             for field, value in data.items():
                 setattr(record, field, value)
             record.updated_by = actor
@@ -118,7 +123,7 @@ def update_form_process_record(
                     )
                 )
     except Exception:
-        if upload:
+        if upload and not getattr(upload, "_committed", False):
             _compensate_new_upload(record, previous_name=old_attachment_name)
         raise
     return record

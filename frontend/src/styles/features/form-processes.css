@@ -334,3 +334,34 @@
     margin-inline: -8px;
   }
 }
+
+.form-numbering-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.form-numbering-context-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .form-numbering-context-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+.form-numbering-field .n-form-item-blank {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.form-numbering-field .n-form-item-blank > .n-input {
+  flex: 1 1 160px;
+}
+
+.form-numbering-field .n-form-item-blank > .n-text {
+  flex-basis: 100%;
+}

@@ -1,5 +1,13 @@
 from django.urls import path
 
+from .numbering.views import (
+    AllocationDetailView,
+    AllocationRetryView,
+    AllocationsView,
+    FormatsView,
+    MappingDetailView,
+    MappingsView,
+)
 from .views import (
     FormProcessAttachmentView,
     FormProcessGeneratedDocumentView,
@@ -9,6 +17,12 @@ from .views import (
 )
 
 urlpatterns = [
+    path("numbering/formats/", FormatsView.as_view()),
+    path("numbering/mappings/", MappingsView.as_view()),
+    path("numbering/mappings/<int:pk>/", MappingDetailView.as_view()),
+    path("numbering/allocations/", AllocationsView.as_view()),
+    path("numbering/allocations/<uuid:allocation_id>/", AllocationDetailView.as_view()),
+    path("numbering/allocations/<uuid:allocation_id>/retry/", AllocationRetryView.as_view()),
     path("templates/", FormProcessTemplateCatalogView.as_view(), name="form-process-templates"),
     path("", FormProcessRecordListCreateView.as_view(), name="form-process-record-list"),
     path(

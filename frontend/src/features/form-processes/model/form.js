@@ -38,6 +38,7 @@ export function createFormProcessForm(template = null) {
     record_number: "",
     title: template?.title || "",
     status: "draft",
+    locked_fields: [],
     data: templateData(template),
     notes: ""
   };
@@ -52,6 +53,7 @@ export function formProcessRecordToForm(record, templates = []) {
     record_number: record.record_number,
     title: record.title,
     status: record.status,
+    locked_fields: record.locked_fields || [],
     data: templateData(template, record.data),
     notes: record.notes || ""
   };
@@ -64,9 +66,11 @@ export function selectFormProcessTemplate(form, template) {
 export function buildFormProcessPayload(form, status = form.status) {
   return {
     template_code: form.template_code,
-    record_number: String(form.record_number || "")
-      .trim()
-      .toUpperCase(),
+    record_number: form.locked_fields?.includes("record_number")
+      ? form.record_number
+      : String(form.record_number || "")
+          .trim()
+          .toUpperCase(),
     title: String(form.title || "").trim(),
     status,
     data: Object.fromEntries(

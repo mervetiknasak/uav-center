@@ -19,7 +19,8 @@ function formSnapshot(form) {
     record_number: form.record_number,
     title: form.title,
     data: form.data,
-    notes: form.notes
+    notes: form.notes,
+    locked_fields: form.locked_fields
   });
 }
 
@@ -63,6 +64,14 @@ export function useFormProcessEditor({ apiFetch, router, recordId = null }) {
     removeAttachment.value = false;
     attachmentDirty.value = false;
     savedSnapshot.value = formSnapshot(form);
+  }
+
+  async function applyNumberedRecord(saved) {
+    syncSavedForm(saved);
+    validationErrors.value = {};
+    notice.value = "Numara alındı ve form kaydedildi.";
+    await router.replace({ name: "form-process-edit", params: { recordId: saved.id } });
+    currentStep.value = 2;
   }
 
   async function load() {
@@ -242,6 +251,7 @@ export function useFormProcessEditor({ apiFetch, router, recordId = null }) {
   }
 
   return {
+    recordId,
     processes,
     templates,
     record,
@@ -259,6 +269,8 @@ export function useFormProcessEditor({ apiFetch, router, recordId = null }) {
     fileList,
     existingAttachment,
     reviewAttachment,
+    removeAttachment,
+    applyNumberedRecord,
     dirty,
     load,
     selectProcess,

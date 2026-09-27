@@ -525,3 +525,11 @@ Production yapılandırmasını ayrıca güvenli environment değerleriyle
 `manage.py check --deploy --fail-level WARNING` üzerinden doğrulayın. Tam
 geliştirme ve güvenlik süreci
 [`CONTRIBUTING.md`](CONTRIBUTING.md) ile [`SECURITY.md`](SECURITY.md) içindedir.
+
+### Formlarda Numaratör bağlantısı
+
+Formlar → Ayarlar üzerinden Numaratör formatları form alanlarına bağlanabilir.
+Context değerleri form alanlarından, yönetici tarafından belirlenen sabitlerden
+veya numara alınırken kullanıcı girişinden gelir. **Numara al** işlemi formu
+kaydeder ve numara ile kullanılan kaynak alanları kilitler. Bağlantı ayarları,
+yetkiler ve güvenli tekrar deneme için [entegrasyon rehberine](docs/form_numbering.md) bakın.

@@ -432,3 +432,24 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.MultiPartParser",
     ],
 }
+
+# Numarator private API: secrets stay server-side. Empty URL disables the integration.
+NUMARATOR_BASE_URL = os.getenv("NUMARATOR_BASE_URL", "").strip()
+NUMARATOR_API_KEY = os.getenv("NUMARATOR_API_KEY", "")
+NUMARATOR_TIMEOUT = env_int("NUMARATOR_TIMEOUT", 15)
+if NUMARATOR_BASE_URL:
+    try:
+        NUMARATOR_BASE_URL = validated_http_url(
+            NUMARATOR_BASE_URL,
+            setting_name="NUMARATOR_BASE_URL",
+            require_https=IS_PRODUCTION,
+            require_https_for_remote=True,
+        )
+        from urllib.parse import urlsplit
+
+        if urlsplit(NUMARATOR_BASE_URL).query:
+            raise InvalidServiceUrl("NUMARATOR_BASE_URL query içermemelidir.")
+    except InvalidServiceUrl as exc:
+        raise ImproperlyConfigured(str(exc)) from exc
+if not 1 <= NUMARATOR_TIMEOUT <= 120:
+    raise ImproperlyConfigured("NUMARATOR_TIMEOUT 1–120 saniye aralığında olmalıdır.")

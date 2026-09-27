@@ -7,7 +7,12 @@ label used by historical migrations.
 
 from .documents.models import AnalysisControl, Document, DocumentAnalysisRun, DocumentChunk
 from .edk.models import EDKApplication
-from .form_processes.models import FormProcessRecord
+from .form_processes.models import (
+    FormNumberAllocation,
+    FormNumberingConfigLock,
+    FormNumberMapping,
+    FormProcessRecord,
+)
 from .jobs.models import AsyncJob
 from .organization.models import PanelResponsible, Person, PersonGroup, Project, ProjectPanel
 from .technical_documents.models import (
@@ -26,6 +31,9 @@ __all__ = [
     "DocumentChunk",
     "EDKApplication",
     "FormProcessRecord",
+    "FormNumberAllocation",
+    "FormNumberMapping",
+    "FormNumberingConfigLock",
     "PanelResponsible",
     "Person",
     "PersonGroup",

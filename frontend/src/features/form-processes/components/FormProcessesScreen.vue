@@ -1,10 +1,15 @@
 <script setup>
-import { toRef } from "vue";
+import { computed, toRef } from "vue";
 import { FileText, Plus, RefreshCw } from "@lucide/vue";
 
+import { useRouter } from "vue-router";
+import { useAppContext } from "../../../app/bootstrap";
 import { useFormProcessController } from "../composables/useFormProcessController";
 import FormProcessTable from "./FormProcessTable.vue";
 
+const router = useRouter();
+const { auth } = useAppContext();
+const canManage = computed(() => Boolean(auth.currentUser.value?.is_staff));
 const props = defineProps({
   records: { type: Array, required: true },
   processes: { type: Array, required: true },
@@ -37,6 +42,9 @@ const controller = useFormProcessController({
         </n-text>
       </div>
       <n-space>
+        <n-button v-if="canManage" @click="router.push({ name: 'form-numbering-settings' })"
+          >Ayarlar</n-button
+        >
         <n-button secondary :loading="loading" @click="emit('refresh')">
           <template #icon
             ><n-icon><RefreshCw /></n-icon

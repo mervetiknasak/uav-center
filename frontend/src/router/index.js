@@ -30,6 +30,12 @@ const routes = [
     redirect: { name: "processes" }
   },
   {
+    path: "/form-processes/settings/numbering",
+    name: "form-numbering-settings",
+    component: () => import("../features/form-processes/pages/FormNumberingSettingsPage.vue"),
+    meta: { menuKey: "processes", requiresAdmin: true }
+  },
+  {
     path: "/form-processes/new",
     name: "form-process-new",
     component: () => import("../features/form-processes/pages/FormProcessEditorPage.vue"),

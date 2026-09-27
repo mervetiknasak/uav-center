@@ -8,6 +8,8 @@ import FormProcessTableField from "./FormProcessTableField.vue";
 
 const props = defineProps({
   form: { type: Object, required: true },
+  numberMappings: { type: Array, default: () => [] },
+  numberingDisabled: { type: Boolean, default: false },
   template: { type: Object, required: true },
   errors: { type: Object, default: () => ({}) },
   fileList: { type: Array, required: true },
@@ -15,6 +17,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
+  "allocate-number",
   "update-identity",
   "update-field",
   "update-notes",
@@ -22,6 +25,12 @@ const emit = defineEmits([
   "remove-attachment",
   "open-attachment"
 ]);
+function isLocked(path) {
+  return props.form.locked_fields?.includes(path);
+}
+function mappingFor(path) {
+  return props.numberMappings.find((item) => item.target_field === path);
+}
 const groups = computed(() => groupTemplateFields(props.template.fields || []));
 const errorItems = computed(() => {
   const labels = new Map((props.template.fields || []).map((field) => [field.key, field.label]));
@@ -55,29 +64,45 @@ function focusError(key) {
     <n-card title="Kayıt bilgileri" size="small">
       <n-grid cols="1 m:2" responsive="screen" :x-gap="16">
         <n-form-item-gi
+          class="form-numbering-field"
           label="Kayıt numarası"
           required
           :validation-status="errors.record_number ? 'error' : undefined"
           :feedback="errors.record_number"
         >
           <n-input
+            :readonly="numberingDisabled || isLocked('record_number')"
             id="fm-field-record_number"
             :value="form.record_number"
             placeholder="Örn. PROJE-FM-2026-001"
             @update:value="emit('update-identity', 'record_number', $event)"
           />
+          <n-button
+            v-if="mappingFor('record_number') && !isLocked('record_number')"
+            :disabled="numberingDisabled || Boolean(form.record_number)"
+            @click="emit('allocate-number', mappingFor('record_number'))"
+            >Numara al</n-button
+          >
+          <n-text v-if="isLocked('record_number')" depth="3"
+            >Numara üretildiği için kilitli.</n-text
+          >
         </n-form-item-gi>
         <n-form-item-gi
+          class="form-numbering-field"
           label="Kayıt başlığı"
           required
           :validation-status="errors.title ? 'error' : undefined"
           :feedback="errors.title"
         >
           <n-input
+            :readonly="numberingDisabled || isLocked('title')"
             id="fm-field-title"
             :value="form.title"
             @update:value="emit('update-identity', 'title', $event)"
           />
+          <n-text v-if="isLocked('title')" depth="3"
+            >Numara üretiminde kullanıldığı için kilitli.</n-text
+          >
         </n-form-item-gi>
       </n-grid>
     </n-card>
@@ -85,6 +110,7 @@ function focusError(key) {
     <n-card v-for="group in groups" :key="group.name" :title="group.name" size="small">
       <n-grid cols="1 m:2" responsive="screen" :x-gap="16">
         <n-form-item-gi
+          class="form-numbering-field"
           v-for="field in group.fields"
           :key="field.key"
           :label="field.label"
@@ -95,12 +121,14 @@ function focusError(key) {
         >
           <FormProcessTableField
             v-if="field.type === 'table'"
+            :disabled="numberingDisabled"
             :field="field"
             :value="form.data[field.key]"
             @update:value="emit('update-field', field.key, $event)"
           />
           <n-date-picker
             v-else-if="field.type === 'date'"
+            :disabled="numberingDisabled || isLocked(`data.${field.key}`)"
             :id="`fm-field-${field.key}`"
             :formatted-value="form.data[field.key]"
             value-format="yyyy-MM-dd"
@@ -110,6 +138,7 @@ function focusError(key) {
           />
           <n-select
             v-else-if="['select', 'multi_select'].includes(field.type)"
+            :disabled="numberingDisabled || isLocked(`data.${field.key}`)"
             :id="`fm-field-${field.key}`"
             :value="form.data[field.key]"
             :options="field.options"
@@ -119,6 +148,7 @@ function focusError(key) {
           />
           <n-input
             v-else
+            :readonly="numberingDisabled || isLocked(`data.${field.key}`)"
             :id="`fm-field-${field.key}`"
             :value="form.data[field.key]"
             :type="field.type"
@@ -128,6 +158,15 @@ function focusError(key) {
             show-count
             @update:value="emit('update-field', field.key, $event)"
           />
+          <n-button
+            v-if="mappingFor(`data.${field.key}`) && !isLocked(`data.${field.key}`)"
+            :disabled="numberingDisabled || Boolean(form.data[field.key])"
+            @click="emit('allocate-number', mappingFor(`data.${field.key}`))"
+            >Numara al</n-button
+          >
+          <n-text v-if="isLocked(`data.${field.key}`)" depth="3"
+            >Numara üretiminde kullanıldığı için kilitli.</n-text
+          >
         </n-form-item-gi>
       </n-grid>
     </n-card>
@@ -164,6 +203,7 @@ function focusError(key) {
 
     <n-card title="Kayıt notları" size="small">
       <n-input
+        :readonly="numberingDisabled"
         :value="form.notes"
         type="textarea"
         :rows="3"
